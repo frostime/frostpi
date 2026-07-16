@@ -1,12 +1,9 @@
-import { basename } from "node:path";
-
 import {
   PiRpcApi,
   PiRpcConnection,
   isExtensionUiRequest,
   type RpcExtensionUiResponse,
   type RpcModel,
-  type RpcSessionState,
   type ThinkingLevel,
 } from "@frostime/pi-rpc";
 
@@ -124,6 +121,11 @@ export class SessionRuntime {
     await this.#requireApi().abort();
   }
 
+  setDisplayTitle(title: string): void {
+    this.#projection.setTitle(title);
+    this.#notifyChange();
+  }
+
   async rename(name: string): Promise<void> {
     const normalized = name.trim();
     await this.#requireApi().setSessionName(normalized);
@@ -232,7 +234,7 @@ export class SessionRuntime {
     try {
       const state = await connection.start();
       this.#projection.applyState(state);
-      await this.#hydrate(api, state);
+      await this.#hydrate(api);
       this.#logger.info(`Started Pi session ${this.id} in ${this.cwd}`);
       this.#notifyChange();
     } catch (error) {
@@ -244,7 +246,7 @@ export class SessionRuntime {
     }
   }
 
-  async #hydrate(api: PiRpcApi, state: RpcSessionState): Promise<void> {
+  async #hydrate(api: PiRpcApi): Promise<void> {
     const [messages, models, commands, stats] = await Promise.all([
       api.getMessages().catch((error) => {
         this.#logger.error("Failed to load Pi messages", error);
@@ -264,7 +266,6 @@ export class SessionRuntime {
     this.#projection.setModels(models);
     this.#projection.setCommands(commands);
     if (stats) this.#projection.setStats(stats);
-    if (!state.sessionName && state.sessionFile) this.#projection.setTitle(basename(state.sessionFile, ".jsonl"));
   }
 
   async #refreshAfterSettled(): Promise<void> {

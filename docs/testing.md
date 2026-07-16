@@ -19,3 +19,10 @@ Tests target observable contracts rather than implementation call order.
 - Packaging verification opens the VSIX and rejects missing runtime assets, sources/tests, source maps, node_modules, identity drift, or an excessive archive.
 
 The release gate is `pnpm check && pnpm package:vsix && pnpm verify:vsix`. A test skipped because of environment limitations must be stated in release notes; it is not equivalent to passing.
+
+Release testing additionally covers:
+
+- Production CSS contains a relative Codicon font URL and the font is packaged in the VSIX.
+- 280 px, 320 px, 430 px, and normal sidebar widths do not produce horizontal document overflow.
+- Thinking-level projection covers non-reasoning, default reasoning, sparse maps, unsupported `null` levels, and opt-in extended levels.
+- Resume metadata parsing rejects arbitrary JSONL, filters by `cwd`, avoids duplicate runtimes, and starts Pi with the selected absolute session path.

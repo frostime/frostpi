@@ -1,6 +1,7 @@
 import type { PiRpcApi, RpcExtensionUiRequest, RpcExtensionUiResponse } from "@frostime/pi-rpc";
 
 import type { ExtensionStatusView, ExtensionWidgetView, PendingExtensionUiView } from "../../shared/model/extensionUiModel.js";
+import { sanitizeExtensionUiText } from "./sanitizeExtensionUiText.js";
 
 const DIALOG_METHODS = new Set(["select", "confirm", "input", "editor"]);
 
@@ -44,8 +45,8 @@ export class ExtensionUiCoordinator {
       this.#pending.set(request.id, {
         id: request.id,
         method,
-        title: request.title ?? defaultTitle(method),
-        ...(request.message ? { message: request.message } : {}),
+        title: request.title ? sanitizeExtensionUiText(request.title) : defaultTitle(method),
+        ...(request.message ? { message: sanitizeExtensionUiText(request.message) } : {}),
         ...(request.options ? { options: request.options } : {}),
         ...(request.placeholder ? { placeholder: request.placeholder } : {}),
         ...(request.prefill ? { prefill: request.prefill } : {}),
@@ -64,11 +65,11 @@ export class ExtensionUiCoordinator {
 
     switch (request.method) {
       case "notify":
-        this.#effects.onNotify(request.notifyType ?? "info", request.message ?? "Pi extension notification");
+        this.#effects.onNotify(request.notifyType ?? "info", sanitizeExtensionUiText(request.message ?? "Pi extension notification"));
         break;
       case "setStatus":
         if (!request.statusKey) break;
-        if (request.statusText) this.#statuses.set(request.statusKey, { key: request.statusKey, text: request.statusText });
+        if (request.statusText) this.#statuses.set(request.statusKey, { key: request.statusKey, text: sanitizeExtensionUiText(request.statusText) });
         else this.#statuses.delete(request.statusKey);
         this.#effects.onChange();
         break;
@@ -77,7 +78,7 @@ export class ExtensionUiCoordinator {
         if (request.widgetLines) {
           this.#widgets.set(request.widgetKey, {
             key: request.widgetKey,
-            lines: request.widgetLines,
+            lines: request.widgetLines.map(sanitizeExtensionUiText),
             placement: request.widgetPlacement === "belowEditor" ? "below" : "above",
           });
         } else this.#widgets.delete(request.widgetKey);
@@ -85,7 +86,7 @@ export class ExtensionUiCoordinator {
         break;
       }
       case "setTitle":
-        if (request.title) this.#effects.onTitle(request.title);
+        if (request.title) this.#effects.onTitle(sanitizeExtensionUiText(request.title));
         break;
       case "set_editor_text":
         this.#effects.onEditorText(request.text ?? "");

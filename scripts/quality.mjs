@@ -7,8 +7,9 @@ const app = resolve(root, "apps/vscode");
 
 const commands = {
   lint: [
-    ["pnpm", ["exec", "eslint", "src", "test", "--max-warnings", "0"], rpc],
-    ["pnpm", ["exec", "eslint", "src", "test", "--max-warnings", "0"], app],
+    ["pnpm", ["exec", "eslint", "src/**/*.ts", "test/**/*.ts", "--max-warnings", "0"], rpc],
+    ["pnpm", ["exec", "eslint", "src/**/*.ts", "test/**/*.ts", "--max-warnings", "0"], app],
+    ["pnpm", ["exec", "eslint", "src/**/*.svelte", "--max-warnings", "0"], app],
   ],
   typecheck: [
     ["pnpm", ["exec", "tsc", "-p", "tsconfig.json", "--noEmit"], rpc],

@@ -21,6 +21,10 @@ export function registerCommands(
       await registry.createSession();
       await viewProvider.reveal();
     }),
+    vscode.commands.registerCommand("frostpi.resumeSession", async () => {
+      const sessionId = await registry.resumeSession();
+      if (sessionId) await viewProvider.reveal();
+    }),
     vscode.commands.registerCommand("frostpi.sendSelection", async () => {
       const text = captureActiveSelection();
       if (!text) {

@@ -4,10 +4,10 @@ FrostPi is a polished VS Code client for Pi's RPC mode. It runs Pi in the worksp
 
 ## Features
 
-- Create, restore, switch, rename, and concurrently run independent Pi sessions.
+- Create, resume, switch, rename, and concurrently run independent Pi sessions, including existing Pi JSONL history through a workspace-aware picker or `/resume`.
 - Paste PNG, JPEG, or WebP images directly into the composer.
-- Switch provider/model and thinking level from Pi's available-model response.
-- Discover and run extension commands, prompt templates, and skills through `/` completion.
+- Switch provider/model and select only the thinking levels supported by the active model's Pi metadata.
+- Discover and run extension commands, prompt templates, skills, and FrostPi's local `/resume` action through `/` completion.
 - Review tool calls and command output; open files and Git-base diffs in native VS Code editors.
 - Answer Pi extension `confirm`, `select`, `input`, and `editor` requests in the conversation UI.
 - See extension notifications, status text, widgets, session metrics, process failures, and retry actions.

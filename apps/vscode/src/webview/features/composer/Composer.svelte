@@ -3,12 +3,12 @@
   import type { SessionViewModel } from "$shared/model/sessionViewModel";
 
   import { postToHost } from "../../bridge/vscodeBridge";
-  import IconButton from "../../primitives/IconButton.svelte";
   import { clearDraft, composerDrafts, updateDraft, type DraftImage } from "../../state/composerDraftStore.svelte";
   import { promptSubmissionResult } from "../../state/promptSubmissionStore.svelte";
   import { composerFocusTick, showToast } from "../../state/sessionViewStore.svelte";
   import ModelPicker from "../models/ModelPicker.svelte";
   import ThinkingLevelPicker from "../models/ThinkingLevelPicker.svelte";
+  import AddContextMenu from "./AddContextMenu.svelte";
   import AttachmentStrip from "./AttachmentStrip.svelte";
   import CommandSuggestions from "./CommandSuggestions.svelte";
 
@@ -19,7 +19,8 @@
 
   const draft = $derived($composerDrafts[session.id] ?? { text: "", images: [] });
   const slashQuery = $derived(commandQuery(draft.text));
-  const commandMatches = $derived(slashQuery === null ? [] : filterCommands(session.commands, slashQuery));
+  const commands = $derived(withLocalCommands(session.commands));
+  const commandMatches = $derived(slashQuery === null ? [] : filterCommands(commands, slashQuery));
   const canSend = $derived((draft.text.trim().length > 0 || draft.images.length > 0) && session.status !== "starting" && session.status !== "failed" && !pendingRequestId);
   const supportsImages = $derived(modelSupportsImages(session.model));
 
@@ -46,6 +47,11 @@
 
   function submit(): void {
     if (!canSend) return;
+    if (draft.images.length === 0 && draft.text.trim() === "/resume") {
+      clearDraft(session.id);
+      postToHost({ type: "resumeSession" });
+      return;
+    }
     const requestId = crypto.randomUUID();
     pendingRequestId = requestId;
     postToHost({
@@ -139,10 +145,9 @@
     ></textarea>
     <div class="composer-toolbar">
       <div class="composer-toolbar-left">
-        <IconButton icon="selection" label="Add editor selection" onclick={() => postToHost({ type: "addSelection" })} />
-        <IconButton icon="file-code" label="Add current file" onclick={() => postToHost({ type: "addCurrentFile" })} />
+        <AddContextMenu />
         <ModelPicker sessionId={session.id} model={session.model} models={session.availableModels} disabled={session.status === "starting"} />
-        <ThinkingLevelPicker sessionId={session.id} level={session.thinkingLevel} disabled={session.status === "starting"} />
+        <ThinkingLevelPicker sessionId={session.id} model={session.model} level={session.thinkingLevel} disabled={session.status === "starting"} />
       </div>
       <div class="composer-toolbar-right">
         <span class="send-hint">Ctrl ↵</span>
@@ -167,6 +172,15 @@
     const token = trimmed.slice(1);
     if (token.includes(" ")) return null;
     return token;
+  }
+
+  function withLocalCommands(commands: RpcCommandDescriptor[]): RpcCommandDescriptor[] {
+    const local: RpcCommandDescriptor = {
+      name: "resume",
+      description: "Open an existing Pi session for this workspace",
+      source: "frostpi",
+    };
+    return commands.some((command) => command.name === local.name) ? commands : [local, ...commands];
   }
 
   function filterCommands(commands: RpcCommandDescriptor[], query: string): RpcCommandDescriptor[] {

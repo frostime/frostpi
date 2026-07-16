@@ -10,6 +10,7 @@
   let editing = $state(false);
   let titleDraft = $state("");
   let menuOpen = $state(false);
+  let launcherOpen = $state(false);
   let titleInput = $state<HTMLInputElement | null>(null);
   let closeDialogOpen = $state(false);
 
@@ -21,6 +22,7 @@
     titleDraft = active.title;
     editing = true;
     menuOpen = false;
+    launcherOpen = false;
   }
 
   function commitRename(): void {
@@ -82,9 +84,21 @@
         {/each}
       </select>
     </label>
-    <IconButton icon="add" label="New session" onclick={() => postToHost({ type: "createSession" })} />
     <div class="session-menu-wrap">
-      <IconButton icon="ellipsis" label="Session actions" active={menuOpen} onclick={() => menuOpen = !menuOpen} />
+      <IconButton icon="add" label="New or resume session" active={launcherOpen} onclick={() => { launcherOpen = !launcherOpen; menuOpen = false; }} />
+      {#if launcherOpen}
+        <div class="session-menu session-launcher-menu">
+          <button type="button" onclick={() => { launcherOpen = false; postToHost({ type: "createSession" }); }}>
+            <span class="codicon codicon-add"></span><span><strong>New session</strong><small>Start a clean Pi conversation</small></span>
+          </button>
+          <button type="button" onclick={() => { launcherOpen = false; postToHost({ type: "resumeSession" }); }}>
+            <span class="codicon codicon-history"></span><span><strong>Resume session</strong><small>Open an existing Pi conversation</small></span>
+          </button>
+        </div>
+      {/if}
+    </div>
+    <div class="session-menu-wrap">
+      <IconButton icon="ellipsis" label="Session actions" active={menuOpen} onclick={() => { menuOpen = !menuOpen; launcherOpen = false; }} />
       {#if menuOpen}
         <div class="session-menu">
           <button type="button" onclick={beginRename}><span class="codicon codicon-edit"></span> Rename</button>

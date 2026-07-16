@@ -24,5 +24,7 @@ Behavioral contracts that must survive refactors live adjacent to code:
 
 - `packages/pi-rpc/SPEC.md`
 - `apps/vscode/src/extension/sessions/session-lifecycle.SPEC.md`
+- `apps/vscode/src/extension/sessions/session-catalog.SPEC.md`
+- `apps/vscode/src/webview/features/models/thinking-levels.SPEC.md`
 - `apps/vscode/src/extension/extension-ui/extension-ui.SPEC.md`
 - `apps/vscode/src/shared/bridge/webview-bridge.SPEC.md`

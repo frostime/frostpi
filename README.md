@@ -4,10 +4,10 @@ FrostPi is a VS Code workspace extension that provides a polished graphical clie
 
 ## Current feature baseline
 
-- Independent concurrent Pi sessions with restore from Pi session files.
+- Independent concurrent Pi sessions, workspace-aware resume picker, `/resume` completion, and direct Pi JSONL selection.
 - Streaming assistant messages, thinking blocks, tool calls, command output, stop, retry, and session metrics.
 - Image paste for PNG, JPEG, and WebP prompts.
-- Provider/model and thinking-level switching from Pi's advertised capabilities.
+- Provider/model switching and model-aware thinking levels derived from Pi's `thinkingLevelMap`.
 - Dynamic `/command` completion for extension commands, prompt templates, and skills.
 - Pi extension UI support for `confirm`, `select`, `input`, `editor`, notifications, status, widgets, title, and editor text.
 - Native VS Code file navigation and Git-base diff views.

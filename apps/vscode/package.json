@@ -2,7 +2,7 @@
   "name": "frostpi",
   "displayName": "FrostPi \u2014 Visual UI for Pi Coding Agent",
   "description": "A polished VS Code interface for Pi's RPC mode, with streaming conversations, tool activity, image prompts, extension commands, and extension UI requests.",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "frostime",
   "license": "MIT",
   "private": true,
@@ -49,6 +49,7 @@
   "activationEvents": [
     "onView:frostpi.chat",
     "onCommand:frostpi.newSession",
+    "onCommand:frostpi.resumeSession",
     "onCommand:frostpi.focus",
     "onCommand:frostpi.sendSelection",
     "onCommand:frostpi.sendFile",
@@ -95,6 +96,11 @@
         "icon": "$(add)"
       },
       {
+        "command": "frostpi.resumeSession",
+        "title": "FrostPi: Resume Existing Session",
+        "icon": "$(history)"
+      },
+      {
         "command": "frostpi.sendSelection",
         "title": "FrostPi: Add Selection to Prompt"
       },
@@ -124,9 +130,14 @@
           "group": "navigation@1"
         },
         {
+          "command": "frostpi.resumeSession",
+          "when": "view == frostpi.chat",
+          "group": "frostpi@1"
+        },
+        {
           "command": "frostpi.stop",
           "when": "view == frostpi.chat && frostpi.sessionRunning",
-          "group": "navigation@2"
+          "group": "navigation@3"
         }
       ],
       "editor/context": [
@@ -209,7 +220,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "node test/e2e/runTest.cjs",
-    "lint": "eslint src test --max-warnings 0",
+    "lint": "eslint 'src/**/*.ts' 'test/**/*.ts' --max-warnings 0 && eslint 'src/**/*.svelte' --max-warnings 0",
     "package:vsix": "vsce package --no-dependencies"
   },
   "dependencies": {

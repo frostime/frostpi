@@ -24,3 +24,11 @@ A configured `.js`, `.mjs`, or `.cjs` entry point is launched with `node` from t
 ## Version policy
 
 FrostPi does not pin or bundle Pi. Compatibility breaks must produce a visible startup/protocol error with bounded stderr, never silently fall back to a new empty session. When adopting a new Pi RPC behavior, add a captured fixture or fake-process test and update `packages/pi-rpc/SPEC.md`.
+
+## Model thinking metadata
+
+The Webview treats the active model object returned by Pi as authoritative. Reasoning models expose standard levels through `high` by default. `thinkingLevelMap` entries mapped to `null` are hidden; extended `xhigh` and `max` levels are shown only when Pi explicitly advertises them. After model or level changes, `get_state` remains authoritative if Pi clamps the selection.
+
+## Existing sessions
+
+FrostPi discovers existing Pi JSONL files for the active workspace, then starts a normal independent RPC process with `--session <absolute-path>`. Pi remains responsible for file migration, tree position, history, model state, and extension lifecycle. See `apps/vscode/src/extension/sessions/session-catalog.SPEC.md`.

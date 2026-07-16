@@ -31,8 +31,13 @@
   {:else}
     <h1>Start a Pi session</h1>
     <p>Create a session to begin working with Pi in this workspace.</p>
-    <button class="primary" type="button" onclick={() => postToHost({ type: "createSession" })}>
-      <span class="codicon codicon-add"></span> New session
-    </button>
+    <div class="onboarding-actions">
+      <button class="primary" type="button" onclick={() => postToHost({ type: "createSession" })}>
+        <span class="codicon codicon-add"></span> New session
+      </button>
+      <button type="button" onclick={() => postToHost({ type: "resumeSession" })}>
+        <span class="codicon codicon-history"></span> Resume session
+      </button>
+    </div>
   {/if}
 </div>

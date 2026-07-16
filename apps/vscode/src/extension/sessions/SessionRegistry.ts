@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { normalize, resolve } from "node:path";
 
 import type { RpcExtensionUiResponse, ThinkingLevel } from "@frostime/pi-rpc";
 import * as vscode from "vscode";
@@ -7,6 +8,7 @@ import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
 import type { SessionRuntimeStatus, SessionSummaryView, WorkspaceViewModel } from "../../shared/model/sessionViewModel.js";
 import { readConfiguration } from "../configuration/readConfiguration.js";
 import type { DiagnosticLogger } from "../diagnostics/DiagnosticLogger.js";
+import { pickPiSession, readPiSessionMetadata, type PiSessionCatalogEntry } from "./SessionCatalog.js";
 import { SessionPersistence } from "./SessionPersistence.js";
 import { SessionRuntime } from "./SessionRuntime.js";
 import type { PersistedSessionRecord } from "./sessionTypes.js";
@@ -51,6 +53,7 @@ export class SessionRegistry implements vscode.Disposable {
 
   async ensureInitialSession(): Promise<void> {
     if (!vscode.workspace.workspaceFolders?.length) return;
+    await this.#repairGeneratedTitles();
     if (!this.#activeSessionId) await this.createSession();
     const active = this.#activeSessionId ? this.#runtimes.get(this.#activeSessionId) : undefined;
     if (active && readConfiguration(vscode.Uri.file(active.cwd)).startSessionOnOpen) {
@@ -108,6 +111,41 @@ export class SessionRegistry implements vscode.Disposable {
     return id;
   }
 
+
+  async resumeSession(): Promise<string | undefined> {
+    const cwd = activeWorkspaceFolder()?.uri.fsPath;
+    if (!cwd) throw new Error("Open a workspace folder before resuming a Pi session.");
+    const configuration = readConfiguration(vscode.Uri.file(cwd));
+    const entry = await pickPiSession(cwd, configuration.piArguments);
+    if (!entry) return undefined;
+    return this.openSession(entry);
+  }
+
+  async openSession(entry: PiSessionCatalogEntry): Promise<string> {
+    const existing = [...this.#records.values()].find((record) => record.sessionFile && samePath(record.sessionFile, entry.path));
+    if (existing) {
+      await this.activateSession(existing.id);
+      return existing.id;
+    }
+
+    const id = randomUUID();
+    const record: PersistedSessionRecord = {
+      id,
+      title: entry.title,
+      cwd: entry.cwd,
+      sessionFile: entry.path,
+      updatedAt: entry.updatedAt,
+    };
+    this.#records.set(id, record);
+    const runtime = this.#createRuntime(record);
+    this.#runtimes.set(id, runtime);
+    this.#activeSessionId = id;
+    await this.#persist();
+    this.#emitChange();
+    await this.#startRuntime(runtime);
+    return id;
+  }
+
   async activateSession(sessionId: string): Promise<void> {
     const runtime = this.#requireRuntime(sessionId);
     this.#activeSessionId = sessionId;
@@ -115,7 +153,7 @@ export class SessionRegistry implements vscode.Disposable {
     const pendingText = this.#pendingEditorText.get(sessionId);
     if (pendingText !== undefined) {
       this.#pendingEditorText.delete(sessionId);
-    this.#lastStatuses.delete(sessionId);
+      this.#lastStatuses.delete(sessionId);
       this.#insertTextEmitter.fire(pendingText);
     }
     this.#emitChange();
@@ -209,6 +247,19 @@ export class SessionRegistry implements vscode.Disposable {
   #restoreRecord(record: PersistedSessionRecord): void {
     this.#records.set(record.id, record);
     this.#runtimes.set(record.id, this.#createRuntime(record));
+  }
+
+  async #repairGeneratedTitles(): Promise<void> {
+    let changed = false;
+    for (const record of this.#records.values()) {
+      if (!record.sessionFile || !looksLikeGeneratedSessionName(record.title)) continue;
+      const metadata = await readPiSessionMetadata(record.sessionFile);
+      const title = metadata?.title && !looksLikeGeneratedSessionName(metadata.title) ? metadata.title : "New session";
+      record.title = title;
+      this.#runtimes.get(record.id)?.setDisplayTitle(title);
+      changed = true;
+    }
+    if (changed) await this.#persist();
   }
 
   #createRuntime(record: PersistedSessionRecord): SessionRuntime {
@@ -307,4 +358,14 @@ export class SessionRegistry implements vscode.Disposable {
 function activeWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
   const editorUri = vscode.window.activeTextEditor?.document.uri;
   return (editorUri ? vscode.workspace.getWorkspaceFolder(editorUri) : undefined) ?? vscode.workspace.workspaceFolders?.[0];
+}
+
+function samePath(left: string, right: string): boolean {
+  const a = normalize(resolve(left));
+  const b = normalize(resolve(right));
+  return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+function looksLikeGeneratedSessionName(value: string): boolean {
+  return /^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}(?:-\d+)?Z?_[0-9a-f-]{8,}$/i.test(value);
 }

@@ -23,3 +23,13 @@ FrostPi should read as a first-party desktop coding surface, not a generic chat 
 Application semantic tokens map once from `--vscode-*` variables in `vscode-theme.css`; feature components use `--frost-*` tokens. Avoid gradients, large shadows, inflated radii, and card borders around every object. Motion is limited to state feedback and 120–180 ms transitions, disabled under reduced-motion preference.
 
 The primary target is a 300–520 px sidebar. Components must also remain coherent when widened or moved to the Secondary Sidebar. Horizontal overflow is permitted only for code/terminal content.
+
+## Responsive sidebar behavior
+
+The Webview must remain usable without horizontal scrolling at widths down to 280 CSS pixels. No root or feature component may impose a hard minimum viewport width. Header identity truncates before actions; the session switcher may collapse while session creation/resume remains available. Composer controls shrink semantically: model text ellipsizes, the Thinking prefix disappears before the selected level, and the send/stop position remains stable.
+
+Editor selection and current-file insertion live under one Add Context menu. This reduces toolbar width without removing either capability. Model and Thinking panels use viewport-bounded surfaces rather than fixed offsets that can escape a narrow sidebar.
+
+## Icons
+
+Codicons are packaged with the Webview and referenced through relative Vite asset URLs. A production build is invalid if `webview.css` contains root-relative `/assets/...` font references because VS Code Webviews require their generated resource origin.

@@ -150,6 +150,9 @@ export class WebviewBridge implements vscode.Disposable {
       case "createSession":
         await this.#registry.createSession();
         break;
+      case "resumeSession":
+        await this.#registry.resumeSession();
+        break;
       case "activateSession":
         await this.#registry.activateSession(message.sessionId);
         break;

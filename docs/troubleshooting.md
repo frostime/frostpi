@@ -27,3 +27,11 @@ The Diff action compares against Git `HEAD`; the file must belong to an open Git
 ## Extension UI disappears
 
 Pi can assign a timeout to blocking UI requests. FrostPi removes the card when that timeout elapses and does not send a late response. Closing/stopping a session explicitly cancels its pending requests.
+
+## Existing sessions do not appear
+
+FrostPi filters discovered sessions to the active workspace using the JSONL header `cwd`. It checks `--session-dir`, `PI_CODING_AGENT_SESSION_DIR`, project and user `sessionDir` settings, and Pi's default session directory. Use **Resume session → Browse for a session file…** when storage is non-standard. A session owned by another project must be opened from that folder.
+
+## Icons render as empty squares
+
+Install a current VSIX built with Vite's relative asset base. The packaged `dist/webview/assets/codicon.ttf` and `webview.css` must both be present. Reload the VS Code window after upgrading from 0.1.0.
