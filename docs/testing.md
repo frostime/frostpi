@@ -1,6 +1,6 @@
 ---
 title: Testing Strategy
-description: Required unit, protocol, integration, Webview, and packaging evidence.
+description: Required protocol, projection, Webview, integration, and packaging evidence.
 scope:
   - /apps/vscode/test/**
   - /packages/pi-rpc/test/**
@@ -10,19 +10,12 @@ updated: 2026-07-16
 
 # Testing Strategy
 
-Tests target observable contracts rather than implementation call order.
+Tests target observable contracts:
 
-- `packages/pi-rpc/test`: chunked UTF-8/LF framing, correlation, timeout, malformed output, process exit, executable resolution, and command serialization.
-- `apps/vscode/test/unit`: message/tool projection, image boundaries, bridge validation/deltas, and extension UI lifecycle.
-- Extension-host integration uses a fake Pi executable speaking the real JSONL shape; it must cover activation and at least one session handshake before release.
-- Visual review covers empty, ready, streaming, tool-error, image, command-picker, extension-dialog, and failed-runtime states in dark/light/high-contrast themes.
-- Packaging verification opens the VSIX and rejects missing runtime assets, sources/tests, source maps, node_modules, identity drift, or an excessive archive.
+- `pi-rpc`: strict LF/UTF-8 framing, correlation, timeout/exit, executable resolution, environment merge, and serialization.
+- Extension unit tests: turn ordering, tool updates, model thinking maps, image limits, bridge schemas/deltas, extension UI, proxy environment, file ranking, prompt syntax, completion activation, Webview-safe ID generation, and scroll-follow reducer.
+- Extension-host integration: fake Pi handshake plus a session command path.
+- Visual release review: dark/light/high-contrast; 280/320/430px and normal widths; long titles; streaming; failed tools; hover usage; model collapse/expand; model/thinking typography; `@` and `/` completion; bounded Composer height; hidden CodeMirror live-region; paused scrolling; proxy wizard/status.
+- Packaging verification: runtime assets present, no source maps/tests/node_modules, identity/version consistency, and bundle budgets.
 
-The release gate is `pnpm check && pnpm package:vsix && pnpm verify:vsix`. A test skipped because of environment limitations must be stated in release notes; it is not equivalent to passing.
-
-Release testing additionally covers:
-
-- Production CSS contains a relative Codicon font URL and the font is packaged in the VSIX.
-- 280 px, 320 px, 430 px, and normal sidebar widths do not produce horizontal document overflow.
-- Thinking-level projection covers non-reasoning, default reasoning, sparse maps, unsupported `null` levels, and opt-in extended levels.
-- Resume metadata parsing rejects arbitrary JSONL, filters by `cwd`, avoids duplicate runtimes, and starts Pi with the selected absolute session path.
+Release gate: `pnpm check`, bundle-size check, VSIX package/verification, then clean-host smoke testing with a real Pi installation. Environment-blocked E2E is reported, never counted as passing.

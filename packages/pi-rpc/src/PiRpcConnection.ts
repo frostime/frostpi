@@ -90,7 +90,7 @@ export class PiRpcConnection {
       command: invocation.command,
       args: [...invocation.args, "--mode", "rpc", ...(this.#options.args ?? [])],
       cwd: this.#options.cwd,
-      env: { ...process.env, ...this.#options.env },
+      env: mergeEnvironment(process.env, this.#options.env),
     };
     const child = this.#options.launcher
       ? this.#options.launcher(spec)
@@ -297,4 +297,13 @@ function waitForClose(child: ChildProcess, timeoutMs: number): Promise<boolean> 
     };
     child.once("close", onClose);
   });
+}
+
+export function mergeEnvironment(base: NodeJS.ProcessEnv, overrides?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const merged: NodeJS.ProcessEnv = { ...base };
+  for (const [key, value] of Object.entries(overrides ?? {})) {
+    if (value === undefined) delete merged[key];
+    else merged[key] = value;
+  }
+  return merged;
 }

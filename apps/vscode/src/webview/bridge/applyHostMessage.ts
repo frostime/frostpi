@@ -4,6 +4,7 @@ import type { CollectionDelta, HostToWebviewMessage } from "$shared/bridge/hostT
 import { insertDraftText } from "../state/composerDraftStore.svelte";
 import { composerFocusTick, showToast, workspaceStore } from "../state/sessionViewStore.svelte";
 import { promptSubmissionResult } from "../state/promptSubmissionStore.svelte";
+import { deliverWorkspaceFileSuggestions } from "../features/composer/fileSuggestionClient";
 
 export function applyHostMessage(message: HostToWebviewMessage): void {
   if (message.bridgeVersion !== BRIDGE_VERSION) {
@@ -27,8 +28,8 @@ export function applyHostMessage(message: HostToWebviewMessage): void {
           ...(message.workspace.piError ? { piError: message.workspace.piError } : {}),
           activeSession: incoming ? {
             ...incoming.base,
-            messages: mergeCollection(existing?.messages ?? [], incoming.messages),
-            toolCalls: mergeCollection(existing?.toolCalls ?? [], incoming.toolCalls),
+            turns: mergeCollection(existing?.turns ?? [], incoming.turns),
+            notices: mergeCollection(existing?.notices ?? [], incoming.notices),
           } : null,
         };
       });
@@ -49,6 +50,9 @@ export function applyHostMessage(message: HostToWebviewMessage): void {
     case "promptResult":
       promptSubmissionResult.set(message);
       if (!message.ok && message.error) showToast("error", message.error);
+      break;
+    case "workspaceFileSuggestions":
+      deliverWorkspaceFileSuggestions(message.requestId, message.items, message.error);
       break;
     case "toast":
       showToast(message.level, message.message);

@@ -41,3 +41,7 @@ Do not replace `/src/protocol/JsonlDecoder.ts` with `node:readline`; it does not
 ## Extension UI
 
 The transport emits `extension_ui_request` unchanged. It never auto-confirms or auto-cancels dialog requests. The product layer must either answer them or explicitly cancel them when the owning session closes.
+
+## Process environment
+
+Caller overrides are merged onto the Extension Host environment. A property with value `undefined` deletes that variable from the child environment; this is required for an explicit direct/no-proxy mode. The transport does not interpret proxy policy or credentials.

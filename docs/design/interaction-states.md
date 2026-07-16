@@ -1,6 +1,6 @@
 ---
 title: Interaction States
-description: User-visible behavior for empty, running, error, blocked, and recovery states.
+description: User-visible behavior for running, recovery, scrolling, proxy, and completion states.
 scope:
   - /apps/vscode/src/webview/**
 updated: 2026-07-16
@@ -8,14 +8,13 @@ updated: 2026-07-16
 
 # Interaction States
 
-- **No workspace:** explain trusted file-system requirement and expose Open Folder.
-- **No session:** expose New Session without rendering an inert composer.
-- **Starting:** preserve session controls, disable submission/model changes, show progress and actionable executable configuration on failure.
-- **Running:** keep composer editable; `Ctrl/Cmd+Enter` submits using configured steer/follow-up semantics; the primary action becomes Stop.
-- **Pending extension UI:** keep the request visible until answered, timed out by Pi, or session closure explicitly cancels it.
-- **Failed runtime:** preserve history already projected, show error/retry/configure/diagnostic actions, and do not create an implicit replacement session.
-- **Background activity:** switching sessions does not stop work. Session list/status indicators identify background running or blocked sessions.
-- **Unsupported image model:** retain pasted images but warn before submission; Pi/provider remains the final capability authority.
-
-- **Resume:** New/Resume is available from the session launcher, onboarding state, Command Palette, and local `/resume` completion. The native VS Code Quick Pick is authoritative for selecting an existing session.
-- **Narrow sidebar:** controls may shorten labels or move secondary actions into menus, but no committed feature is removed and the Webview must not require horizontal scrolling.
+- **Starting:** disable submission/model mutation; preserve session actions and show actionable failure recovery.
+- **Running:** composer remains editable; the primary action becomes Stop; queued prompts use configured Pi semantics.
+- **Tool/reasoning:** collapsed by default, including errors. State updates never override a user's disclosure choice.
+- **Scroll following:** initial load, session switch, new user turn, manual bottom reach, or jump button follows output. User scroll-away pauses without losing updates.
+- **Pending extension UI:** stays visible until answered, timed out by Pi, or cancelled by stop/restart.
+- **Proxy changed:** running sessions show restart-required. Saving settings never silently interrupts work.
+- **File mention:** `@` opens bounded workspace path completion; selection inserts text only.
+- **Model/thinking:** compact anchored menus stay within the Webview viewport and remain keyboard navigable.
+- **Resume:** available through the session launcher, Command Palette, onboarding, and local `/resume`.
+- **Narrow sidebar:** labels may truncate and secondary actions may move to menus, but no committed capability disappears or requires horizontal scrolling.

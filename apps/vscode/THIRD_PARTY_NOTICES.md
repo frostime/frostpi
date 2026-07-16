@@ -4,6 +4,11 @@ FrostPi bundles the following production dependencies. Copyright remains with th
 
 | Package | Version | License | Project |
 |---|---:|---|---|
+| @codemirror/autocomplete | 6.20.3 | MIT | — |
+| @codemirror/commands | 6.10.4 | MIT | — |
+| @codemirror/language | 6.12.4 | MIT | — |
+| @codemirror/state | 6.7.1 | MIT | — |
+| @codemirror/view | 6.43.6 | MIT | — |
 | @floating-ui/core | 1.8.0 | MIT | <https://floating-ui.com> |
 | @floating-ui/dom | 1.8.0 | MIT | <https://floating-ui.com> |
 | @floating-ui/utils | 0.2.12 | MIT | <https://floating-ui.com> |
@@ -13,6 +18,10 @@ FrostPi bundles the following production dependencies. Copyright remains with th
 | @jridgewell/resolve-uri | 3.1.2 | MIT | <https://github.com/jridgewell/resolve-uri#readme> |
 | @jridgewell/sourcemap-codec | 1.5.5 | MIT | <https://github.com/jridgewell/sourcemaps/tree/main/packages/sourcemap-codec> |
 | @jridgewell/trace-mapping | 0.3.31 | MIT | <https://github.com/jridgewell/sourcemaps/tree/main/packages/trace-mapping> |
+| @lezer/common | 1.5.2 | MIT | <https://github.com/lezer-parser/common#readme> |
+| @lezer/highlight | 1.2.3 | MIT | <https://github.com/lezer-parser/highlight#readme> |
+| @lezer/lr | 1.4.10 | MIT | — |
+| @marijn/find-cluster-break | 1.0.3 | MIT | <https://code.haverbeke.berlin/marijn/find-cluster-break> |
 | @sveltejs/acorn-typescript | 1.0.11 | MIT | <https://github.com/sveltejs/acorn-typescript#readme> |
 | @swc/helpers | 0.5.23 | Apache-2.0 | <https://swc.rs> |
 | @types/estree | 1.0.9 | MIT | <https://github.com/DefinitelyTyped/DefinitelyTyped/tree/master/types/estree> |
@@ -23,8 +32,11 @@ FrostPi bundles the following production dependencies. Copyright remains with th
 | argparse | 2.0.1 | Python-2.0 | <https://github.com/nodeca/argparse#readme> |
 | aria-query | 5.3.1 | Apache-2.0 | <https://github.com/A11yance/aria-query#readme> |
 | axobject-query | 4.1.0 | Apache-2.0 | <https://github.com/A11yance/axobject-query#readme> |
+| balanced-match | 4.0.4 | MIT | <https://github.com/juliangruber/balanced-match#readme> |
 | bits-ui | 2.18.1 | MIT | <https://github.com/huntabyte/bits-ui#readme> |
+| brace-expansion | 5.0.7 | MIT | <https://github.com/juliangruber/brace-expansion#readme> |
 | clsx | 2.1.1 | MIT | <https://github.com/lukeed/clsx#readme> |
+| crelt | 1.0.7 | MIT | <https://code.haverbeke.berlin/marijn/crelt> |
 | dequal | 2.0.3 | MIT | <https://github.com/lukeed/dequal#readme> |
 | devalue | 5.8.1 | MIT | <https://github.com/sveltejs/devalue#readme> |
 | dompurify | 3.4.12 | (MPL-2.0 OR Apache-2.0) | <https://github.com/cure53/DOMPurify> |
@@ -40,13 +52,16 @@ FrostPi bundles the following production dependencies. Copyright remains with th
 | magic-string | 0.30.21 | MIT | <https://github.com/Rich-Harris/magic-string#readme> |
 | markdown-it | 14.3.0 | MIT | <https://github.com/markdown-it/markdown-it#readme> |
 | mdurl | 2.0.0 | MIT | <https://github.com/markdown-it/mdurl#readme> |
+| minimatch | 10.2.5 | BlueOak-1.0.0 | <https://github.com/isaacs/minimatch#readme> |
 | punycode.js | 2.3.1 | MIT | <https://mths.be/punycode> |
 | runed | 0.35.1 | MIT | <https://github.com/svecosystem/runed#readme> |
+| style-mod | 4.1.3 | MIT | <https://github.com/marijnh/style-mod#readme> |
 | style-to-object | 1.0.14 | MIT | <https://github.com/remarkablemark/style-to-object#readme> |
 | svelte | 5.56.5 | MIT | <https://svelte.dev> |
 | svelte-toolbelt | 0.10.6 | MIT | — |
 | tabbable | 6.5.0 | MIT | <https://github.com/focus-trap/tabbable#readme> |
 | tslib | 2.8.1 | 0BSD | <https://www.typescriptlang.org/> |
 | uc.micro | 2.1.0 | MIT | <https://github.com/markdown-it/uc.micro#readme> |
+| w3c-keyname | 2.2.8 | MIT | <https://github.com/marijnh/w3c-keyname#readme> |
 | zimmerframe | 1.1.4 | MIT | <https://github.com/sveltejs/zimmerframe#readme> |
 | zod | 4.4.3 | MIT | <https://zod.dev> |

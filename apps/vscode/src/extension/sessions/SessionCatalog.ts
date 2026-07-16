@@ -4,6 +4,8 @@ import { basename, dirname, isAbsolute, join, normalize, resolve } from "node:pa
 
 import * as vscode from "vscode";
 
+import { workspaceUriForPath } from "../configuration/workspaceScope.js";
+
 export interface PiSessionCatalogEntry {
   path: string;
   cwd: string;
@@ -60,7 +62,7 @@ export async function pickPiSession(cwd: string, piArguments: string[]): Promise
     canSelectFolders: false,
     canSelectMany: false,
     filters: { "Pi session": ["jsonl"] },
-    defaultUri: vscode.Uri.file(cwd),
+    defaultUri: workspaceUriForPath(cwd),
   });
   if (!files?.[0]) return undefined;
   const entry = await readPiSessionMetadata(files[0].fsPath);
@@ -70,7 +72,7 @@ export async function pickPiSession(cwd: string, piArguments: string[]): Promise
       `This session belongs to ${entry.cwd}. Open that folder before resuming it.`,
       "Open folder",
     );
-    if (choice === "Open folder") await vscode.commands.executeCommand("vscode.openFolder", vscode.Uri.file(entry.cwd));
+    if (choice === "Open folder") await vscode.commands.executeCommand("vscode.openFolder", workspaceUriForPath(entry.cwd));
     return undefined;
   }
   return entry;

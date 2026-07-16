@@ -18,6 +18,7 @@ export default defineConfig({
     emptyOutDir: false,
     sourcemap: process.env.FROSTPI_SOURCEMAP === "1",
     cssCodeSplit: false,
+    chunkSizeWarningLimit: 800,
     rollupOptions: {
       input: resolve(import.meta.dirname, "src/webview/main.ts"),
       output: {

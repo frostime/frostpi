@@ -1,0 +1,39 @@
+FrostPi 0.2.0 -> 0.2.1 file changes
+
+Added (4)
+  + apps/vscode/src/webview/features/composer/completionPolicy.ts
+  + apps/vscode/src/webview/utils/createId.ts
+  + apps/vscode/test/unit/completionPolicy.test.ts
+  + apps/vscode/test/unit/createId.test.ts
+
+Modified (25)
+  * CHANGELOG.md
+  * README.md
+  * apps/vscode/CHANGELOG.md
+  * apps/vscode/README.md
+  * apps/vscode/dev/webview-lab/index.html
+  * apps/vscode/package.json
+  * apps/vscode/src/extension/commands/registerCommands.ts
+  * apps/vscode/src/extension/network/proxy-environment.SPEC.md
+  * apps/vscode/src/extension/webview-host/WebviewBridge.ts
+  * apps/vscode/src/shared/bridge/hostToWebview.ts
+  * apps/vscode/src/webview/bridge/applyHostMessage.ts
+  * apps/vscode/src/webview/features/composer/Composer.svelte
+  * apps/vscode/src/webview/features/composer/PromptEditor.svelte
+  * apps/vscode/src/webview/features/composer/composer.SPEC.md
+  * apps/vscode/src/webview/features/composer/fileSuggestionClient.ts
+  * apps/vscode/src/webview/features/models/ModelPicker.svelte
+  * apps/vscode/src/webview/features/models/ProviderGroup.svelte
+  * apps/vscode/src/webview/features/models/ThinkingLevelPicker.svelte
+  * apps/vscode/src/webview/features/sessions/SessionHeader.svelte
+  * apps/vscode/src/webview/styles/tokens.css
+  * docs/design/ui-spec.md
+  * docs/testing.md
+  * docs/troubleshooting.md
+  * package.json
+  * packages/pi-rpc/package.json
+
+Deleted (0)
+  (none)
+
+Generated build output under apps/vscode/dist and release artifacts are not listed.

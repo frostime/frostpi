@@ -1,33 +1,38 @@
 # FrostPi — Visual UI for Pi Coding Agent
 
-FrostPi is a polished VS Code client for Pi's RPC mode. It runs Pi in the workspace extension host and presents streaming messages, tool activity, image prompts, dynamic commands, model controls, and common Pi extension UI interactions without changing Pi's execution semantics.
+FrostPi is a polished VS Code client for Pi's RPC mode. It runs one independent `pi --mode rpc` process per FrostPi session and keeps Pi's execution semantics intact: no file-tool proxy, no patch staging layer, and no hidden prompt-content injection.
 
 ## Features
 
-- Create, resume, switch, rename, and concurrently run independent Pi sessions, including existing Pi JSONL history through a workspace-aware picker or `/resume`.
-- Paste PNG, JPEG, or WebP images directly into the composer.
-- Switch provider/model and select only the thinking levels supported by the active model's Pi metadata.
-- Discover and run extension commands, prompt templates, skills, and FrostPi's local `/resume` action through `/` completion.
-- Review tool calls and command output; open files and Git-base diffs in native VS Code editors.
-- Answer Pi extension `confirm`, `select`, `input`, and `editor` requests in the conversation UI.
-- See extension notifications, status text, widgets, session metrics, process failures, and retry actions.
+- Create, resume, switch, rename, and concurrently run independent Pi sessions.
+- Compact turn-based conversation view with ordered reasoning, tool activity, and final responses.
+- Tool and reasoning details default collapsed; manual disclosure state is not overridden by streaming updates.
+- Pause-aware output following with unseen-update counts and a jump-to-latest control.
+- Paste PNG, JPEG, or WebP images directly into prompts.
+- Use dynamic `/command` completion and highlighting for Pi extension commands, prompt templates, skills, and FrostPi's local `/resume` action.
+- Use `@file` workspace-path completion. FrostPi sends only the path text; Pi decides whether to read the file.
+- Switch provider/model and select only thinking levels supported by the active model's Pi metadata.
+- Review command output and tool details; open files and Git-base diffs in native VS Code editors.
+- Answer Pi extension `confirm`, `select`, `input`, and `editor` requests.
+- Inspect current context, cumulative token categories, tool/message counts, and estimated session cost.
+- Configure inherited, VS Code, custom, or direct proxy modes for Pi subprocesses.
 
 ## Requirements and setup
 
 1. Install and configure Pi in the same local or remote environment where VS Code runs workspace extensions.
 2. Open a trusted file-system workspace.
-3. Open **FrostPi** from the Activity Bar. You may drag the view to VS Code's Secondary Sidebar.
+3. Open **FrostPi** from the Activity Bar. The view may be dragged to VS Code's Secondary Sidebar.
 4. If `pi` is not on `PATH`, run **FrostPi: Configure Pi Executable**.
 
-The executable setting may be the `pi` command, an absolute native executable, or Pi's compiled `cli.js` path. JavaScript entry points are launched with the environment's `node` executable rather than VS Code's embedded runtime.
+The executable may be the `pi` command, an absolute native executable, or Pi's compiled `cli.js` path. Remote SSH, WSL, and Dev Container workspaces run Pi in the remote Extension Host.
 
-## Important execution model
+## Important behavior
 
-FrostPi does not intercept Pi's file tools or hold changes for approval. Pi edits the workspace immediately, as it does in RPC mode. The Diff action compares the current file with its Git `HEAD` version; it is review, not pre-apply authorization.
+Pi edits the workspace immediately, as it does in RPC mode. FrostPi's Diff action compares the current file with its Git `HEAD` version; it is review, not pre-apply authorization.
 
-Multiple sessions may run concurrently, including against the same workspace. FrostPi isolates their processes and UI state but does not prevent or reconcile conflicting file changes.
+Multiple sessions can modify the same workspace concurrently. FrostPi isolates their processes and UI state but does not serialize or reconcile conflicting changes.
 
-Arbitrary Pi custom TUI components are not emulated. Structured extension UI methods are supported; unsupported custom UI remains the responsibility of the extension that requested it.
+Proxy configuration is resolved when a Pi process starts. Changing proxy settings does **not** update an already-running session. Restart the affected session to apply the new environment. Proxy environment variables are also inherited by commands launched by Pi.
 
 ## Settings
 
@@ -35,15 +40,22 @@ Arbitrary Pi custom TUI components are not emulated. Structured extension UI met
 - `frostpi.pi.arguments`
 - `frostpi.session.startOnOpen`
 - `frostpi.composer.streamingBehavior`
+- `frostpi.composer.fileMentions.maxFiles`
+- `frostpi.composer.fileMentions.respectSearchExclude`
 - `frostpi.attachments.maxImageBytes`
+- `frostpi.network.proxy.mode`
+- `frostpi.network.proxy.http`
+- `frostpi.network.proxy.https`
+- `frostpi.network.proxy.all`
+- `frostpi.network.proxy.noProxy`
 - `frostpi.diagnostics.level`
+
+Use **FrostPi: Configure Network Proxy** or the session menu to choose User/Workspace scope and configure the active mode. Proxy usernames and passwords are stored in VS Code SecretStorage rather than in `settings.json`. Running sessions show `restart required` until explicitly restarted.
 
 ## Privacy
 
-FrostPi has no telemetry and does not persist conversation content or images. Prompts and model data flow through Pi and the configured provider. See `PRIVACY.md` in the project repository for the complete boundary.
+FrostPi contains no telemetry or remote service of its own. Prompts and images are sent to the locally launched Pi process. See `PRIVACY.md` in the extension package for details.
 
-## Troubleshooting
+## License
 
-Run **FrostPi: Export Diagnostics** and inspect the **FrostPi** Output channel. Common causes are an unavailable Pi executable, an incompatible Pi version, a missing Node runtime for a configured `cli.js`, or an invalid restored session file.
-
-FrostPi is an independent client and is not an official Pi distribution.
+MIT. FrostPi is an independent client and is not an official Pi distribution.

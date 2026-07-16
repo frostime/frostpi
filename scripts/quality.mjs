@@ -4,21 +4,27 @@ import { root, run } from "./lib.mjs";
 
 const rpc = resolve(root, "packages/pi-rpc");
 const app = resolve(root, "apps/vscode");
+const node = process.execPath;
+const eslint = resolve(root, "node_modules/eslint/bin/eslint.js");
+const tsc = resolve(root, "node_modules/typescript/bin/tsc");
+const svelteCheck = resolve(app, "node_modules/svelte-check/bin/svelte-check");
+const rpcVitest = resolve(rpc, "node_modules/vitest/vitest.mjs");
+const appVitest = resolve(app, "node_modules/vitest/vitest.mjs");
 
 const commands = {
   lint: [
-    ["pnpm", ["exec", "eslint", "src/**/*.ts", "test/**/*.ts", "--max-warnings", "0"], rpc],
-    ["pnpm", ["exec", "eslint", "src/**/*.ts", "test/**/*.ts", "--max-warnings", "0"], app],
-    ["pnpm", ["exec", "eslint", "src/**/*.svelte", "--max-warnings", "0"], app],
+    [node, [eslint, "src/**/*.ts", "test/**/*.ts", "--max-warnings", "0"], rpc],
+    [node, [eslint, "src/**/*.ts", "test/**/*.ts", "--max-warnings", "0"], app],
+    [node, [eslint, "src/**/*.svelte", "--max-warnings", "0"], app],
   ],
   typecheck: [
-    ["pnpm", ["exec", "tsc", "-p", "tsconfig.json", "--noEmit"], rpc],
-    ["pnpm", ["exec", "tsc", "-p", "tsconfig.json", "--noEmit"], app],
-    ["pnpm", ["exec", "svelte-check", "--tsconfig", "./tsconfig.json"], app],
+    [node, [tsc, "-p", "tsconfig.json", "--noEmit"], rpc],
+    [node, [tsc, "-p", "tsconfig.json", "--noEmit"], app],
+    [node, [svelteCheck, "--tsconfig", "./tsconfig.json"], app],
   ],
   test: [
-    ["pnpm", ["exec", "vitest", "run"], rpc],
-    ["pnpm", ["exec", "vitest", "run"], app],
+    [node, [rpcVitest, "run"], rpc],
+    [node, [appVitest, "run"], app],
   ],
 };
 

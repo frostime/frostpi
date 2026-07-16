@@ -1,0 +1,439 @@
+import type { RpcEvent } from "@frostime/pi-rpc";
+
+import type {
+  AgentActivityView,
+  AgentTurnStatus,
+  AgentTurnView,
+  ResponseActivityView,
+  SessionNoticeView,
+} from "../../shared/model/agentTurnModel.js";
+import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
+import type { ConversationMessageView, ImageAttachmentView, MessageBlockView, MessageStatus } from "../../shared/model/conversationModel.js";
+import type { ToolCallView } from "../../shared/model/toolCallModel.js";
+import { createToolView, extractText, isRecord, recordValue, stringValue } from "./messageAssembler.js";
+
+export interface TurnProjectionSnapshot {
+  turns: AgentTurnView[];
+  notices: SessionNoticeView[];
+}
+
+interface ActivityLocation {
+  turnId: string;
+  activityId: string;
+}
+
+export class TurnProjection {
+  #turns: AgentTurnView[] = [];
+  #notices: SessionNoticeView[] = [];
+  #activeTurnId: string | null = null;
+  #streamingMessageId: string | null = null;
+  #sequence = 0;
+  readonly #messageActivities = new Map<string, ActivityLocation[]>();
+  readonly #toolActivities = new Map<string, ActivityLocation>();
+
+  snapshot(): TurnProjectionSnapshot {
+    return { turns: this.#turns, notices: this.#notices };
+  }
+
+  hydrate(rawMessages: unknown[]): void {
+    this.#turns = [];
+    this.#notices = [];
+    this.#activeTurnId = null;
+    this.#streamingMessageId = null;
+    this.#messageActivities.clear();
+    this.#toolActivities.clear();
+
+    let currentTurnId: string | null = null;
+    let fallbackTimestamp = Date.now();
+    for (const raw of rawMessages) {
+      if (!isRecord(raw) || typeof raw.role !== "string") continue;
+      const timestamp = typeof raw.timestamp === "number" ? raw.timestamp : fallbackTimestamp++;
+      if (raw.role === "user") {
+        const message = createUserMessage(raw, timestamp, `history-user-${++this.#sequence}`);
+        const turn: AgentTurnView = {
+          id: `turn-${message.id}`,
+          userMessage: message,
+          activities: [],
+          status: "completed",
+          startedAt: timestamp,
+        };
+        this.#turns = [...this.#turns, turn];
+        currentTurnId = turn.id;
+        continue;
+      }
+
+      if (raw.role === "assistant") {
+        const turnId: string = currentTurnId ?? this.#ensureTurn(timestamp).id;
+        currentTurnId = turnId;
+        const messageId = rawMessageId(raw, `history-assistant-${++this.#sequence}`);
+        const status = assistantMessageStatus(raw.stopReason);
+        const activities = activitiesFromAssistant(messageId, raw.content, status, timestamp);
+        this.#replaceMessageActivities(turnId, messageId, activities);
+        this.#setTurnStatus(turnId, statusToTurnStatus(status), timestamp);
+        continue;
+      }
+
+      if (raw.role === "toolResult" && typeof raw.toolCallId === "string") {
+        const turnId: string = currentTurnId ?? this.#ensureTurn(timestamp).id;
+        currentTurnId = turnId;
+        this.#upsertTool(turnId, raw.toolCallId, {
+          name: stringValue(raw.toolName, "tool"),
+          args: {},
+          status: raw.isError === true ? "error" : "complete",
+          output: extractText(raw.content),
+          isError: raw.isError === true,
+          endedAt: timestamp,
+          timestamp,
+        });
+        continue;
+      }
+
+      if (raw.role === "bashExecution") {
+        const command = stringValue(raw.command, "command");
+        const output = stringValue(raw.output, "");
+        this.appendNotice(`Ran \`${command}\`${output ? `\n\n${output}` : ""}`, Number(raw.exitCode ?? 0) === 0 ? "complete" : "error", timestamp);
+      }
+    }
+  }
+
+  appendUserPrompt(text: string, images: WebviewImageInput[], timestamp = Date.now()): void {
+    const blocks: MessageBlockView[] = [];
+    if (text) blocks.push({ type: "text", text });
+    if (images.length) {
+      blocks.push({
+        type: "images",
+        images: images.map((image) => ({
+          id: image.id,
+          name: image.name,
+          mimeType: image.mimeType,
+          dataUrl: `data:${image.mimeType};base64,${image.data}`,
+          size: image.size,
+        })),
+      });
+    }
+    const message: ConversationMessageView = {
+      id: `local-user-${timestamp}-${++this.#sequence}`,
+      role: "user",
+      blocks,
+      status: "complete",
+      timestamp,
+    };
+    const turn: AgentTurnView = {
+      id: `turn-${message.id}`,
+      userMessage: message,
+      activities: [],
+      status: "running",
+      startedAt: timestamp,
+    };
+    this.#turns = [...this.#turns, turn];
+    this.#activeTurnId = turn.id;
+  }
+
+  appendNotice(text: string, status: "complete" | "error" = "complete", timestamp = Date.now()): void {
+    this.#notices = [...this.#notices, {
+      id: `notice-${timestamp}-${++this.#sequence}`,
+      text,
+      status,
+      timestamp,
+    }];
+  }
+
+  applyEvent(event: RpcEvent): void {
+    switch (event.type) {
+      case "agent_start": {
+        const turn = this.#activeTurn() ?? this.#ensureTurn(Date.now());
+        this.#activeTurnId = turn.id;
+        this.#setTurnStatus(turn.id, "running");
+        break;
+      }
+      case "agent_settled": {
+        if (this.#activeTurnId) {
+          const active = this.#turn(this.#activeTurnId);
+          if (active.status === "running") this.#setTurnStatus(this.#activeTurnId, "completed", Date.now());
+        }
+        this.#activeTurnId = null;
+        this.#streamingMessageId = null;
+        break;
+      }
+      case "message_start":
+      case "message_update":
+      case "message_end":
+        this.#applyMessageEvent(event);
+        break;
+      case "tool_execution_start":
+        this.#applyToolStart(event);
+        break;
+      case "tool_execution_update":
+        this.#applyToolUpdate(event);
+        break;
+      case "tool_execution_end":
+        this.#applyToolEnd(event);
+        break;
+      case "extension_error":
+        this.appendNotice(`Extension error: ${stringValue(event.error, "Unknown extension error")}`, "error");
+        break;
+      case "auto_retry_start":
+        this.appendNotice(`Retrying after a transient provider error (attempt ${typeof event.attempt === "number" || typeof event.attempt === "string" ? event.attempt : "?"}).`);
+        break;
+      case "auto_retry_end":
+        if (event.success === false) this.appendNotice(`Automatic retry failed: ${stringValue(event.finalError, "Unknown error")}`, "error");
+        break;
+      default:
+        break;
+    }
+  }
+
+  #applyMessageEvent(event: RpcEvent): void {
+    const raw = event.message;
+    if (!isRecord(raw) || raw.role !== "assistant") return;
+    const turn = this.#activeTurn() ?? this.#ensureTurn(typeof raw.timestamp === "number" ? raw.timestamp : Date.now());
+    this.#activeTurnId = turn.id;
+    if (!this.#streamingMessageId) this.#streamingMessageId = rawMessageId(raw, `assistant-${Date.now()}-${++this.#sequence}`);
+    const messageId = this.#streamingMessageId;
+    const delta = isRecord(event.assistantMessageEvent) ? event.assistantMessageEvent : {};
+    const status: MessageStatus = event.type === "message_end"
+      ? raw.stopReason === "aborted" ? "aborted" : raw.stopReason === "error" ? "error" : "complete"
+      : delta.type === "error" ? delta.reason === "aborted" ? "aborted" : "error"
+      : "streaming";
+    const timestamp = typeof raw.timestamp === "number" ? raw.timestamp : Date.now();
+    const activities = activitiesFromAssistant(messageId, raw.content, status, timestamp);
+    this.#replaceMessageActivities(turn.id, messageId, activities);
+    this.#setTurnStatus(turn.id, statusToTurnStatus(status), event.type === "message_end" ? Date.now() : undefined);
+    if (event.type === "message_end") this.#streamingMessageId = null;
+  }
+
+  #applyToolStart(event: RpcEvent): void {
+    if (typeof event.toolCallId !== "string") return;
+    const turn = this.#activeTurn() ?? this.#ensureTurn(Date.now());
+    this.#activeTurnId = turn.id;
+    this.#upsertTool(turn.id, event.toolCallId, {
+      name: stringValue(event.toolName, "tool"),
+      args: recordValue(event.args),
+      status: "running",
+      isError: false,
+      timestamp: Date.now(),
+    });
+  }
+
+  #applyToolUpdate(event: RpcEvent): void {
+    if (typeof event.toolCallId !== "string") return;
+    const turn = this.#activeTurn() ?? this.#ensureTurn(Date.now());
+    this.#upsertTool(turn.id, event.toolCallId, {
+      name: stringValue(event.toolName, "tool"),
+      args: recordValue(event.args),
+      status: "running",
+      output: extractText(event.partialResult).slice(-80_000),
+      isError: false,
+      timestamp: Date.now(),
+    });
+  }
+
+  #applyToolEnd(event: RpcEvent): void {
+    if (typeof event.toolCallId !== "string") return;
+    const turn = this.#activeTurn() ?? this.#ensureTurn(Date.now());
+    const isError = event.isError === true;
+    this.#upsertTool(turn.id, event.toolCallId, {
+      name: stringValue(event.toolName, "tool"),
+      args: recordValue(event.args),
+      status: isError ? "error" : "complete",
+      output: extractText(event.result).slice(-160_000),
+      isError,
+      endedAt: Date.now(),
+      timestamp: Date.now(),
+    });
+  }
+
+  #upsertTool(
+    fallbackTurnId: string,
+    id: string,
+    update: {
+      name: string;
+      args: Record<string, unknown>;
+      status: ToolCallView["status"];
+      output?: string;
+      isError: boolean;
+      endedAt?: number;
+      timestamp: number;
+    },
+  ): void {
+    const location = this.#toolActivities.get(id);
+    const turnId = location?.turnId ?? fallbackTurnId;
+    const current = location ? this.#activity(turnId, location.activityId) : undefined;
+    const currentTool = current?.type === "tool" ? current.tool : undefined;
+    const created = createToolView(id, update.name || currentTool?.name || "tool", Object.keys(update.args).length ? update.args : currentTool?.args ?? {}, currentTool?.startedAt ?? update.timestamp);
+    const tool: ToolCallView = {
+      ...created,
+      ...currentTool,
+      name: update.name || currentTool?.name || created.name,
+      args: Object.keys(update.args).length ? update.args : currentTool?.args ?? created.args,
+      status: update.status,
+      isError: update.isError,
+      ...(update.output !== undefined ? { output: update.output } : currentTool?.output !== undefined ? { output: currentTool.output } : {}),
+      ...(update.endedAt !== undefined ? { endedAt: update.endedAt } : currentTool?.endedAt !== undefined ? { endedAt: currentTool.endedAt } : {}),
+    };
+    const activity: AgentActivityView = {
+      id: location?.activityId ?? `tool-${id}`,
+      type: "tool",
+      tool,
+      timestamp: current?.timestamp ?? tool.startedAt,
+    };
+    this.#upsertActivity(turnId, activity);
+    this.#toolActivities.set(id, { turnId, activityId: activity.id });
+  }
+
+  #replaceMessageActivities(turnId: string, messageId: string, activities: AgentActivityView[]): void {
+    const previous = this.#messageActivities.get(messageId) ?? [];
+    const previousIds = new Set(previous.map((item) => item.activityId));
+    const turn = this.#turn(turnId);
+    const retained = turn.activities.filter((item) => !previousIds.has(item.id));
+    const previousIndex = previous.length
+      ? turn.activities.findIndex((item) => item.id === previous[0]?.activityId)
+      : -1;
+    const firstIndex = previousIndex >= 0 ? previousIndex : retained.length;
+    const nextActivities = [...retained];
+    nextActivities.splice(firstIndex, 0, ...activities);
+    this.#replaceTurn({ ...turn, activities: nextActivities });
+    const locations = activities.map((activity) => ({ turnId, activityId: activity.id }));
+    this.#messageActivities.set(messageId, locations);
+    for (const activity of activities) {
+      if (activity.type === "tool") this.#toolActivities.set(activity.tool.id, { turnId, activityId: activity.id });
+    }
+  }
+
+  #upsertActivity(turnId: string, activity: AgentActivityView): void {
+    const turn = this.#turn(turnId);
+    const index = turn.activities.findIndex((item) => item.id === activity.id);
+    const activities = [...turn.activities];
+    if (index === -1) activities.push(activity);
+    else activities[index] = activity;
+    this.#replaceTurn({ ...turn, activities });
+  }
+
+  #setTurnStatus(turnId: string, status: AgentTurnStatus, endedAt?: number): void {
+    const turn = this.#turn(turnId);
+    this.#replaceTurn({ ...turn, status, ...(endedAt ? { endedAt } : {}) });
+  }
+
+  #ensureTurn(timestamp: number): AgentTurnView {
+    const turn: AgentTurnView = {
+      id: `turn-orphan-${timestamp}-${++this.#sequence}`,
+      activities: [],
+      status: "running",
+      startedAt: timestamp,
+    };
+    this.#turns = [...this.#turns, turn];
+    this.#activeTurnId = turn.id;
+    return turn;
+  }
+
+  #activeTurn(): AgentTurnView | undefined {
+    return this.#activeTurnId ? this.#turns.find((turn) => turn.id === this.#activeTurnId) : undefined;
+  }
+
+  #turn(turnId: string): AgentTurnView {
+    const turn = this.#turns.find((item) => item.id === turnId);
+    if (!turn) throw new Error(`Unknown projected turn: ${turnId}`);
+    return turn;
+  }
+
+  #replaceTurn(next: AgentTurnView): void {
+    this.#turns = this.#turns.map((turn) => turn.id === next.id ? next : turn);
+  }
+
+  #activity(turnId: string, activityId: string): AgentActivityView | undefined {
+    return this.#turns.find((turn) => turn.id === turnId)?.activities.find((activity) => activity.id === activityId);
+  }
+}
+
+function createUserMessage(raw: Record<string, unknown>, timestamp: number, fallbackId: string): ConversationMessageView {
+  return {
+    id: rawMessageId(raw, fallbackId),
+    role: "user",
+    blocks: userBlocks(raw.content, raw.attachments),
+    status: "complete",
+    timestamp,
+  };
+}
+
+function userBlocks(content: unknown, attachments: unknown): MessageBlockView[] {
+  const blocks: MessageBlockView[] = [];
+  if (typeof content === "string" && content) blocks.push({ type: "text", text: content });
+  const images: ImageAttachmentView[] = [];
+  for (const part of arrayValue(content)) {
+    if (!isRecord(part)) continue;
+    if (part.type === "text" && typeof part.text === "string") blocks.push({ type: "text", text: part.text });
+    if (part.type === "image" && typeof part.data === "string" && typeof part.mimeType === "string") images.push(imageView(part, part.data));
+  }
+  for (const attachment of arrayValue(attachments)) {
+    if (!isRecord(attachment) || attachment.type !== "image" || typeof attachment.content !== "string" || typeof attachment.mimeType !== "string") continue;
+    images.push(imageView(attachment, attachment.content));
+  }
+  if (images.length) blocks.push({ type: "images", images });
+  return blocks.length ? blocks : [{ type: "text", text: "" }];
+}
+
+function activitiesFromAssistant(messageId: string, content: unknown, status: MessageStatus, timestamp: number): AgentActivityView[] {
+  const activities: AgentActivityView[] = [];
+  if (typeof content === "string") {
+    if (content) activities.push(responseActivity(messageId, 0, [{ type: "text", text: content }], status, timestamp));
+    return activities;
+  }
+  let index = 0;
+  for (const part of arrayValue(content)) {
+    if (!isRecord(part) || typeof part.type !== "string") continue;
+    if (part.type === "thinking" && typeof part.thinking === "string") {
+      activities.push({ id: `${messageId}:reasoning:${index++}`, type: "reasoning", text: part.thinking, status, timestamp });
+      continue;
+    }
+    if (part.type === "text" && typeof part.text === "string" && part.text) {
+      activities.push(responseActivity(messageId, index++, [{ type: "text", text: part.text }], status, timestamp));
+      continue;
+    }
+    if (part.type === "image" && typeof part.data === "string" && typeof part.mimeType === "string") {
+      activities.push(responseActivity(messageId, index++, [{ type: "images", images: [imageView(part, part.data)] }], status, timestamp));
+      continue;
+    }
+    if (part.type === "toolCall" && typeof part.id === "string") {
+      const tool = createToolView(part.id, stringValue(part.name, "tool"), recordValue(part.arguments), timestamp);
+      activities.push({ id: `tool-${part.id}`, type: "tool", tool, timestamp });
+      index++;
+    }
+  }
+  return activities;
+}
+
+function responseActivity(messageId: string, index: number, blocks: MessageBlockView[], status: MessageStatus, timestamp: number): ResponseActivityView {
+  return { id: `${messageId}:response:${index}`, type: "response", blocks, status, timestamp };
+}
+
+function imageView(raw: Record<string, unknown>, data: string): ImageAttachmentView {
+  const mimeType = stringValue(raw.mimeType, "image/png");
+  return {
+    id: stringValue(raw.id, Math.random().toString(36).slice(2, 10)),
+    name: stringValue(raw.fileName, "image"),
+    mimeType,
+    dataUrl: `data:${mimeType};base64,${data}`,
+    size: typeof raw.size === "number" ? raw.size : Math.floor((data.length * 3) / 4),
+  };
+}
+
+function rawMessageId(raw: Record<string, unknown>, fallback: string): string {
+  return typeof raw.id === "string" ? raw.id : `${fallback}-${typeof raw.timestamp === "number" ? raw.timestamp : Date.now()}`;
+}
+
+function assistantMessageStatus(stopReason: unknown): MessageStatus {
+  if (stopReason === "aborted") return "aborted";
+  if (stopReason === "error") return "error";
+  return "complete";
+}
+
+function statusToTurnStatus(status: MessageStatus): AgentTurnStatus {
+  if (status === "streaming") return "running";
+  if (status === "aborted") return "aborted";
+  if (status === "error") return "error";
+  return "completed";
+}
+
+function arrayValue(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : [];
+}

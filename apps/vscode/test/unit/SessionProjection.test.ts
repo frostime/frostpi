@@ -14,8 +14,8 @@ describe("live Pi event projection", () => {
     const view = projection.snapshot();
     expect(view.status).toBe("ready");
     expect(view.isStreaming).toBe(false);
-    expect(view.messages).toHaveLength(1);
-    expect(view.messages[0]).toEqual(expect.objectContaining({ status: "complete", blocks: [{ type: "text", text: "ABC" }] }));
+    expect(view.turns).toHaveLength(1);
+    expect(view.turns[0]?.activities).toEqual([expect.objectContaining({ type: "response", status: "complete", blocks: [{ type: "text", text: "ABC" }] })]);
   });
 
   it("projects tool output and terminal error state without dropping the call", () => {
@@ -23,7 +23,11 @@ describe("live Pi event projection", () => {
     projection.applyEvent({ type: "tool_execution_start", toolCallId: "t1", toolName: "bash", args: { command: "npm test" } });
     projection.applyEvent({ type: "tool_execution_update", toolCallId: "t1", partialResult: { content: [{ type: "text", text: "running" }] } });
     projection.applyEvent({ type: "tool_execution_end", toolCallId: "t1", isError: true, result: { content: [{ type: "text", text: "failed" }] } });
-    expect(projection.snapshot().toolCalls).toEqual([expect.objectContaining({ id: "t1", label: "npm test", status: "error", isError: true, output: "failed" })]);
+    const activity = projection.snapshot().turns[0]?.activities[0];
+    expect(activity?.type).toBe("tool");
+    if (activity?.type === "tool") {
+      expect(activity.tool).toMatchObject({ id: "t1", label: "npm test", status: "error", isError: true, output: "failed" });
+    }
   });
   it("does not mutate timestamps when a view is only read", () => {
     const projection = new SessionProjection("s1", "/workspace", "Session");

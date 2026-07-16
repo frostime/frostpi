@@ -1,8 +1,8 @@
 <script lang="ts">
   import type { SessionViewModel } from "$shared/model/sessionViewModel";
-  let { session }: { session: SessionViewModel } = $props();
+  import ContextUsagePopover from "../features/usage/ContextUsagePopover.svelte";
 
-  const context = $derived(session.stats?.contextUsage);
+  let { session }: { session: SessionViewModel } = $props();
 </script>
 
 {#if session.stats || session.extensionStatuses.length}
@@ -14,7 +14,7 @@
     </div>
     {#if session.stats}
       <div class="metrics-right">
-        {#if context}<span title={`${context.tokens ?? "Unknown"} / ${context.contextWindow} context tokens`}>Context {context.percent === null ? "—" : `${Math.round(context.percent)}%`}</span>{/if}
+        <ContextUsagePopover {session} />
         <span title="Estimated session cost">${session.stats.cost.toFixed(3)}</span>
       </div>
     {/if}

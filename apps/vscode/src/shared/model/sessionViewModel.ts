@@ -1,8 +1,7 @@
 import type { RpcCommandDescriptor, RpcModel, RpcSessionStats, ThinkingLevel } from "@frostime/pi-rpc";
 
-import type { ConversationMessageView } from "./conversationModel.js";
+import type { AgentTurnView, SessionNoticeView } from "./agentTurnModel.js";
 import type { ExtensionStatusView, ExtensionWidgetView, PendingExtensionUiView } from "./extensionUiModel.js";
-import type { ToolCallView } from "./toolCallModel.js";
 
 export type SessionRuntimeStatus = "starting" | "ready" | "running" | "stopping" | "stopped" | "failed";
 
@@ -15,6 +14,16 @@ export interface SessionSummaryView {
   modelLabel?: string;
   thinkingLevel?: ThinkingLevel;
   updatedAt: number;
+}
+
+
+export interface NetworkProxyView {
+  mode: "inherit" | "vscode" | "custom" | "direct";
+  /** Proxy environment currently applied to the running process, or the next process when stopped. */
+  label: string;
+  /** Configured target shown only when it differs from the running process. */
+  pendingLabel?: string;
+  restartRequired: boolean;
 }
 
 export interface AttachmentLimitsView {
@@ -36,8 +45,9 @@ export interface SessionViewModel {
   availableModels: RpcModel[];
   commands: RpcCommandDescriptor[];
   attachmentLimits: AttachmentLimitsView;
-  messages: ConversationMessageView[];
-  toolCalls: ToolCallView[];
+  networkProxy: NetworkProxyView;
+  turns: AgentTurnView[];
+  notices: SessionNoticeView[];
   pendingExtensionUi: PendingExtensionUiView[];
   extensionStatuses: ExtensionStatusView[];
   extensionWidgets: ExtensionWidgetView[];

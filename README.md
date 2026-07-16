@@ -8,11 +8,11 @@ FrostPi is a VS Code workspace extension that provides a polished graphical clie
 - Streaming assistant messages, thinking blocks, tool calls, command output, stop, retry, and session metrics.
 - Image paste for PNG, JPEG, and WebP prompts.
 - Provider/model switching and model-aware thinking levels derived from Pi's `thinkingLevelMap`.
-- Dynamic `/command` completion for extension commands, prompt templates, and skills.
+- Compact `/command` completion for extension commands, prompt templates, and skills, plus workspace-backed text-only `@file` completion.
 - Pi extension UI support for `confirm`, `select`, `input`, `editor`, notifications, status, widgets, title, and editor text.
 - Native VS Code file navigation and Git-base diff views.
-- Theme-aware Svelte 5 interface designed for narrow sidebars.
-- Strict LF-delimited JSONL transport, process diagnostics, schema-checked Webview messages, and bounded streaming payloads.
+- Theme-aware Svelte 5 interface with turn-based activity, bounded CodeMirror input, compact model/thinking pickers, and pause-aware scrolling.
+- Guided network-proxy configuration for Pi subprocesses, detailed context usage, strict LF-delimited JSONL transport, diagnostics, and schema-checked Webview messages.
 
 ## Requirements
 
@@ -22,6 +22,10 @@ FrostPi is a VS Code workspace extension that provides a polished graphical clie
 - Pi must be available as `pi` on `PATH`, or configured through `frostpi.pi.executable`.
 
 Remote SSH, WSL, and Dev Container workspaces run FrostPi and Pi in the remote workspace extension host. FrostPi does not bridge a local Pi process into a remote file system.
+
+## Proxy configuration
+
+Run **FrostPi: Configure Network Proxy** or choose **Network & proxy** from the session menu. Select User or Workspace scope, then choose Inherit, VS Code, Custom, or Direct. Custom credentials are stored in VS Code SecretStorage. Proxy changes affect only newly started or explicitly restarted Pi sessions.
 
 ## Development
 

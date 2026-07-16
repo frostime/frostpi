@@ -7,7 +7,9 @@ import * as vscode from "vscode";
 import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
 import type { SessionRuntimeStatus, SessionSummaryView, WorkspaceViewModel } from "../../shared/model/sessionViewModel.js";
 import { readConfiguration } from "../configuration/readConfiguration.js";
+import { workspaceUriForPath } from "../configuration/workspaceScope.js";
 import type { DiagnosticLogger } from "../diagnostics/DiagnosticLogger.js";
+import { ProxySecretStore } from "../network/ProxySecretStore.js";
 import { pickPiSession, readPiSessionMetadata, type PiSessionCatalogEntry } from "./SessionCatalog.js";
 import { SessionPersistence } from "./SessionPersistence.js";
 import { SessionRuntime } from "./SessionRuntime.js";
@@ -23,6 +25,7 @@ export class SessionRegistry implements vscode.Disposable {
   readonly #records = new Map<string, PersistedSessionRecord>();
   readonly #persistence: SessionPersistence;
   readonly #logger: DiagnosticLogger;
+  readonly #proxySecrets: ProxySecretStore;
   readonly #changeEmitter = new vscode.EventEmitter<void>();
   readonly #toastEmitter = new vscode.EventEmitter<RegistryToast>();
   readonly #insertTextEmitter = new vscode.EventEmitter<string>();
@@ -40,6 +43,7 @@ export class SessionRegistry implements vscode.Disposable {
   constructor(context: vscode.ExtensionContext, logger: DiagnosticLogger) {
     this.#persistence = new SessionPersistence(context.workspaceState);
     this.#logger = logger;
+    this.#proxySecrets = new ProxySecretStore(context.secrets);
     const stored = this.#persistence.load();
     for (const record of stored.sessions) this.#restoreRecord(record);
     this.#activeSessionId = stored.activeSessionId && this.#runtimes.has(stored.activeSessionId)
@@ -56,7 +60,7 @@ export class SessionRegistry implements vscode.Disposable {
     await this.#repairGeneratedTitles();
     if (!this.#activeSessionId) await this.createSession();
     const active = this.#activeSessionId ? this.#runtimes.get(this.#activeSessionId) : undefined;
-    if (active && readConfiguration(vscode.Uri.file(active.cwd)).startSessionOnOpen) {
+    if (active && readConfiguration(workspaceUriForPath(active.cwd)).startSessionOnOpen) {
       await this.#startRuntime(active).catch(() => undefined);
     }
   }
@@ -115,7 +119,7 @@ export class SessionRegistry implements vscode.Disposable {
   async resumeSession(): Promise<string | undefined> {
     const cwd = activeWorkspaceFolder()?.uri.fsPath;
     if (!cwd) throw new Error("Open a workspace folder before resuming a Pi session.");
-    const configuration = readConfiguration(vscode.Uri.file(cwd));
+    const configuration = readConfiguration(workspaceUriForPath(cwd));
     const entry = await pickPiSession(cwd, configuration.piArguments);
     if (!entry) return undefined;
     return this.openSession(entry);
@@ -176,8 +180,18 @@ export class SessionRegistry implements vscode.Disposable {
 
   async retrySession(sessionId?: string): Promise<void> {
     const runtime = this.#requireRuntime(sessionId ?? this.#requireActiveId());
-    await runtime.stop().catch(() => undefined);
-    await this.#startRuntime(runtime);
+    if (!await confirmRestart([runtime])) return;
+    await this.#restartRuntime(runtime);
+  }
+
+  async restartAllSessions(): Promise<void> {
+    const runtimes = [...this.#runtimes.values()];
+    if (!await confirmRestart(runtimes)) return;
+    for (const runtime of runtimes) await this.#restartRuntime(runtime);
+  }
+
+  refreshConfigurationState(forceRestartRequired = false): void {
+    for (const runtime of this.#runtimes.values()) runtime.refreshConfigurationState(forceRestartRequired);
   }
 
   async sendPrompt(sessionId: string, text: string, images: WebviewImageInput[]): Promise<void> {
@@ -268,7 +282,8 @@ export class SessionRegistry implements vscode.Disposable {
       record.cwd,
       record.title,
       record.updatedAt,
-      readConfiguration(vscode.Uri.file(record.cwd)),
+      () => readConfiguration(workspaceUriForPath(record.cwd)),
+      this.#proxySecrets,
       this.#logger,
       {
         onChange: (runtime) => this.#handleRuntimeChange(runtime),
@@ -290,6 +305,11 @@ export class SessionRegistry implements vscode.Disposable {
       this.#toastEmitter.fire({ level: "error", message: `Unable to start Pi: ${message}` });
       throw error;
     }
+  }
+
+  async #restartRuntime(runtime: SessionRuntime): Promise<void> {
+    await runtime.stop().catch(() => undefined);
+    await this.#startRuntime(runtime);
   }
 
   async #ensureRunning(runtime: SessionRuntime): Promise<void> {
@@ -353,6 +373,19 @@ export class SessionRegistry implements vscode.Disposable {
     if (!this.#activeSessionId) throw new Error("No active FrostPi session");
     return this.#activeSessionId;
   }
+}
+
+async function confirmRestart(runtimes: readonly SessionRuntime[]): Promise<boolean> {
+  const disruptive = runtimes.some((runtime) => runtime.view.isStreaming || runtime.view.pendingExtensionUi.length > 0);
+  if (!disruptive) return true;
+  const choice = await vscode.window.showWarningMessage(
+    runtimes.length > 1
+      ? "Restarting all FrostPi sessions will stop active responses, tools, and pending extension UI requests. Persisted Pi history is retained."
+      : "Restarting this FrostPi session will stop its active response, tools, and pending extension UI requests. Persisted Pi history is retained.",
+    { modal: true },
+    runtimes.length > 1 ? "Restart all sessions" : "Restart session",
+  );
+  return Boolean(choice);
 }
 
 function activeWorkspaceFolder(): vscode.WorkspaceFolder | undefined {

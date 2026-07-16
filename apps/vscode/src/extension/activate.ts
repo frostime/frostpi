@@ -33,6 +33,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       if (event.affectsConfiguration("frostpi.diagnostics.level")) {
         logger.setLevel(readConfiguration().diagnosticsLevel);
       }
+      if (event.affectsConfiguration("frostpi.network.proxy") || event.affectsConfiguration("http.proxy") || event.affectsConfiguration("frostpi.attachments") || event.affectsConfiguration("frostpi.composer.fileMentions")) {
+        registry.refreshConfigurationState();
+      }
     }),
   );
 

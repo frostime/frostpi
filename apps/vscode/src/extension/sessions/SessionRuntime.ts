@@ -6,15 +6,19 @@ import {
   type RpcModel,
   type ThinkingLevel,
 } from "@frostime/pi-rpc";
+import * as vscode from "vscode";
 
 import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
 import type { SessionViewModel } from "../../shared/model/sessionViewModel.js";
 import { normalizeImageAttachments } from "../attachments/normalizeImageAttachment.js";
 import type { FrostPiConfiguration } from "../configuration/configurationTypes.js";
+import { workspaceUriForPath } from "../configuration/workspaceScope.js";
 import { SessionProjection } from "../conversation/SessionProjection.js";
-import type { DiagnosticLogger } from "../diagnostics/DiagnosticLogger.js";
+import { redactDiagnosticText, type DiagnosticLogger } from "../diagnostics/DiagnosticLogger.js";
 import { ExtensionUiCoordinator } from "../extension-ui/ExtensionUiCoordinator.js";
 import { configuredPiInvocation } from "../pi-runtime/resolvePiExecutable.js";
+import { buildPiProcessEnvironment, proxyFingerprint, proxyModeLabel } from "../network/buildPiProcessEnvironment.js";
+import type { ProxySecretStore } from "../network/ProxySecretStore.js";
 
 export interface SessionRuntimeHooks {
   onChange(runtime: SessionRuntime): void;
@@ -24,7 +28,8 @@ export interface SessionRuntimeHooks {
 
 export class SessionRuntime {
   readonly #projection: SessionProjection;
-  readonly #configuration: FrostPiConfiguration;
+  readonly #configurationProvider: () => FrostPiConfiguration;
+  readonly #proxySecrets: ProxySecretStore;
   readonly #logger: DiagnosticLogger;
   readonly #hooks: SessionRuntimeHooks;
 
@@ -33,21 +38,26 @@ export class SessionRuntime {
   #extensionUi: ExtensionUiCoordinator | null = null;
   #starting: Promise<void> | null = null;
   #disposed = false;
+  #appliedProxyFingerprint: string | null = null;
+  #proxyRestartForced = false;
 
   constructor(
     readonly id: string,
     readonly cwd: string,
     title: string,
     updatedAt: number,
-    configuration: FrostPiConfiguration,
+    configurationProvider: () => FrostPiConfiguration,
+    proxySecrets: ProxySecretStore,
     logger: DiagnosticLogger,
     hooks: SessionRuntimeHooks,
   ) {
+    const initialConfiguration = configurationProvider();
     this.#projection = new SessionProjection(id, cwd, title, {
-      maxImageBytes: configuration.maxImageBytes,
+      maxImageBytes: initialConfiguration.maxImageBytes,
       maxImages: 12,
     }, updatedAt);
-    this.#configuration = configuration;
+    this.#configurationProvider = configurationProvider;
+    this.#proxySecrets = proxySecrets;
     this.#logger = logger;
     this.#hooks = hooks;
   }
@@ -80,8 +90,10 @@ export class SessionRuntime {
     this.#notifyChange();
     await this.#extensionUi?.cancelAll();
     await this.#connection?.stop();
+    this.#appliedProxyFingerprint = null;
+    this.#proxyRestartForced = false;
     this.#projection.setStatus("stopped");
-    this.#notifyChange();
+    this.refreshConfigurationState(false);
   }
 
   async dispose(): Promise<void> {
@@ -91,7 +103,8 @@ export class SessionRuntime {
 
   async sendPrompt(text: string, images: WebviewImageInput[]): Promise<void> {
     const api = this.#requireApi();
-    const normalizedImages = normalizeImageAttachments(images, this.#configuration.maxImageBytes);
+    const configuration = this.#configurationProvider();
+    const normalizedImages = normalizeImageAttachments(images, configuration.maxImageBytes);
     if (!text.trim() && normalizedImages.length === 0) return;
 
     this.#projection.appendUserPrompt(text, images);
@@ -106,7 +119,7 @@ export class SessionRuntime {
       await api.prompt(text, {
         ...(normalizedImages.length ? { images: normalizedImages } : {}),
         ...(view.isStreaming && !isImmediateExtensionCommand
-          ? { streamingBehavior: this.#configuration.streamingBehavior }
+          ? { streamingBehavior: configuration.streamingBehavior }
           : {}),
       });
     } catch (error) {
@@ -164,6 +177,25 @@ export class SessionRuntime {
     await this.#extensionUi?.respond(requestId, response);
   }
 
+  refreshConfigurationState(forceRestartRequired = false): void {
+    const configuration = this.#configurationProvider();
+    const vscodeProxy = readVsCodeProxy(this.cwd);
+    const fingerprint = proxyFingerprint(configuration.proxy, vscodeProxy);
+    const running = Boolean(this.#connection?.started);
+    if (running && forceRestartRequired) this.#proxyRestartForced = true;
+    const restartRequired = running && (this.#proxyRestartForced || (this.#appliedProxyFingerprint !== null && fingerprint !== this.#appliedProxyFingerprint));
+    const configuredLabel = proxyModeLabel(configuration.proxy.mode);
+    const appliedLabel = running ? this.view.networkProxy.label : configuredLabel;
+    this.#projection.setAttachmentLimits({ maxImageBytes: configuration.maxImageBytes, maxImages: 12 });
+    this.#projection.setNetworkProxy({
+      mode: configuration.proxy.mode,
+      label: appliedLabel,
+      ...(restartRequired ? { pendingLabel: configuredLabel } : {}),
+      restartRequired,
+    });
+    this.#notifyChange();
+  }
+
   diagnosticsSummary(): string {
     const view = this.view;
     return [
@@ -175,11 +207,12 @@ export class SessionRuntime {
       `Session file: ${view.sessionFile ?? "<none>"}`,
       `Model: ${view.model ? `${view.model.provider}/${view.model.id}` : "<none>"}`,
       `Thinking: ${view.thinkingLevel}`,
-      `Messages: ${view.messages.length}`,
-      `Tool calls: ${view.toolCalls.length}`,
+      `Proxy: ${view.networkProxy.label}${view.networkProxy.restartRequired ? ` → ${view.networkProxy.pendingLabel ?? proxyModeLabel(view.networkProxy.mode)} after restart` : ""}`,
+      `Turns: ${view.turns.length}`,
+      `Tool calls: ${view.turns.reduce((count, turn) => count + turn.activities.filter((activity) => activity.type === "tool").length, 0)}`,
       `Pending extension UI: ${view.pendingExtensionUi.length}`,
       `Last error: ${view.error ?? "<none>"}`,
-      `Pi stderr tail: ${this.#connection?.getStderr() || "<empty>"}`,
+      `Pi stderr tail: ${redactDiagnosticText(this.#connection?.getStderr() || "<empty>")}`,
     ].join("\n");
   }
 
@@ -187,14 +220,19 @@ export class SessionRuntime {
     this.#projection.setStatus("starting");
     this.#notifyChange();
 
-    const invocation = configuredPiInvocation(this.#configuration.piExecutable);
+    const configuration = this.#configurationProvider();
+    const invocation = configuredPiInvocation(configuration.piExecutable);
     const args = [
-      ...this.#configuration.piArguments,
+      ...configuration.piArguments,
       ...(sessionFile ? ["--session", sessionFile] : []),
     ];
+    const vscodeProxy = readVsCodeProxy(this.cwd);
+    const credentials = await this.#proxySecrets.get();
+    const proxyEnvironment = buildPiProcessEnvironment(configuration.proxy, credentials, vscodeProxy);
     const connection = new PiRpcConnection({
       cwd: this.cwd,
       args,
+      env: proxyEnvironment.env,
       ...invocation,
       requestTimeoutMs: 30_000,
       startupTimeoutMs: 45_000,
@@ -233,6 +271,9 @@ export class SessionRuntime {
 
     try {
       const state = await connection.start();
+      this.#appliedProxyFingerprint = proxyFingerprint(configuration.proxy, vscodeProxy);
+      this.#proxyRestartForced = false;
+      this.#projection.setNetworkProxy({ mode: configuration.proxy.mode, label: proxyEnvironment.label, restartRequired: false });
       this.#projection.applyState(state);
       await this.#hydrate(api);
       this.#logger.info(`Started Pi session ${this.id} in ${this.cwd}`);
@@ -306,4 +347,9 @@ function commandName(text: string): string | undefined {
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function readVsCodeProxy(cwd: string): string | undefined {
+  const value = vscode.workspace.getConfiguration("http", workspaceUriForPath(cwd)).get<string>("proxy", "").trim();
+  return value || undefined;
 }

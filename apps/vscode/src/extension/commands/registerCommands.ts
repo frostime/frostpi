@@ -4,7 +4,9 @@ import { captureActiveFileReference } from "../editor-context/captureActiveFile.
 import { captureActiveSelection } from "../editor-context/captureSelection.js";
 import { exportDiagnostics } from "../diagnostics/exportDiagnostics.js";
 import type { DiagnosticLogger } from "../diagnostics/DiagnosticLogger.js";
+import type { ProxyMode } from "../configuration/configurationTypes.js";
 import type { SessionRegistry } from "../sessions/SessionRegistry.js";
+import { ProxySecretStore } from "../network/ProxySecretStore.js";
 import type { PiViewProvider } from "../webview-host/PiViewProvider.js";
 import type { WebviewBridge } from "../webview-host/WebviewBridge.js";
 
@@ -15,6 +17,7 @@ export function registerCommands(
   bridge: WebviewBridge,
   logger: DiagnosticLogger,
 ): void {
+  const proxySecrets = new ProxySecretStore(context.secrets);
   context.subscriptions.push(
     vscode.commands.registerCommand("frostpi.focus", () => viewProvider.reveal()),
     vscode.commands.registerCommand("frostpi.newSession", async () => {
@@ -44,6 +47,10 @@ export function registerCommands(
       bridge.insertPromptText(text);
     }),
     vscode.commands.registerCommand("frostpi.stop", () => registry.abort()),
+    vscode.commands.registerCommand("frostpi.restartSession", () => registry.retrySession()),
+    vscode.commands.registerCommand("frostpi.restartAllSessions", () => registry.restartAllSessions()),
+    vscode.commands.registerCommand("frostpi.configureProxy", () => configureProxy(registry, proxySecrets)),
+    vscode.commands.registerCommand("frostpi.configureProxyCredentials", () => configureProxyCredentials(registry, proxySecrets)),
     vscode.commands.registerCommand("frostpi.exportDiagnostics", () => exportDiagnostics(logger, registry.diagnosticsSummary())),
     vscode.commands.registerCommand("frostpi.configureExecutable", async () => {
       const configuration = vscode.workspace.getConfiguration("frostpi");
@@ -59,4 +66,160 @@ export function registerCommands(
       void vscode.window.showInformationMessage("FrostPi executable setting updated. Restart failed sessions to apply it.");
     }),
   );
+}
+
+interface ProxyModeItem extends vscode.QuickPickItem {
+  mode: ProxyMode;
+}
+
+async function configureProxy(registry: SessionRegistry, secrets: ProxySecretStore): Promise<void> {
+  const scope = await chooseProxyScope();
+  if (!scope) return;
+  const configuration = vscode.workspace.getConfiguration("frostpi", scope.uri);
+  const modes: ProxyModeItem[] = [
+    { mode: "inherit", label: "$(terminal) Inherit environment", description: "Use proxy variables from the Extension Host" },
+    { mode: "vscode", label: "$(settings-gear) Use VS Code proxy", description: "Use the VS Code http.proxy setting" },
+    { mode: "custom", label: "$(globe) Custom proxy", description: "Configure HTTP, HTTPS, ALL_PROXY and NO_PROXY" },
+    { mode: "direct", label: "$(circle-slash) Direct connection", description: "Remove inherited proxy variables for Pi" },
+  ];
+  const selected = await vscode.window.showQuickPick(modes, {
+    title: `FrostPi network proxy · ${scope.label}`,
+    placeHolder: "Choose how new or restarted Pi sessions connect to the network",
+    ignoreFocusOut: true,
+  });
+  if (!selected) return;
+
+  const target = scope.target;
+  if (selected.mode === "custom") {
+    const custom = await collectCustomProxy(configuration);
+    if (!custom) return;
+    await configuration.update("network.proxy.http", custom.http, target);
+    await configuration.update("network.proxy.https", custom.https, target);
+    await configuration.update("network.proxy.all", custom.all, target);
+    await configuration.update("network.proxy.noProxy", custom.noProxy, target);
+  } else if (selected.mode === "vscode") {
+    const vscodeProxy = vscode.workspace.getConfiguration("http", scope.uri).get<string>("proxy", "").trim();
+    if (!vscodeProxy) {
+      const action = await vscode.window.showWarningMessage(
+        "VS Code http.proxy is empty. FrostPi will not inject a proxy until that setting is configured.",
+        "Open VS Code Proxy Settings",
+        "Continue",
+      );
+      if (action === "Open VS Code Proxy Settings") {
+        await vscode.commands.executeCommand("workbench.action.openSettings", "http.proxy");
+        return;
+      }
+      if (action !== "Continue") return;
+    }
+  }
+
+  await configuration.update("network.proxy.mode", selected.mode, target);
+
+  if (selected.mode === "custom") {
+    const credentialAction = await vscode.window.showQuickPick(
+      [
+        { label: "Keep current credentials", value: "keep" as const },
+        { label: "Configure credentials", description: "Stored in VS Code SecretStorage", value: "configure" as const },
+        { label: "Clear credentials", value: "clear" as const },
+      ],
+      { title: "Proxy authentication", ignoreFocusOut: true },
+    );
+    if (credentialAction?.value === "configure") await configureProxyCredentials(registry, secrets, false);
+    if (credentialAction?.value === "clear") await secrets.clear();
+  }
+
+  registry.refreshConfigurationState(true);
+  const action = await vscode.window.showInformationMessage(
+    `FrostPi proxy mode set to ${proxyModeTitle(selected.mode)}. Running Pi sessions must restart before it takes effect.`,
+    "Restart current",
+    "Restart all",
+    "Later",
+  );
+  if (action === "Restart current") await registry.retrySession();
+  if (action === "Restart all") await registry.restartAllSessions();
+}
+
+async function chooseProxyScope(): Promise<{ label: string; target: vscode.ConfigurationTarget; uri?: vscode.Uri } | undefined> {
+  const folder = vscode.workspace.workspaceFolders?.[0];
+  if (!folder) return { label: "User settings", target: vscode.ConfigurationTarget.Global };
+  const selected = await vscode.window.showQuickPick(
+    [
+      { label: "Workspace", description: folder.name, target: vscode.ConfigurationTarget.Workspace, uri: folder.uri },
+      { label: "User", description: "Apply to all workspaces on this machine", target: vscode.ConfigurationTarget.Global },
+    ],
+    { title: "Where should FrostPi store this proxy configuration?", ignoreFocusOut: true },
+  );
+  return selected;
+}
+
+async function collectCustomProxy(configuration: vscode.WorkspaceConfiguration): Promise<{ http: string; https: string; all: string; noProxy: string } | undefined> {
+  const http = await proxyInput("HTTP proxy", "Example: http://127.0.0.1:7890", configuration.get<string>("network.proxy.http", ""));
+  if (http === undefined) return undefined;
+  const https = await proxyInput("HTTPS proxy", "Leave blank to use only HTTP_PROXY or ALL_PROXY", configuration.get<string>("network.proxy.https", ""));
+  if (https === undefined) return undefined;
+  const all = await proxyInput("ALL_PROXY", "Optional SOCKS or catch-all proxy, for example socks5://127.0.0.1:7890", configuration.get<string>("network.proxy.all", ""));
+  if (all === undefined) return undefined;
+  const noProxy = await vscode.window.showInputBox({
+    title: "NO_PROXY",
+    prompt: "Optional comma-separated hosts that should bypass the proxy",
+    value: configuration.get<string>("network.proxy.noProxy", ""),
+    ignoreFocusOut: true,
+  });
+  if (noProxy === undefined) return undefined;
+  return { http: http.trim(), https: https.trim(), all: all.trim(), noProxy: noProxy.trim() };
+}
+
+function proxyInput(title: string, prompt: string, value: string): Thenable<string | undefined> {
+  return vscode.window.showInputBox({
+    title,
+    prompt,
+    value,
+    ignoreFocusOut: true,
+    validateInput: (candidate) => validateProxyUrl(candidate),
+  });
+}
+
+function validateProxyUrl(value: string): string | undefined {
+  const candidate = value.trim();
+  if (!candidate) return undefined;
+  try {
+    const url = new URL(candidate);
+    if (!["http:", "https:", "socks:", "socks5:", "socks5h:"].includes(url.protocol)) return "Use an HTTP(S) or SOCKS proxy URL.";
+    return undefined;
+  } catch {
+    return "Enter a complete proxy URL, for example http://127.0.0.1:7890.";
+  }
+}
+
+async function configureProxyCredentials(registry: SessionRegistry, proxySecrets: ProxySecretStore, notify = true): Promise<void> {
+  const username = await vscode.window.showInputBox({
+    title: "Proxy username",
+    prompt: "Stored in VS Code SecretStorage. Leave blank to clear saved credentials.",
+    ignoreFocusOut: true,
+  });
+  if (username === undefined) return;
+  if (!username) {
+    await proxySecrets.clear();
+    registry.refreshConfigurationState(true);
+    if (notify) void vscode.window.showInformationMessage("FrostPi proxy credentials cleared. Restart running sessions to apply.");
+    return;
+  }
+  const password = await vscode.window.showInputBox({
+    title: "Proxy password",
+    password: true,
+    ignoreFocusOut: true,
+  });
+  if (password === undefined) return;
+  await proxySecrets.set({ username, password });
+  registry.refreshConfigurationState(true);
+  if (notify) void vscode.window.showInformationMessage("FrostPi proxy credentials updated. Restart running sessions to apply.");
+}
+
+function proxyModeTitle(mode: ProxyMode): string {
+  switch (mode) {
+    case "custom": return "Custom";
+    case "vscode": return "VS Code";
+    case "direct": return "Direct";
+    default: return "Inherit";
+  }
 }

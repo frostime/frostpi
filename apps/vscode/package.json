@@ -1,8 +1,8 @@
 {
   "name": "frostpi",
-  "displayName": "FrostPi \u2014 Visual UI for Pi Coding Agent",
+  "displayName": "FrostPi — Visual UI for Pi Coding Agent",
   "description": "A polished VS Code interface for Pi's RPC mode, with streaming conversations, tool activity, image prompts, extension commands, and extension UI requests.",
-  "version": "0.1.1",
+  "version": "0.2.1",
   "publisher": "frostime",
   "license": "MIT",
   "private": true,
@@ -55,7 +55,11 @@
     "onCommand:frostpi.sendFile",
     "onCommand:frostpi.stop",
     "onCommand:frostpi.exportDiagnostics",
-    "onCommand:frostpi.configureExecutable"
+    "onCommand:frostpi.configureExecutable",
+    "onCommand:frostpi.restartSession",
+    "onCommand:frostpi.restartAllSessions",
+    "onCommand:frostpi.configureProxy",
+    "onCommand:frostpi.configureProxyCredentials"
   ],
   "contributes": {
     "viewsContainers": {
@@ -120,6 +124,23 @@
       {
         "command": "frostpi.configureExecutable",
         "title": "FrostPi: Configure Pi Executable"
+      },
+      {
+        "command": "frostpi.restartSession",
+        "title": "FrostPi: Restart Current Session",
+        "icon": "$(debug-restart)"
+      },
+      {
+        "command": "frostpi.restartAllSessions",
+        "title": "FrostPi: Restart All Sessions"
+      },
+      {
+        "command": "frostpi.configureProxy",
+        "title": "FrostPi: Configure Network Proxy"
+      },
+      {
+        "command": "frostpi.configureProxyCredentials",
+        "title": "FrostPi: Configure Proxy Credentials"
       }
     ],
     "menus": {
@@ -209,6 +230,62 @@
           "default": "info",
           "scope": "window",
           "description": "Verbosity of the FrostPi output channel. Prompt and model content are not logged."
+        },
+        "frostpi.network.proxy.mode": {
+          "type": "string",
+          "enum": [
+            "inherit",
+            "vscode",
+            "custom",
+            "direct"
+          ],
+          "enumDescriptions": [
+            "Inherit the Extension Host environment.",
+            "Use the VS Code http.proxy setting.",
+            "Inject FrostPi custom proxy variables.",
+            "Remove inherited proxy variables for Pi."
+          ],
+          "default": "inherit",
+          "scope": "machine-overridable",
+          "description": "Proxy mode applied when a Pi session process starts. Running sessions must be restarted."
+        },
+        "frostpi.network.proxy.http": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Custom HTTP proxy URL used in custom mode. Store authentication through the FrostPi credentials command."
+        },
+        "frostpi.network.proxy.https": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Custom HTTPS proxy URL used in custom mode."
+        },
+        "frostpi.network.proxy.all": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Custom ALL_PROXY URL used in custom mode, for example a SOCKS proxy."
+        },
+        "frostpi.network.proxy.noProxy": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Comma-separated hosts that should bypass the proxy."
+        },
+        "frostpi.composer.fileMentions.maxFiles": {
+          "type": "number",
+          "minimum": 1000,
+          "maximum": 250000,
+          "default": 50000,
+          "scope": "resource",
+          "description": "Maximum workspace files indexed for @ path completion."
+        },
+        "frostpi.composer.fileMentions.respectSearchExclude": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Exclude paths matched by VS Code search.exclude from @ file completion."
         }
       }
     }
@@ -224,12 +301,17 @@
     "package:vsix": "vsce package --no-dependencies"
   },
   "dependencies": {
+    "@codemirror/autocomplete": "^6.20.3",
+    "@codemirror/commands": "^6.10.4",
+    "@codemirror/state": "^6.7.1",
+    "@codemirror/view": "^6.43.6",
     "@frostime/pi-rpc": "workspace:*",
     "@vscode/codicons": "^0.0.44",
     "bits-ui": "^2.18.1",
     "dompurify": "^3.4.12",
     "highlight.js": "^11.11.1",
     "markdown-it": "^14.3.0",
+    "minimatch": "^10.2.5",
     "svelte": "^5.56.5",
     "zod": "^4.4.3"
   },

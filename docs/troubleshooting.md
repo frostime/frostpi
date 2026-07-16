@@ -35,3 +35,11 @@ FrostPi filters discovered sessions to the active workspace using the JSONL head
 ## Icons render as empty squares
 
 Install a current VSIX built with Vite's relative asset base. The packaged `dist/webview/assets/codicon.ttf` and `webview.css` must both be present. Reload the VS Code window after upgrading from 0.1.0.
+
+## Proxy changes do not affect a running session
+
+This is expected. Use **FrostPi: Configure Network Proxy** or **Network & proxy** in the session menu. Settings are resolved only when the Pi process starts. The menu shows `restart required` until you restart the current or all sessions. The original Pi session file is reused, but active tools, streams, and pending extension UI cannot survive restart.
+
+## `@file` completion does not appear
+
+Typing `@` should immediately open workspace-file suggestions. If no path appears, check the FrostPi Output channel and `files.exclude`, `search.exclude`, and `frostpi.composer.fileMentions.respectSearchExclude`. FrostPi displays no-result/search-error rows instead of failing silently. Completion inserts a workspace-relative textual reference only; Pi decides whether to read it.

@@ -1,8 +1,8 @@
-import type { ConversationMessageView } from "../model/conversationModel.js";
+import type { AgentTurnView, SessionNoticeView } from "../model/agentTurnModel.js";
 import type { SessionSummaryView, SessionViewModel, WorkspaceViewModel } from "../model/sessionViewModel.js";
-import type { ToolCallView } from "../model/toolCallModel.js";
+import type { WorkspaceFileCandidateView } from "../model/workspaceFileModel.js";
 
-export type SessionBaseView = Omit<SessionViewModel, "messages" | "toolCalls">;
+export type SessionBaseView = Omit<SessionViewModel, "turns" | "notices">;
 
 export interface CollectionDelta<T> {
   mode: "replace" | "upsert";
@@ -18,8 +18,8 @@ export interface WorkspaceDeltaView {
   piError?: string;
   activeSession: {
     base: SessionBaseView;
-    messages: CollectionDelta<ConversationMessageView>;
-    toolCalls: CollectionDelta<ToolCallView>;
+    turns: CollectionDelta<AgentTurnView>;
+    notices: CollectionDelta<SessionNoticeView>;
   } | null;
 }
 
@@ -29,6 +29,7 @@ export type HostToWebviewPayload =
   | { type: "insertPromptText"; text: string }
   | { type: "focusComposer" }
   | { type: "promptResult"; requestId: string; ok: boolean; error?: string }
+  | { type: "workspaceFileSuggestions"; requestId: string; items: WorkspaceFileCandidateView[]; error?: string }
   | { type: "toast"; level: "info" | "warning" | "error"; message: string };
 
 export type HostToWebviewMessage = HostToWebviewPayload & { bridgeVersion: number };

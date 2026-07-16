@@ -19,7 +19,7 @@
   {#if active.status === "failed"}
     <OnboardingView session={active} />
   {:else}
-    <ConversationView session={active} />
+    {#key active.id}<ConversationView session={active} />{/key}
     <div class="composer-region">
       <SessionMetrics session={active} />
       <ExtensionWidgets widgets={aboveWidgets} />

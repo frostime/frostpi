@@ -4,18 +4,7 @@
   import { postToHost } from "../../bridge/vscodeBridge";
   import { getSupportedThinkingLevels, normalizeThinkingLevel } from "./thinkingLevels";
 
-  let {
-    sessionId,
-    model,
-    level,
-    disabled = false,
-  }: {
-    sessionId: string;
-    model: RpcModel | null;
-    level: ThinkingLevel;
-    disabled?: boolean;
-  } = $props();
-
+  let { sessionId, model, level, disabled = false }: { sessionId: string; model: RpcModel | null; level: ThinkingLevel; disabled?: boolean } = $props();
   let open = $state(false);
   const options = $derived(getSupportedThinkingLevels(model));
   const effectiveLevel = $derived(normalizeThinkingLevel(model, level));
@@ -37,37 +26,23 @@
     type="button"
     aria-haspopup="listbox"
     aria-expanded={open}
-    title={selectable ? "Change thinking level" : "The active model does not expose configurable thinking levels"}
+    title={active?.description ?? "Thinking disabled"}
     disabled={!selectable}
     onclick={() => open = !open}
   >
     <span class="codicon codicon-lightbulb"></span>
-    <span class="thinking-chip-copy"><span class="thinking-prefix">Thinking</span><strong>{active?.label ?? "Off"}</strong></span>
-    {#if selectable}<span class="codicon codicon-chevron-down thinking-chevron"></span>{/if}
+    <span class="thinking-trigger-label">{active?.label ?? "Off"}</span>
+    {#if selectable}<span class={`codicon codicon-chevron-${open ? "up" : "down"} thinking-chevron`}></span>{/if}
   </button>
 
   {#if open}
     <div class="thinking-picker-panel" role="listbox" aria-label="Thinking level">
-      <div class="thinking-picker-heading">
-        <strong>Thinking level</strong>
-        <span>{model?.name ?? model?.id}</span>
-      </div>
+      <div class="compact-picker-title">Thinking level</div>
       <div class="thinking-options">
         {#each options as option (option.level)}
-          <button
-            class:selected={option.level === effectiveLevel}
-            type="button"
-            role="option"
-            aria-selected={option.level === effectiveLevel}
-            onclick={() => choose(option.level)}
-          >
-            <span class="thinking-option-mark">
-              {#if option.level === effectiveLevel}<span class="codicon codicon-check"></span>{/if}
-            </span>
-            <span class="thinking-option-copy">
-              <strong>{option.label}</strong>
-              <small>{option.description}</small>
-            </span>
+          <button class:selected={option.level === effectiveLevel} type="button" role="option" aria-selected={option.level === effectiveLevel} title={option.description} onclick={() => choose(option.level)}>
+            <span class="thinking-option-mark">{#if option.level === effectiveLevel}<span class="codicon codicon-check"></span>{/if}</span>
+            <span>{option.label}</span>
           </button>
         {/each}
       </div>

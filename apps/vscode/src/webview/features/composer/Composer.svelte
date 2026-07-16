@@ -6,32 +6,25 @@
   import { clearDraft, composerDrafts, updateDraft, type DraftImage } from "../../state/composerDraftStore.svelte";
   import { promptSubmissionResult } from "../../state/promptSubmissionStore.svelte";
   import { composerFocusTick, showToast } from "../../state/sessionViewStore.svelte";
+  import { createId } from "../../utils/createId";
   import ModelPicker from "../models/ModelPicker.svelte";
   import ThinkingLevelPicker from "../models/ThinkingLevelPicker.svelte";
   import AddContextMenu from "./AddContextMenu.svelte";
   import AttachmentStrip from "./AttachmentStrip.svelte";
-  import CommandSuggestions from "./CommandSuggestions.svelte";
+  import PromptEditor from "./PromptEditor.svelte";
 
   let { session }: { session: SessionViewModel } = $props();
-  let textarea: HTMLTextAreaElement;
+  let editor: PromptEditor;
   let pendingRequestId = $state<string | null>(null);
-  let commandIndex = $state(0);
 
   const draft = $derived($composerDrafts[session.id] ?? { text: "", images: [] });
-  const slashQuery = $derived(commandQuery(draft.text));
   const commands = $derived(withLocalCommands(session.commands));
-  const commandMatches = $derived(slashQuery === null ? [] : filterCommands(commands, slashQuery));
   const canSend = $derived((draft.text.trim().length > 0 || draft.images.length > 0) && session.status !== "starting" && session.status !== "failed" && !pendingRequestId);
   const supportsImages = $derived(modelSupportsImages(session.model));
 
   $effect(() => {
-    slashQuery;
-    commandIndex = 0;
-  });
-
-  $effect(() => {
     $composerFocusTick;
-    requestAnimationFrame(() => textarea?.focus());
+    requestAnimationFrame(() => editor?.focus());
   });
 
   $effect(() => {
@@ -52,7 +45,7 @@
       postToHost({ type: "resumeSession" });
       return;
     }
-    const requestId = crypto.randomUUID();
+    const requestId = createId("prompt");
     pendingRequestId = requestId;
     postToHost({
       type: "sendPrompt",
@@ -63,31 +56,7 @@
     });
   }
 
-  function handleKeydown(event: KeyboardEvent): void {
-    if (slashQuery !== null && commandMatches.length) {
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        const direction = event.key === "ArrowDown" ? 1 : -1;
-        commandIndex = (commandIndex + direction + commandMatches.length) % commandMatches.length;
-        return;
-      }
-      if ((event.key === "Enter" && !event.ctrlKey && !event.metaKey && !event.shiftKey) || event.key === "Tab") {
-        event.preventDefault();
-        const command = commandMatches[commandIndex];
-        if (command) selectCommand(command);
-        return;
-      }
-    }
-    if (event.key === "Enter" && (event.ctrlKey || event.metaKey)) {
-      event.preventDefault();
-      submit();
-    }
-  }
-
-  async function handlePaste(event: ClipboardEvent): Promise<void> {
-    const files = [...(event.clipboardData?.files ?? [])].filter((file) => file.type.startsWith("image/"));
-    if (!files.length) return;
-    event.preventDefault();
+  async function handlePastedImages(files: File[]): Promise<void> {
     const accepted: DraftImage[] = [];
     for (const file of files) {
       if (!isSupportedMime(file.type)) {
@@ -100,7 +69,7 @@
       }
       const dataUrl = await readDataUrl(file);
       accepted.push({
-        id: crypto.randomUUID(),
+        id: createId("image"),
         name: file.name || `pasted-image-${Date.now()}.${extensionForMime(file.type)}`,
         mimeType: file.type as DraftImage["mimeType"],
         data: dataUrl.slice(dataUrl.indexOf(",") + 1),
@@ -108,41 +77,33 @@
         size: file.size,
       });
     }
-    if (accepted.length) {
-      updateDraft(session.id, (current) => {
-        const images = [...current.images, ...accepted].slice(0, session.attachmentLimits.maxImages);
-        if (current.images.length + accepted.length > session.attachmentLimits.maxImages) {
-          showToast("warning", `A prompt can include at most ${session.attachmentLimits.maxImages} images.`);
-        }
-        return { ...current, images };
-      });
-    }
-  }
-
-  function selectCommand(command: RpcCommandDescriptor): void {
-    const leading = draft.text.match(/^\s*/)?.[0] ?? "";
-    setText(`${leading}/${command.name} `);
-    requestAnimationFrame(() => textarea?.focus());
+    if (!accepted.length) return;
+    updateDraft(session.id, (current) => {
+      const images = [...current.images, ...accepted].slice(0, session.attachmentLimits.maxImages);
+      if (current.images.length + accepted.length > session.attachmentLimits.maxImages) {
+        showToast("warning", `A prompt can include at most ${session.attachmentLimits.maxImages} images.`);
+      }
+      return { ...current, images };
+    });
   }
 </script>
 
 <div class="composer-shell">
-  {#if slashQuery !== null}<CommandSuggestions commands={commandMatches} activeIndex={commandIndex} onactive={(index) => commandIndex = index} onselect={selectCommand} />{/if}
   <AttachmentStrip images={draft.images} onremove={(id) => updateDraft(session.id, (current) => ({ ...current, images: current.images.filter((image) => image.id !== id) }))} />
   {#if draft.images.length && session.model && !supportsImages}
     <div class="composer-warning"><span class="codicon codicon-warning"></span> The selected model may not accept images.</div>
   {/if}
   <div class="composer-box" class:composer-running={session.isStreaming}>
-    <textarea
-      bind:this={textarea}
+    <PromptEditor
+      bind:this={editor}
+      sessionId={session.id}
       value={draft.text}
-      aria-label="Message Pi"
+      {commands}
       placeholder={session.isStreaming ? "Queue a follow-up…" : "Ask Pi about this workspace…"}
-      rows="3"
-      oninput={(event) => setText(event.currentTarget.value)}
-      onkeydown={handleKeydown}
-      onpaste={handlePaste}
-    ></textarea>
+      onchange={setText}
+      onsubmit={submit}
+      onpasteimages={handlePastedImages}
+    />
     <div class="composer-toolbar">
       <div class="composer-toolbar-left">
         <AddContextMenu />
@@ -166,14 +127,6 @@
 </div>
 
 <script lang="ts" module>
-  function commandQuery(text: string): string | null {
-    const trimmed = text.trimStart();
-    if (!trimmed.startsWith("/") || trimmed.includes("\n")) return null;
-    const token = trimmed.slice(1);
-    if (token.includes(" ")) return null;
-    return token;
-  }
-
   function withLocalCommands(commands: RpcCommandDescriptor[]): RpcCommandDescriptor[] {
     const local: RpcCommandDescriptor = {
       name: "resume",
@@ -181,13 +134,6 @@
       source: "frostpi",
     };
     return commands.some((command) => command.name === local.name) ? commands : [local, ...commands];
-  }
-
-  function filterCommands(commands: RpcCommandDescriptor[], query: string): RpcCommandDescriptor[] {
-    const normalized = query.toLowerCase();
-    return commands
-      .filter((command) => `${command.name} ${command.description ?? ""}`.toLowerCase().includes(normalized))
-      .slice(0, 10);
   }
 
   function modelSupportsImages(model: RpcModel | null): boolean {

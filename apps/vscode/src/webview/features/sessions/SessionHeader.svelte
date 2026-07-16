@@ -66,6 +66,7 @@
         {active.model ? (active.model.name ?? `${active.model.provider}/${active.model.id}`) : "Starting Pi"}
         <span>·</span>
         <span>{active.status}</span>
+        {#if active.networkProxy.restartRequired}<span>·</span><button class="proxy-restart-badge" type="button" title={`Proxy is currently ${active.networkProxy.label}; ${active.networkProxy.pendingLabel ?? "new settings"} applies after restart.`} onclick={() => postToHost({ type: "restartSession", sessionId: active.id })}>restart proxy</button>{/if}
       </div>
     </div>
   </div>
@@ -102,6 +103,14 @@
       {#if menuOpen}
         <div class="session-menu">
           <button type="button" onclick={beginRename}><span class="codicon codicon-edit"></span> Rename</button>
+          <button type="button" onclick={() => { menuOpen = false; postToHost({ type: "restartSession", sessionId: active.id }); }}><span class="codicon codicon-debug-restart"></span> Restart session</button>
+          <button type="button" onclick={() => { menuOpen = false; postToHost({ type: "openProxySettings" }); }}>
+            <span class="codicon codicon-globe"></span>
+            <span>
+              <strong>Network & proxy</strong>
+              <small>{active.networkProxy.restartRequired ? `${active.networkProxy.pendingLabel ?? active.networkProxy.label} · restart required` : active.networkProxy.label}</small>
+            </span>
+          </button>
           <button type="button" onclick={() => postToHost({ type: "refreshCommands", sessionId: active.id })}><span class="codicon codicon-refresh"></span> Refresh commands</button>
           <button type="button" onclick={() => postToHost({ type: "exportDiagnostics" })}><span class="codicon codicon-save"></span> Export diagnostics</button>
           <div class="menu-separator"></div>

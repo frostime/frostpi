@@ -1,19 +1,23 @@
+import { isAbsolute, relative } from "node:path";
+
 import * as vscode from "vscode";
 
 import { BRIDGE_VERSION } from "../../shared/bridge/bridgeVersion.js";
 import type { HostToWebviewPayload, WorkspaceDeltaView } from "../../shared/bridge/hostToWebview.js";
-import type { ConversationMessageView } from "../../shared/model/conversationModel.js";
+import type { AgentTurnView, SessionNoticeView } from "../../shared/model/agentTurnModel.js";
 import type { SessionViewModel } from "../../shared/model/sessionViewModel.js";
-import type { ToolCallView } from "../../shared/model/toolCallModel.js";
 import { collectionDelta } from "../../shared/bridge/collectionDelta.js";
 import { webviewToHostSchema, type WebviewToHostMessage } from "../../shared/bridge/webviewToHost.js";
 import { captureActiveFileReference } from "../editor-context/captureActiveFile.js";
+import { readConfiguration } from "../configuration/readConfiguration.js";
+import { workspaceUriForPath } from "../configuration/workspaceScope.js";
 import { captureActiveSelection } from "../editor-context/captureSelection.js";
 import { openReferencedLocation } from "../editor-context/openReferencedLocation.js";
 import { exportDiagnostics } from "../diagnostics/exportDiagnostics.js";
 import type { DiagnosticLogger } from "../diagnostics/DiagnosticLogger.js";
 import { openFileDiff } from "../file-changes/GitBaseContentProvider.js";
 import type { SessionRegistry } from "../sessions/SessionRegistry.js";
+import { WorkspaceFileCatalog } from "../workspace-files/WorkspaceFileCatalog.js";
 
 interface Identified {
   id: string;
@@ -24,18 +28,20 @@ export class WebviewBridge implements vscode.Disposable {
   readonly #disposables: vscode.Disposable[] = [];
   readonly #registry: SessionRegistry;
   readonly #logger: DiagnosticLogger;
+  readonly #fileCatalog: WorkspaceFileCatalog;
 
   #webview: vscode.Webview | null = null;
   #webviewMessageDisposable: vscode.Disposable | null = null;
   #cachedActiveSessionId: string | null = null;
-  #messageOrder: string[] = [];
-  #messageRefs = new Map<string, ConversationMessageView>();
-  #toolOrder: string[] = [];
-  #toolRefs = new Map<string, ToolCallView>();
+  #turnOrder: string[] = [];
+  #turnRefs = new Map<string, AgentTurnView>();
+  #noticeOrder: string[] = [];
+  #noticeRefs = new Map<string, SessionNoticeView>();
 
   constructor(registry: SessionRegistry, logger: DiagnosticLogger) {
     this.#registry = registry;
     this.#logger = logger;
+    this.#fileCatalog = new WorkspaceFileCatalog({ maxFiles: 50_000 });
     this.#disposables.push(
       registry.onDidChange(() => this.#postWorkspaceUpdate()),
       registry.onDidToast((toast) => this.post({ type: "toast", ...toast })),
@@ -76,6 +82,7 @@ export class WebviewBridge implements vscode.Disposable {
   dispose(): void {
     this.#webviewMessageDisposable?.dispose();
     for (const disposable of this.#disposables) disposable.dispose();
+    this.#fileCatalog.dispose();
   }
 
   #postSnapshot(): void {
@@ -106,22 +113,22 @@ export class WebviewBridge implements vscode.Disposable {
   }
 
   #sessionDelta(session: SessionViewModel): NonNullable<WorkspaceDeltaView["activeSession"]> {
-    const { messages, toolCalls, ...base } = session;
-    const messageDelta = collectionDelta(this.#messageOrder, this.#messageRefs, messages);
-    const toolDelta = collectionDelta(this.#toolOrder, this.#toolRefs, toolCalls);
-    this.#messageOrder = messages.map((message) => message.id);
-    this.#messageRefs = referenceMap(messages);
-    this.#toolOrder = toolCalls.map((tool) => tool.id);
-    this.#toolRefs = referenceMap(toolCalls);
-    return { base, messages: messageDelta, toolCalls: toolDelta };
+    const { turns, notices, ...base } = session;
+    const turnDelta = collectionDelta(this.#turnOrder, this.#turnRefs, turns);
+    const noticeDelta = collectionDelta(this.#noticeOrder, this.#noticeRefs, notices);
+    this.#turnOrder = turns.map((turn) => turn.id);
+    this.#turnRefs = referenceMap(turns);
+    this.#noticeOrder = notices.map((notice) => notice.id);
+    this.#noticeRefs = referenceMap(notices);
+    return { base, turns: turnDelta, notices: noticeDelta };
   }
 
   #resetCache(session: SessionViewModel | null): void {
     this.#cachedActiveSessionId = session?.id ?? null;
-    this.#messageOrder = session?.messages.map((message) => message.id) ?? [];
-    this.#messageRefs = referenceMap(session?.messages ?? []);
-    this.#toolOrder = session?.toolCalls.map((tool) => tool.id) ?? [];
-    this.#toolRefs = referenceMap(session?.toolCalls ?? []);
+    this.#turnOrder = session?.turns.map((turn) => turn.id) ?? [];
+    this.#turnRefs = referenceMap(session?.turns ?? []);
+    this.#noticeOrder = session?.notices.map((notice) => notice.id) ?? [];
+    this.#noticeRefs = referenceMap(session?.notices ?? []);
   }
 
   async #receive(raw: unknown): Promise<void> {
@@ -213,8 +220,32 @@ export class WebviewBridge implements vscode.Disposable {
       case "refreshModels":
         await this.#registry.refreshModels(message.sessionId);
         break;
+      case "searchWorkspaceFiles": {
+        try {
+          const session = this.#registry.snapshot().activeSession;
+          if (!session || session.id !== message.sessionId) throw new Error("The active session changed before file search completed.");
+          const configuration = readConfiguration(workspaceUriForPath(session.cwd));
+          this.#fileCatalog.configure({
+            maxFiles: configuration.fileMentionMaxFiles,
+            respectSearchExclude: configuration.fileMentionRespectSearchExclude,
+          });
+          const items = await this.#fileCatalog.search(session.cwd, message.query, message.limit, workspaceFileBoosts(session));
+          this.post({ type: "workspaceFileSuggestions", requestId: message.requestId, items });
+        } catch (error) {
+          const errorText = error instanceof Error ? error.message : String(error);
+          this.#logger.error("Workspace file completion failed", error);
+          this.post({ type: "workspaceFileSuggestions", requestId: message.requestId, items: [], error: errorText });
+        }
+        break;
+      }
       case "openSettings":
         await vscode.commands.executeCommand("workbench.action.openSettings", "@ext:frostime.frostpi");
+        break;
+      case "openProxySettings":
+        await vscode.commands.executeCommand("frostpi.configureProxy");
+        break;
+      case "restartSession":
+        await this.#registry.retrySession(message.sessionId);
         break;
       case "configureExecutable":
         await configureExecutable();
@@ -227,6 +258,23 @@ export class WebviewBridge implements vscode.Disposable {
         break;
     }
   }
+}
+
+function workspaceFileBoosts(session: SessionViewModel): Set<string> {
+  const boosts = new Set<string>();
+  const add = (path: string | undefined): void => {
+    if (!path) return;
+    const relativePath = (isAbsolute(path) ? relative(session.cwd, path) : path).replaceAll("\\", "/");
+    if (relativePath && !relativePath.startsWith("../")) boosts.add(relativePath);
+  };
+  add(vscode.window.activeTextEditor?.document.uri.fsPath);
+  for (const editor of vscode.window.visibleTextEditors) add(editor.document.uri.fsPath);
+  for (const turn of session.turns) {
+    for (const activity of turn.activities) {
+      if (activity.type === "tool") add(activity.tool.filePath);
+    }
+  }
+  return boosts;
 }
 
 function referenceMap<T extends Identified>(items: readonly T[]): Map<string, T> {

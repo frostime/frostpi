@@ -7,3 +7,4 @@ artifacts/
 .vscode-test/
 coverage/
 apps/vscode/assets/marketplace/screenshots/*.png
+.frostpi-update-backup/

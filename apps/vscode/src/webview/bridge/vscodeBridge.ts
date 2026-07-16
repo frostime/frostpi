@@ -14,7 +14,8 @@ declare global {
   }
 }
 
-const api = window.acquireVsCodeApi?.() ?? {
+const browserWindow = typeof window === "undefined" ? undefined : window;
+const api = browserWindow?.acquireVsCodeApi?.() ?? {
   postMessage(message: unknown) {
     console.info("FrostPi Webview message", message);
   },
@@ -29,7 +30,8 @@ export function postToHost(message: WebviewToHostPayload): void {
 }
 
 export function onHostMessage(listener: (message: HostToWebviewMessage) => void): () => void {
+  if (!browserWindow) return () => {};
   const handler = (event: MessageEvent<HostToWebviewMessage>) => listener(event.data);
-  window.addEventListener("message", handler);
-  return () => window.removeEventListener("message", handler);
+  browserWindow.addEventListener("message", handler);
+  return () => browserWindow.removeEventListener("message", handler);
 }
