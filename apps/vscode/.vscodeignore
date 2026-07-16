@@ -1,0 +1,13 @@
+**/.git/**
+**/.github/**
+.vscode/**
+.vscode-test/**
+src/**
+test/**
+dev/**
+*.config.*
+tsconfig*.json
+coverage/**
+node_modules/**
+**/*.map
+dist/webview/src/**

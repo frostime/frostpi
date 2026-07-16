@@ -1,0 +1,28 @@
+name: Bug report
+description: Report a reproducible FrostPi problem.
+body:
+  - type: input
+    id: version
+    attributes:
+      label: FrostPi and VS Code versions
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options: [Local, WSL, Remote SSH, Dev Container, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Include expected and actual behavior. Redact prompts, paths, credentials, and proprietary output.
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostics
+    attributes:
+      label: Redacted diagnostics
+      description: Paste only content you have reviewed from FrostPi: Export Diagnostics.

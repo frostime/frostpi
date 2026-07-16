@@ -1,0 +1,31 @@
+name: Release artifact
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.13.1
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.20.0
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm package:vsix
+      - run: pnpm verify:vsix
+      - run: pnpm package:zip
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            artifacts/FrostPi-*.vsix
+            artifacts/FrostPi-*-source.zip

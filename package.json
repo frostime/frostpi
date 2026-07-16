@@ -1,0 +1,33 @@
+{
+  "name": "frostpi-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.13.1",
+  "engines": {
+    "node": ">=20.19"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "clean": "pnpm -r clean && node scripts/clean-dir.mjs artifacts",
+    "typecheck": "node scripts/quality.mjs typecheck",
+    "test": "node scripts/quality.mjs test",
+    "test:watch": "pnpm --filter frostpi test:watch",
+    "lint": "node scripts/quality.mjs lint",
+    "check": "node scripts/check.mjs",
+    "package:vsix": "node scripts/package-vsix.mjs",
+    "verify:vsix": "node scripts/verify-vsix.mjs",
+    "package:zip": "node scripts/package-zip.mjs"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.32.0",
+    "@types/adm-zip": "^0.5.8",
+    "adm-zip": "^0.6.0",
+    "eslint": "^9.32.0",
+    "eslint-plugin-svelte": "^3.20.0",
+    "globals": "^16.3.0",
+    "svelte-eslint-parser": "^1.8.0",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.38.0"
+  },
+  "type": "module"
+}

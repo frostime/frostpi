@@ -1,0 +1,28 @@
+.markdown-body { min-width: 0; overflow-wrap: anywhere; }
+.markdown-body > :first-child { margin-top: 0 !important; }
+.markdown-body > :last-child { margin-bottom: 0 !important; }
+.markdown-body p { margin: 0 0 .72em; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 { margin: 1.1em 0 .45em; line-height: 1.25; font-weight: 650; }
+.markdown-body h1 { font-size: 1.35em; }
+.markdown-body h2 { font-size: 1.2em; }
+.markdown-body h3 { font-size: 1.08em; }
+.markdown-body ul, .markdown-body ol { margin: .45em 0 .75em; padding-left: 1.55em; }
+.markdown-body li { margin: .18em 0; }
+.markdown-body blockquote { margin: .7em 0; padding: .1em .85em; border-left: 2px solid var(--frost-border); color: var(--frost-muted); }
+.markdown-body a { color: var(--frost-link); text-decoration: none; }
+.markdown-body a:hover { text-decoration: underline; }
+.markdown-body code:not(pre code) { padding: .12em .35em; border: 1px solid var(--frost-border-soft); border-radius: 4px; background: var(--frost-code-bg); font-family: var(--font-mono); font-size: .91em; }
+.markdown-body pre { position: relative; max-width: 100%; margin: .65em 0 .85em; padding: 10px 11px; overflow: auto; background: var(--frost-code-bg); border: 1px solid var(--frost-border-soft); border-radius: 7px; font: 11px/1.55 var(--font-mono); tab-size: 2; }
+.markdown-body pre.hljs { padding: 10px 11px; }
+.markdown-body table { width: 100%; margin: .7em 0; border-collapse: collapse; font-size: .95em; }
+.markdown-body th, .markdown-body td { padding: 5px 7px; border: 1px solid var(--frost-border); text-align: left; }
+.markdown-body th { background: var(--frost-surface); }
+.markdown-body hr { height: 1px; margin: 1em 0; border: 0; background: var(--frost-border); }
+.markdown-body img { border-radius: 6px; }
+.hljs-comment, .hljs-quote { color: var(--vscode-editorLineNumber-foreground, #6a737d); }
+.hljs-keyword, .hljs-selector-tag, .hljs-literal { color: var(--vscode-symbolIcon-keywordForeground, #c586c0); }
+.hljs-string, .hljs-title, .hljs-section { color: var(--vscode-symbolIcon-stringForeground, #ce9178); }
+.hljs-number, .hljs-symbol, .hljs-bullet { color: var(--vscode-symbolIcon-numberForeground, #b5cea8); }
+.hljs-function, .hljs-title.function_ { color: var(--vscode-symbolIcon-functionForeground, #dcdcaa); }
+.hljs-variable, .hljs-attr, .hljs-property { color: var(--vscode-symbolIcon-variableForeground, #9cdcfe); }
+.hljs-type, .hljs-class .hljs-title { color: var(--vscode-symbolIcon-classForeground, #4ec9b0); }

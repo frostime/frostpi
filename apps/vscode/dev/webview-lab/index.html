@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    :root {
+      --vscode-font-family: -apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+      --vscode-editor-font-family: "SFMono-Regular",Consolas,monospace;
+      --vscode-font-size: 13px;
+      --vscode-foreground: #d7dae0;
+      --vscode-descriptionForeground: #8c929d;
+      --vscode-sideBar-background: #111318;
+      --vscode-editor-background: #111318;
+      --vscode-editorWidget-background: #191c23;
+      --vscode-list-hoverBackground: #252a34;
+      --vscode-input-background: #1d2028;
+      --vscode-input-foreground: #d7dae0;
+      --vscode-input-border: #333945;
+      --vscode-widget-border: #2d323c;
+      --vscode-focusBorder: #7aa2f7;
+      --vscode-button-background: #5378c6;
+      --vscode-button-foreground: #fff;
+      --vscode-button-hoverBackground: #6389d5;
+      --vscode-textLink-foreground: #8db4ff;
+      --vscode-textCodeBlock-background: #171a20;
+      --vscode-editorError-foreground: #f7768e;
+      --vscode-editorWarning-foreground: #e0af68;
+      --vscode-testing-iconPassed: #9ece6a;
+      --vscode-progressBar-background: #7aa2f7;
+      --vscode-badge-background: #3d59a1;
+      --vscode-badge-foreground: #fff;
+      --vscode-toolbar-hoverBackground: #2a2f39;
+      --vscode-menu-background: #1b1e26;
+      --vscode-menu-foreground: #d7dae0;
+      --vscode-menu-border: #343a45;
+      --vscode-menu-selectionBackground: #2e3d5f;
+      --vscode-menu-selectionForeground: #fff;
+      --vscode-scrollbarSlider-background: #79797933;
+      --vscode-scrollbarSlider-hoverBackground: #64646466;
+      --vscode-editor-inactiveSelectionBackground: #3a405055;
+    }
+  </style>
+  <link rel="stylesheet" href="../../dist/webview/webview.css" />
+</head>
+<body>
+  <div id="app"></div>
+  <script type="module" src="../../dist/webview/webview.js"></script>
+  <script>
+    const now = Date.now();
+    const workspace = {
+      workspaceName: "frostpi",
+      workspacePath: "/workspace/frostpi",
+      activeSessionId: "session-1",
+      piAvailable: true,
+      sessions: [
+        { id: "session-1", title: "Refine RPC client", cwd: "/workspace/frostpi", status: "running", isActive: true, modelLabel: "Claude Sonnet 4", thinkingLevel: "high", updatedAt: now },
+        { id: "session-2", title: "Review tests", cwd: "/workspace/frostpi", status: "ready", isActive: false, modelLabel: "GPT-5", thinkingLevel: "medium", updatedAt: now - 8000 }
+      ],
+      activeSession: {
+        id: "session-1", title: "Refine RPC client", cwd: "/workspace/frostpi", status: "running", isStreaming: true, isCompacting: false,
+        sessionFile: "/home/user/.pi/sessions/refine.jsonl", sessionId: "pi-session-1",
+        model: { provider: "anthropic", id: "claude-sonnet-4", name: "Claude Sonnet 4", supportsImages: true, reasoning: true },
+        thinkingLevel: "high",
+        availableModels: [
+          { provider: "anthropic", id: "claude-sonnet-4", name: "Claude Sonnet 4", supportsImages: true, reasoning: true },
+          { provider: "openai", id: "gpt-5", name: "GPT-5", supportsImages: true, reasoning: true }
+        ],
+        commands: [
+          { name: "review", description: "Review the current implementation", source: "extension" },
+          { name: "release-check", description: "Run the release checklist", source: "prompt" }
+        ],
+        attachmentLimits: { maxImageBytes: 10485760, maxImages: 12 },
+        messages: [
+          { id: "u1", role: "user", status: "complete", timestamp: now - 9000, blocks: [{ type: "text", text: "Review the RPC transport and make the streaming bridge safe for long sessions." }] },
+          { id: "a1", role: "assistant", status: "complete", timestamp: now - 7000, blocks: [
+            { type: "thinking", text: "I need to verify framing, request correlation, and whether full snapshots repeat large image payloads." },
+            { type: "text", text: "The transport framing is sound. I’m changing the host bridge to send a full snapshot only on bootstrap or session switch, then ordered collection deltas during streaming." }
+          ] },
+          { id: "a2", role: "assistant", status: "streaming", timestamp: now - 1200, blocks: [{ type: "text", text: "The incremental bridge is in place. Next I’m validating timeout and packaging behavior…" }] }
+        ],
+        toolCalls: [
+          { id: "t1", name: "read", label: "packages/pi-rpc/src/PiRpcConnection.ts", status: "complete", args: { path: "packages/pi-rpc/src/PiRpcConnection.ts" }, isError: false, startedAt: now - 6500, endedAt: now - 6200, filePath: "/workspace/frostpi/packages/pi-rpc/src/PiRpcConnection.ts", line: 1 },
+          { id: "t2", name: "edit", label: "apps/vscode/src/extension/webview-host/WebviewBridge.ts", status: "complete", args: { path: "apps/vscode/src/extension/webview-host/WebviewBridge.ts" }, isError: false, startedAt: now - 4800, endedAt: now - 3900, filePath: "/workspace/frostpi/apps/vscode/src/extension/webview-host/WebviewBridge.ts", line: 1 },
+          { id: "t3", name: "bash", label: "pnpm typecheck && pnpm test", status: "running", args: { command: "pnpm typecheck && pnpm test" }, output: "packages/pi-rpc: 10 tests passed\napps/vscode: running Svelte diagnostics…", isError: false, startedAt: now - 1800 }
+        ],
+        pendingExtensionUi: [{ id: "confirm-1", method: "confirm", title: "Continue with release validation?", message: "Run the complete VSIX packaging and verification gate.", receivedAt: now - 500 }],
+        extensionStatuses: [{ key: "phase", text: "Release validation" }],
+        extensionWidgets: [],
+        stats: { userMessages: 1, assistantMessages: 2, toolCalls: 3, toolResults: 2, totalMessages: 8, tokens: { input: 12400, output: 2800, cacheRead: 8100, cacheWrite: 0, total: 23300 }, cost: 0.082, contextUsage: { tokens: 23300, contextWindow: 200000, percent: 11.65 } },
+        updatedAt: now
+      }
+    };
+    setTimeout(() => window.postMessage({ bridgeVersion: 1, type: "snapshot", workspace }, "*"), 350);
+  </script>
+</body>
+</html>

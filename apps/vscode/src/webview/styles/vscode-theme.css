@@ -1,0 +1,30 @@
+:root {
+  color-scheme: light dark;
+  --frost-bg: var(--vscode-sideBar-background, #181a1f);
+  --frost-bg-alt: var(--vscode-editor-background, #15171b);
+  --frost-surface: var(--vscode-editorWidget-background, #202329);
+  --frost-surface-raised: var(--vscode-quickInput-background, #252930);
+  --frost-hover: var(--vscode-list-hoverBackground, rgba(255,255,255,.06));
+  --frost-active: var(--vscode-list-activeSelectionBackground, rgba(80,120,220,.25));
+  --frost-text: var(--vscode-foreground, #d7dae0);
+  --frost-muted: var(--vscode-descriptionForeground, #9298a4);
+  --frost-faint: color-mix(in srgb, var(--frost-muted) 58%, transparent);
+  --frost-border: var(--vscode-widget-border, rgba(255,255,255,.11));
+  --frost-border-soft: color-mix(in srgb, var(--frost-border) 58%, transparent);
+  --frost-input-bg: var(--vscode-input-background, #202329);
+  --frost-input-border: var(--vscode-input-border, rgba(255,255,255,.12));
+  --frost-focus: var(--vscode-focusBorder, #4f87d9);
+  --frost-accent: var(--vscode-button-background, #0e639c);
+  --frost-accent-hover: var(--vscode-button-hoverBackground, #1177bb);
+  --frost-accent-text: var(--vscode-button-foreground, #fff);
+  --frost-secondary-bg: var(--vscode-button-secondaryBackground, #3a3d41);
+  --frost-secondary-hover: var(--vscode-button-secondaryHoverBackground, #45494e);
+  --frost-error: var(--vscode-errorForeground, #f48771);
+  --frost-warning: var(--vscode-editorWarning-foreground, #cca700);
+  --frost-success: var(--vscode-testing-iconPassed, #73c991);
+  --frost-link: var(--vscode-textLink-foreground, #4daafc);
+  --frost-code-bg: var(--vscode-textCodeBlock-background, rgba(10,12,16,.42));
+  --frost-scrollbar: var(--vscode-scrollbarSlider-background, rgba(121,121,121,.28));
+  --frost-scrollbar-hover: var(--vscode-scrollbarSlider-hoverBackground, rgba(121,121,121,.45));
+  --frost-shadow: 0 12px 34px rgba(0,0,0,.28);
+}

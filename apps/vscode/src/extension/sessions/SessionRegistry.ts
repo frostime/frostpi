@@ -1,0 +1,310 @@
+import { randomUUID } from "node:crypto";
+
+import type { RpcExtensionUiResponse, ThinkingLevel } from "@frostime/pi-rpc";
+import * as vscode from "vscode";
+
+import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
+import type { SessionRuntimeStatus, SessionSummaryView, WorkspaceViewModel } from "../../shared/model/sessionViewModel.js";
+import { readConfiguration } from "../configuration/readConfiguration.js";
+import type { DiagnosticLogger } from "../diagnostics/DiagnosticLogger.js";
+import { SessionPersistence } from "./SessionPersistence.js";
+import { SessionRuntime } from "./SessionRuntime.js";
+import type { PersistedSessionRecord } from "./sessionTypes.js";
+
+export interface RegistryToast {
+  level: "info" | "warning" | "error";
+  message: string;
+}
+
+export class SessionRegistry implements vscode.Disposable {
+  readonly #runtimes = new Map<string, SessionRuntime>();
+  readonly #records = new Map<string, PersistedSessionRecord>();
+  readonly #persistence: SessionPersistence;
+  readonly #logger: DiagnosticLogger;
+  readonly #changeEmitter = new vscode.EventEmitter<void>();
+  readonly #toastEmitter = new vscode.EventEmitter<RegistryToast>();
+  readonly #insertTextEmitter = new vscode.EventEmitter<string>();
+  readonly #pendingEditorText = new Map<string, string>();
+  readonly #lastStatuses = new Map<string, SessionRuntimeStatus>();
+
+  #activeSessionId: string | null = null;
+  #emitTimer: ReturnType<typeof setTimeout> | null = null;
+  #disposed = false;
+
+  readonly onDidChange = this.#changeEmitter.event;
+  readonly onDidToast = this.#toastEmitter.event;
+  readonly onDidInsertPromptText = this.#insertTextEmitter.event;
+
+  constructor(context: vscode.ExtensionContext, logger: DiagnosticLogger) {
+    this.#persistence = new SessionPersistence(context.workspaceState);
+    this.#logger = logger;
+    const stored = this.#persistence.load();
+    for (const record of stored.sessions) this.#restoreRecord(record);
+    this.#activeSessionId = stored.activeSessionId && this.#runtimes.has(stored.activeSessionId)
+      ? stored.activeSessionId
+      : stored.sessions[0]?.id ?? null;
+  }
+
+  get activeSessionId(): string | null {
+    return this.#activeSessionId;
+  }
+
+  async ensureInitialSession(): Promise<void> {
+    if (!vscode.workspace.workspaceFolders?.length) return;
+    if (!this.#activeSessionId) await this.createSession();
+    const active = this.#activeSessionId ? this.#runtimes.get(this.#activeSessionId) : undefined;
+    if (active && readConfiguration(vscode.Uri.file(active.cwd)).startSessionOnOpen) {
+      await this.#startRuntime(active).catch(() => undefined);
+    }
+  }
+
+  snapshot(): WorkspaceViewModel {
+    const folder = activeWorkspaceFolder();
+    const active = this.#activeSessionId ? this.#runtimes.get(this.#activeSessionId) : undefined;
+    const activeView = active?.view ?? null;
+    const sessions: SessionSummaryView[] = [...this.#runtimes.values()]
+      .map((runtime) => {
+        const view = runtime.view;
+        return {
+          id: view.id,
+          title: view.title,
+          cwd: view.cwd,
+          status: view.status,
+          isActive: view.id === this.#activeSessionId,
+          ...(view.model ? { modelLabel: view.model.name ?? `${view.model.provider}/${view.model.id}` } : {}),
+          thinkingLevel: view.thinkingLevel,
+          updatedAt: view.updatedAt,
+        };
+      })
+      .sort((a, b) => b.updatedAt - a.updatedAt);
+    const piError = activeView?.status === "failed" ? activeView.error : undefined;
+    return {
+      workspaceName: folder?.name ?? "No workspace",
+      workspacePath: folder?.uri.fsPath ?? "",
+      sessions,
+      activeSessionId: this.#activeSessionId,
+      activeSession: activeView,
+      piAvailable: !piError,
+      ...(piError ? { piError } : {}),
+    };
+  }
+
+  async createSession(cwd = activeWorkspaceFolder()?.uri.fsPath): Promise<string> {
+    if (!cwd) throw new Error("Open a workspace folder before creating a Pi session.");
+    const id = randomUUID();
+    const record: PersistedSessionRecord = {
+      id,
+      title: "New session",
+      cwd,
+      updatedAt: Date.now(),
+    };
+    this.#records.set(id, record);
+    const runtime = this.#createRuntime(record);
+    this.#runtimes.set(id, runtime);
+    this.#activeSessionId = id;
+    await this.#persist();
+    this.#emitChange();
+    await this.#startRuntime(runtime);
+    return id;
+  }
+
+  async activateSession(sessionId: string): Promise<void> {
+    const runtime = this.#requireRuntime(sessionId);
+    this.#activeSessionId = sessionId;
+    await this.#persist();
+    const pendingText = this.#pendingEditorText.get(sessionId);
+    if (pendingText !== undefined) {
+      this.#pendingEditorText.delete(sessionId);
+    this.#lastStatuses.delete(sessionId);
+      this.#insertTextEmitter.fire(pendingText);
+    }
+    this.#emitChange();
+    if (runtime.view.status === "stopped") await this.#startRuntime(runtime);
+  }
+
+  async closeSession(sessionId: string): Promise<void> {
+    const runtime = this.#requireRuntime(sessionId);
+    await runtime.dispose();
+    this.#runtimes.delete(sessionId);
+    this.#records.delete(sessionId);
+    this.#pendingEditorText.delete(sessionId);
+    this.#lastStatuses.delete(sessionId);
+    if (this.#activeSessionId === sessionId) {
+      this.#activeSessionId = [...this.#runtimes.keys()][0] ?? null;
+    }
+    await this.#persist();
+    this.#emitChange();
+  }
+
+  async retrySession(sessionId?: string): Promise<void> {
+    const runtime = this.#requireRuntime(sessionId ?? this.#requireActiveId());
+    await runtime.stop().catch(() => undefined);
+    await this.#startRuntime(runtime);
+  }
+
+  async sendPrompt(sessionId: string, text: string, images: WebviewImageInput[]): Promise<void> {
+    const runtime = this.#requireRuntime(sessionId);
+    await this.#ensureRunning(runtime);
+    await runtime.sendPrompt(text, images);
+  }
+
+  async abort(sessionId = this.#requireActiveId()): Promise<void> {
+    await this.#requireRuntime(sessionId).abort();
+  }
+
+  async rename(sessionId: string, name: string): Promise<void> {
+    const runtime = this.#requireRuntime(sessionId);
+    await this.#ensureRunning(runtime);
+    await runtime.rename(name);
+  }
+
+  async setModel(sessionId: string, provider: string, modelId: string): Promise<void> {
+    const runtime = this.#requireRuntime(sessionId);
+    await this.#ensureRunning(runtime);
+    await runtime.setModel(provider, modelId);
+  }
+
+  async setThinkingLevel(sessionId: string, level: ThinkingLevel): Promise<void> {
+    const runtime = this.#requireRuntime(sessionId);
+    await this.#ensureRunning(runtime);
+    await runtime.setThinkingLevel(level);
+  }
+
+  async refreshModels(sessionId: string): Promise<void> {
+    const runtime = this.#requireRuntime(sessionId);
+    await this.#ensureRunning(runtime);
+    await runtime.refreshModels();
+  }
+
+  async refreshCommands(sessionId: string): Promise<void> {
+    const runtime = this.#requireRuntime(sessionId);
+    await this.#ensureRunning(runtime);
+    await runtime.refreshCommands();
+  }
+
+  async respondExtensionUi(sessionId: string, requestId: string, response: RpcExtensionUiResponse): Promise<void> {
+    await this.#requireRuntime(sessionId).respondExtensionUi(requestId, response);
+  }
+
+  diagnosticsSummary(): string {
+    const sessions = [...this.#runtimes.values()];
+    return [
+      `Registry active session: ${this.#activeSessionId ?? "<none>"}`,
+      `Registry session count: ${sessions.length}`,
+      "",
+      ...sessions.flatMap((runtime) => [runtime.diagnosticsSummary(), ""]),
+    ].join("\n");
+  }
+
+  async dispose(): Promise<void> {
+    if (this.#disposed) return;
+    this.#disposed = true;
+    if (this.#emitTimer) clearTimeout(this.#emitTimer);
+    await Promise.allSettled([...this.#runtimes.values()].map((runtime) => runtime.dispose()));
+    this.#changeEmitter.dispose();
+    this.#toastEmitter.dispose();
+    this.#insertTextEmitter.dispose();
+  }
+
+  #restoreRecord(record: PersistedSessionRecord): void {
+    this.#records.set(record.id, record);
+    this.#runtimes.set(record.id, this.#createRuntime(record));
+  }
+
+  #createRuntime(record: PersistedSessionRecord): SessionRuntime {
+    return new SessionRuntime(
+      record.id,
+      record.cwd,
+      record.title,
+      record.updatedAt,
+      readConfiguration(vscode.Uri.file(record.cwd)),
+      this.#logger,
+      {
+        onChange: (runtime) => this.#handleRuntimeChange(runtime),
+        onToast: (level, message) => this.#toastEmitter.fire({ level, message }),
+        onEditorText: (runtime, text) => {
+          if (runtime.id === this.#activeSessionId) this.#insertTextEmitter.fire(text);
+          else this.#pendingEditorText.set(runtime.id, text);
+        },
+      },
+    );
+  }
+
+  async #startRuntime(runtime: SessionRuntime): Promise<void> {
+    const record = this.#records.get(runtime.id);
+    try {
+      await runtime.start(record?.sessionFile);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.#toastEmitter.fire({ level: "error", message: `Unable to start Pi: ${message}` });
+      throw error;
+    }
+  }
+
+  async #ensureRunning(runtime: SessionRuntime): Promise<void> {
+    const status = runtime.view.status;
+    if (status === "stopped" || status === "failed") await this.#startRuntime(runtime);
+  }
+
+  #handleRuntimeChange(runtime: SessionRuntime): void {
+    const view = runtime.view;
+    const previous = this.#records.get(runtime.id);
+    const previousStatus = this.#lastStatuses.get(runtime.id);
+    this.#lastStatuses.set(runtime.id, view.status);
+    const metadataChanged = Boolean(previous && (
+      previous.title !== view.title ||
+      previous.sessionFile !== view.sessionFile ||
+      previous.cwd !== view.cwd
+    ));
+    const runSettled = Boolean(
+      previousStatus && ["starting", "running", "stopping"].includes(previousStatus)
+      && ["ready", "failed", "stopped"].includes(view.status),
+    );
+    if (previous && (metadataChanged || runSettled)) {
+      this.#records.set(runtime.id, {
+        id: runtime.id,
+        title: view.title,
+        cwd: view.cwd,
+        ...(view.sessionFile ? { sessionFile: view.sessionFile } : {}),
+        updatedAt: view.updatedAt,
+      });
+      void this.#persist();
+    }
+    if (runtime.id === this.#activeSessionId) {
+      void vscode.commands.executeCommand("setContext", "frostpi.sessionRunning", view.isStreaming);
+    }
+    this.#scheduleChange();
+  }
+
+  #scheduleChange(): void {
+    if (this.#emitTimer) return;
+    this.#emitTimer = setTimeout(() => {
+      this.#emitTimer = null;
+      this.#emitChange();
+    }, 24);
+  }
+
+  #emitChange(): void {
+    this.#changeEmitter.fire();
+  }
+
+  #persist(): Thenable<void> {
+    return this.#persistence.save(this.#activeSessionId, [...this.#records.values()]);
+  }
+
+  #requireRuntime(sessionId: string): SessionRuntime {
+    const runtime = this.#runtimes.get(sessionId);
+    if (!runtime) throw new Error(`Unknown FrostPi session: ${sessionId}`);
+    return runtime;
+  }
+
+  #requireActiveId(): string {
+    if (!this.#activeSessionId) throw new Error("No active FrostPi session");
+    return this.#activeSessionId;
+  }
+}
+
+function activeWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
+  const editorUri = vscode.window.activeTextEditor?.document.uri;
+  return (editorUri ? vscode.workspace.getWorkspaceFolder(editorUri) : undefined) ?? vscode.workspace.workspaceFolders?.[0];
+}

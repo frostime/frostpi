@@ -1,0 +1,25 @@
+---
+title: Development Workflow
+description: Local setup, build topology, debugging, and change discipline.
+scope:
+  - /**
+updated: 2026-07-16
+---
+
+# Development Workflow
+
+Use Node 20.19+ and pnpm 10. The Pi executable used for manual testing may require a newer external Node; this is independent of the extension build runtime.
+
+```bash
+pnpm install
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Launch the Extension Development Host with the repository's `.vscode/launch.json`. The extension bundle is built by esbuild; the Svelte Webview is built by Vite. Production builds omit source maps unless `FROSTPI_SOURCEMAP=1` is set.
+
+Protocol work starts in `packages/pi-rpc`; product-state work starts in `SessionRuntime`/`SessionProjection`; rendering work starts in the relevant Webview feature. Do not pass raw Pi events through the bridge to “save time.”
+
+When behavior is ambiguous, compare the current Pi RPC documentation and source, PiDeck's process/session UX, and `pi-acp`'s event translation. External implementations are references, not runtime dependencies; preserve their licenses and avoid copying incompatible code.

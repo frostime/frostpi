@@ -1,0 +1,9 @@
+node_modules/
+dist/
+artifacts/
+*.vsix
+*.zip
+.DS_Store
+.vscode-test/
+coverage/
+apps/vscode/assets/marketplace/screenshots/*.png

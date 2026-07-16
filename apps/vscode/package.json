@@ -1,0 +1,241 @@
+{
+  "name": "frostpi",
+  "displayName": "FrostPi \u2014 Visual UI for Pi Coding Agent",
+  "description": "A polished VS Code interface for Pi's RPC mode, with streaming conversations, tool activity, image prompts, extension commands, and extension UI requests.",
+  "version": "0.1.0",
+  "publisher": "frostime",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "icon": "assets/icon.png",
+  "galleryBanner": {
+    "color": "#111318",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.99.0"
+  },
+  "categories": [
+    "AI",
+    "Other"
+  ],
+  "keywords": [
+    "pi",
+    "coding agent",
+    "agent",
+    "rpc",
+    "assistant",
+    "ai"
+  ],
+  "homepage": "https://github.com/frostime/frostpi#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/frostime/frostpi.git"
+  },
+  "bugs": {
+    "url": "https://github.com/frostime/frostpi/issues"
+  },
+  "main": "./dist/extension/extension.cjs",
+  "extensionKind": [
+    "workspace"
+  ],
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": false,
+      "description": "FrostPi launches Pi with access to the current workspace and should only run in trusted workspaces."
+    },
+    "virtualWorkspaces": false
+  },
+  "activationEvents": [
+    "onView:frostpi.chat",
+    "onCommand:frostpi.newSession",
+    "onCommand:frostpi.focus",
+    "onCommand:frostpi.sendSelection",
+    "onCommand:frostpi.sendFile",
+    "onCommand:frostpi.stop",
+    "onCommand:frostpi.exportDiagnostics",
+    "onCommand:frostpi.configureExecutable"
+  ],
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "frostpi",
+          "title": "FrostPi",
+          "icon": "assets/activity-bar.svg"
+        }
+      ]
+    },
+    "views": {
+      "frostpi": [
+        {
+          "type": "webview",
+          "id": "frostpi.chat",
+          "name": "FrostPi",
+          "contextualTitle": "FrostPi"
+        }
+      ]
+    },
+    "viewsWelcome": [
+      {
+        "view": "frostpi.chat",
+        "contents": "Open a trusted folder to start a Pi session.\n[Open Folder](command:vscode.openFolder)",
+        "when": "!workspaceFolderCount"
+      }
+    ],
+    "commands": [
+      {
+        "command": "frostpi.focus",
+        "title": "FrostPi: Focus Chat",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "frostpi.newSession",
+        "title": "FrostPi: New Session",
+        "icon": "$(add)"
+      },
+      {
+        "command": "frostpi.sendSelection",
+        "title": "FrostPi: Add Selection to Prompt"
+      },
+      {
+        "command": "frostpi.sendFile",
+        "title": "FrostPi: Add Current File to Prompt"
+      },
+      {
+        "command": "frostpi.stop",
+        "title": "FrostPi: Stop Active Session",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "frostpi.exportDiagnostics",
+        "title": "FrostPi: Export Diagnostics"
+      },
+      {
+        "command": "frostpi.configureExecutable",
+        "title": "FrostPi: Configure Pi Executable"
+      }
+    ],
+    "menus": {
+      "view/title": [
+        {
+          "command": "frostpi.newSession",
+          "when": "view == frostpi.chat",
+          "group": "navigation@1"
+        },
+        {
+          "command": "frostpi.stop",
+          "when": "view == frostpi.chat && frostpi.sessionRunning",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "frostpi.sendSelection",
+          "when": "editorHasSelection && resourceScheme == file",
+          "group": "frostpi@1"
+        },
+        {
+          "command": "frostpi.sendFile",
+          "when": "resourceScheme == file",
+          "group": "frostpi@2"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "FrostPi",
+      "properties": {
+        "frostpi.pi.executable": {
+          "type": "string",
+          "default": "",
+          "scope": "machine-overridable",
+          "description": "Optional Pi executable or Node.js CLI path. Leave empty to resolve Pi from PATH."
+        },
+        "frostpi.pi.arguments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": [],
+          "scope": "resource",
+          "description": "Additional arguments passed after `pi --mode rpc`."
+        },
+        "frostpi.session.startOnOpen": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Start or restore the most recent workspace session when the FrostPi view opens."
+        },
+        "frostpi.composer.streamingBehavior": {
+          "type": "string",
+          "enum": [
+            "steer",
+            "followUp"
+          ],
+          "enumDescriptions": [
+            "Deliver while the current run is active, after current tool calls.",
+            "Deliver only after the current run fully settles."
+          ],
+          "default": "followUp",
+          "scope": "resource",
+          "description": "How a normal prompt is queued when Pi is already streaming. Extension commands execute immediately."
+        },
+        "frostpi.attachments.maxImageBytes": {
+          "type": "number",
+          "minimum": 1048576,
+          "maximum": 52428800,
+          "default": 10485760,
+          "scope": "resource",
+          "description": "Maximum size in bytes for each pasted image."
+        },
+        "frostpi.diagnostics.level": {
+          "type": "string",
+          "enum": [
+            "error",
+            "info",
+            "debug"
+          ],
+          "default": "info",
+          "scope": "window",
+          "description": "Verbosity of the FrostPi output channel. Prompt and model content are not logged."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs && vite build",
+    "clean": "node ../../scripts/clean-dir.mjs dist coverage .vscode-test",
+    "typecheck": "tsc -p tsconfig.json --noEmit && svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "node test/e2e/runTest.cjs",
+    "lint": "eslint src test --max-warnings 0",
+    "package:vsix": "vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "@frostime/pi-rpc": "workspace:*",
+    "@vscode/codicons": "^0.0.44",
+    "bits-ui": "^2.18.1",
+    "dompurify": "^3.4.12",
+    "highlight.js": "^11.11.1",
+    "markdown-it": "^14.3.0",
+    "svelte": "^5.56.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.2.0",
+    "@testing-library/svelte": "^5.2.8",
+    "@types/markdown-it": "^14.1.2",
+    "@types/node": "^24.1.0",
+    "@types/vscode": "^1.99.0",
+    "@vscode/test-electron": "^3.0.0",
+    "@vscode/vsce": "^3.9.2",
+    "esbuild": "^0.28.0",
+    "eslint-plugin-svelte": "^3.11.0",
+    "jsdom": "^26.1.0",
+    "svelte-check": "^4.3.1",
+    "svelte-eslint-parser": "^1.3.0",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
+  }
+}
