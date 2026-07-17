@@ -103,6 +103,13 @@
           {/if}
         {/each}
       {/if}
+      {#if session.isCompacting}
+        <div class="session-progress" role="status" aria-live="polite">
+          <span class="codicon codicon-fold" aria-hidden="true"></span>
+          <span class="session-progress-label">Compacting context</span>
+          <span class="thinking-pulse" aria-hidden="true"></span>
+        </div>
+      {/if}
       <div class="conversation-tail" aria-hidden="true"></div>
     </div>
   </div>

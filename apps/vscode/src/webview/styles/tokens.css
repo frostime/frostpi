@@ -388,6 +388,23 @@ button.session-heading:hover, button.session-heading.active { background: var(--
 .session-notice-warning, .session-notice-warning > .codicon { color: var(--frost-warning); }
 .session-notice-error, .session-notice-error > .codicon { color: var(--frost-error); }
 .session-notice .markdown-body p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+/* Ephemeral session status (not part of the durable timeline). */
+.session-progress {
+  margin: 5px 0 12px;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border: 1px solid var(--frost-border-soft);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--frost-surface) 56%, transparent);
+  color: var(--frost-muted);
+  font-size: 11px;
+}
+.session-progress > .codicon { color: var(--frost-link); font-size: 13px; }
+.session-progress-label { color: var(--frost-text); font-weight: 600; }
+.session-progress .thinking-pulse { margin-left: 1px; }
 .compaction-block { margin: 5px 0 16px; overflow: hidden; border: 1px solid var(--frost-border-soft); border-radius: 7px; background: color-mix(in srgb, var(--frost-surface) 56%, transparent); }
 .compaction-trigger { width: 100%; min-height: 34px; display: grid; grid-template-columns: 16px auto minmax(0, 1fr) 16px; align-items: center; gap: 7px; padding: 6px 8px; background: transparent; color: var(--frost-muted); cursor: pointer; text-align: left; }
 .compaction-trigger:hover { color: var(--frost-text); background: var(--frost-hover); }
