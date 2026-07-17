@@ -106,7 +106,7 @@ export class TurnProjection {
     }
   }
 
-  appendUserPrompt(text: string, images: WebviewImageInput[], timestamp = Date.now()): void {
+  appendUserPrompt(text: string, images: WebviewImageInput[], timestamp = Date.now()): string {
     const blocks: MessageBlockView[] = [];
     if (text) blocks.push({ type: "text", text });
     if (images.length) {
@@ -137,6 +137,7 @@ export class TurnProjection {
     };
     this.#turns = [...this.#turns, turn];
     this.#activeTurnId = turn.id;
+    return turn.id;
   }
 
   appendNotice(text: string, level: SessionNoticeLevel = "info", timestamp = Date.now()): void {
@@ -151,6 +152,21 @@ export class TurnProjection {
       return;
     }
     this.#notices = [...this.#notices, notice];
+  }
+
+  /**
+   * Close a specific local turn that never entered an agent run.
+   * Used for Pi extension slash commands, which complete without agent_settled.
+   */
+  completeTurn(turnId: string, status: AgentTurnStatus = "completed"): boolean {
+    const turn = this.#turns.find((item) => item.id === turnId);
+    if (!turn || turn.status !== "running") return false;
+    this.#setTurnStatus(turnId, status, Date.now());
+    if (this.#activeTurnId === turnId) {
+      this.#activeTurnId = null;
+      this.#streamingMessageId = null;
+    }
+    return true;
   }
 
   applyEvent(event: RpcEvent): void {

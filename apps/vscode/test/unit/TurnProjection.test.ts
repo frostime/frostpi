@@ -63,4 +63,27 @@ describe("TurnProjection", () => {
     projection.applyEvent({ type: "agent_settled" });
     expect(projection.snapshot().turns[0]?.status).toBe("error");
   });
+
+  it("can complete a local extension-command turn by id without touching a later turn", () => {
+    const projection = new TurnProjection();
+    const firstTurnId = projection.appendUserPrompt("/toggle-web-proxy on", []);
+    projection.appendNotice("Proxy enabled", "info");
+    expect(projection.snapshot().turns[0]?.status).toBe("running");
+    expect(projection.snapshot().turns[0]?.activities).toEqual([
+      expect.objectContaining({ type: "notice", text: "Proxy enabled" }),
+    ]);
+
+    const secondTurnId = projection.appendUserPrompt("follow-up", []);
+    expect(projection.completeTurn(firstTurnId, "completed")).toBe(true);
+    expect(projection.snapshot().turns[0]?.status).toBe("completed");
+    expect(projection.snapshot().turns[0]?.endedAt).toEqual(expect.any(Number));
+    expect(projection.snapshot().turns[1]?.id).toBe(secondTurnId);
+    expect(projection.snapshot().turns[1]?.status).toBe("running");
+
+    projection.appendNotice("Later status", "info");
+    expect(projection.snapshot().turns[1]?.activities).toEqual([
+      expect.objectContaining({ type: "notice", text: "Later status" }),
+    ]);
+    expect(projection.snapshot().notices).toEqual([]);
+  });
 });

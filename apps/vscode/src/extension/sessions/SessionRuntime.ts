@@ -123,26 +123,26 @@ export class SessionRuntime {
     const api = this.#requireApi();
     const configuration = this.#configurationProvider();
     const normalizedImages = normalizeImageAttachments(images, configuration.maxImageBytes);
-    if (!text.trim() && normalizedImages.length === 0) return;
+    // Pi extension/skill/template matching requires a leading "/"; trim so composer whitespace matches interactive Pi.
+    const message = text.trim();
+    if (!message && normalizedImages.length === 0) return;
 
-    this.#projection.appendUserPrompt(text, images);
+    const turnId = this.#projection.appendUserPrompt(message, images);
     this.#notifyChange();
-    const view = this.view;
-    const extensionCommand = commandName(text);
-    const isImmediateExtensionCommand = extensionCommand
-      ? view.commands.some((command) => command.source === "extension" && command.name === extensionCommand)
-      : false;
+    const extensionCommand = await this.#resolveImmediateExtensionCommand(message);
 
     try {
-      await api.prompt(text, {
+      await api.prompt(message, {
         ...(normalizedImages.length ? { images: normalizedImages } : {}),
-        ...(view.isStreaming && !isImmediateExtensionCommand
+        ...(this.view.isStreaming && !extensionCommand
           ? { streamingBehavior: configuration.streamingBehavior }
           : {}),
       });
+      if (extensionCommand) await this.#finishImmediateExtensionCommand(turnId);
     } catch (error) {
-      const message = errorMessage(error);
-      this.#projection.appendNotice(message, "error");
+      const messageText = errorMessage(error);
+      this.#projection.appendNotice(messageText, "error");
+      if (extensionCommand && !this.view.isStreaming) this.#projection.completeTurn(turnId, "error");
       this.#notifyChange();
       throw error;
     }
@@ -437,6 +437,74 @@ export class SessionRuntime {
     this.#notifyChange();
   }
 
+  async #resolveImmediateExtensionCommand(message: string): Promise<string | undefined> {
+    const name = commandName(message);
+    if (!name) return undefined;
+
+    const cached = this.view.commands.find((command) => command.name === name);
+    if (cached) return cached.source === "extension" ? name : undefined;
+
+    // Name miss only: command lists load asynchronously after startup; refresh once, then classify.
+    try {
+      const commands = await this.#requireApi().getCommands();
+      this.#projection.setCommands(commands);
+      this.#notifyChange();
+      const found = commands.find((command) => command.name === name);
+      return found?.source === "extension" ? name : undefined;
+    } catch {
+      // Discovery is best-effort; Pi still receives the raw slash text.
+    }
+    return undefined;
+  }
+
+  /**
+   * Extension commands execute inside prompt() and often never emit agent_start/agent_settled.
+   * After the prompt RPC returns, close the turn opened for this command once Pi looks idle
+   * (same pattern as pi-acp's multi-delay reconcile; PiDeck uses a single delayed get_state).
+   */
+  async #finishImmediateExtensionCommand(turnId: string): Promise<void> {
+    if (this.#disposed || this.view.isStreaming) return;
+
+    let idleState: Awaited<ReturnType<PiRpcApi["getState"]>> | undefined;
+    let sawSuccessfulIdleState = false;
+
+    for (const delayMs of EXTENSION_COMMAND_IDLE_CHECK_DELAYS_MS) {
+      if (delayMs > 0) await delay(delayMs);
+      if (this.#disposed || this.view.isStreaming) return;
+      if (!this.#turnStillRunning(turnId)) return;
+
+      const api = this.#api;
+      if (!api) return;
+      const state = await api.getState().catch(() => undefined);
+      if (this.#disposed || api !== this.#api) return;
+      if (this.view.isStreaming || !this.#turnStillRunning(turnId)) return;
+      if (!state) continue;
+      if (state.isStreaming || state.isCompacting || (state.pendingMessageCount ?? 0) > 0) return;
+
+      idleState = state;
+      sawSuccessfulIdleState = true;
+      break;
+    }
+
+    if (this.#disposed || this.view.isStreaming || !this.#turnStillRunning(turnId)) return;
+    // If every get_state failed but the local session never entered an agent run, still close the turn
+    // so extension-command UX cannot stick on running forever.
+    if (!sawSuccessfulIdleState && !this.view.isStreaming) {
+      this.#projection.completeTurn(turnId, "completed");
+      this.#notifyChange();
+      return;
+    }
+    if (!idleState) return;
+
+    this.#projection.completeTurn(turnId, "completed");
+    this.#projection.applyState(idleState);
+    this.#notifyChange();
+  }
+
+  #turnStillRunning(turnId: string): boolean {
+    return this.view.turns.some((turn) => turn.id === turnId && turn.status === "running");
+  }
+
   #requireApi(): PiRpcApi {
     if (!this.#api || !this.#connection?.started) throw new Error("Pi session is not running");
     return this.#api;
@@ -454,6 +522,8 @@ export class SessionRuntime {
 }
 
 const MAX_AUTO_HISTORY_LOAD_BYTES = 8 * 1024 * 1024;
+/** Short multi-delay idle checks after extension commands (aligned with pi-acp). */
+const EXTENSION_COMMAND_IDLE_CHECK_DELAYS_MS = [0, 25, 75] as const;
 const IMMEDIATE_EXTENSION_UI_METHODS = new Set(["select", "confirm", "input", "editor"]);
 
 function shouldBufferDuringHistoryLoad(event: RpcEvent): boolean {
@@ -461,13 +531,17 @@ function shouldBufferDuringHistoryLoad(event: RpcEvent): boolean {
 }
 
 function commandName(text: string): string | undefined {
-  const trimmed = text.trimStart();
+  const trimmed = text.trim();
   if (!trimmed.startsWith("/")) return undefined;
   return trimmed.slice(1).split(/\s/, 1)[0] || undefined;
 }
 
 function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function readVsCodeProxy(cwd: string): string | undefined {
