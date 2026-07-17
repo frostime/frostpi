@@ -287,7 +287,6 @@ export class SessionRegistry implements vscode.Disposable {
       this.#logger,
       {
         onChange: (runtime) => this.#handleRuntimeChange(runtime),
-        onToast: (level, message) => this.#toastEmitter.fire({ level, message }),
         onEditorText: (runtime, text) => {
           if (runtime.id === this.#activeSessionId) this.#insertTextEmitter.fire(text);
           else this.#pendingEditorText.set(runtime.id, text);

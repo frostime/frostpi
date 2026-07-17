@@ -6,6 +6,7 @@ import type {
   AgentTurnView,
   ResponseActivityView,
   SessionNoticeView,
+  SessionNoticeLevel,
 } from "../../shared/model/agentTurnModel.js";
 import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
 import type { ConversationMessageView, ImageAttachmentView, MessageBlockView, MessageStatus } from "../../shared/model/conversationModel.js";
@@ -91,7 +92,7 @@ export class TurnProjection {
       if (raw.role === "bashExecution") {
         const command = stringValue(raw.command, "command");
         const output = stringValue(raw.output, "");
-        this.appendNotice(`Ran \`${command}\`${output ? `\n\n${output}` : ""}`, Number(raw.exitCode ?? 0) === 0 ? "complete" : "error", timestamp);
+        this.appendNotice(`Ran \`${command}\`${output ? `\n\n${output}` : ""}`, Number(raw.exitCode ?? 0) === 0 ? "info" : "error", timestamp);
       }
     }
   }
@@ -129,11 +130,11 @@ export class TurnProjection {
     this.#activeTurnId = turn.id;
   }
 
-  appendNotice(text: string, status: "complete" | "error" = "complete", timestamp = Date.now()): void {
+  appendNotice(text: string, level: SessionNoticeLevel = "info", timestamp = Date.now()): void {
     this.#notices = [...this.#notices, {
       id: `notice-${timestamp}-${++this.#sequence}`,
       text,
-      status,
+      level,
       timestamp,
     }];
   }

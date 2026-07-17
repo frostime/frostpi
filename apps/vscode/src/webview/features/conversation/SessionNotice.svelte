@@ -5,7 +5,7 @@
   let { notice }: { notice: SessionNoticeView } = $props();
 </script>
 
-<div class="session-notice" class:session-notice-error={notice.status === "error"}>
-  <span class={`codicon codicon-${notice.status === "error" ? "error" : "info"}`}></span>
+<div class={`session-notice session-notice-${notice.level}`}>
+  <span class={`codicon codicon-${notice.level}`}></span>
   <MarkdownContent content={notice.text} />
 </div>

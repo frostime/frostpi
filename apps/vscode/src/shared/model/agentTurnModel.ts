@@ -37,9 +37,11 @@ export interface AgentTurnView {
   endedAt?: number;
 }
 
+export type SessionNoticeLevel = "info" | "warning" | "error";
+
 export interface SessionNoticeView {
   id: string;
   text: string;
-  status: "complete" | "error";
+  level: SessionNoticeLevel;
   timestamp: number;
 }

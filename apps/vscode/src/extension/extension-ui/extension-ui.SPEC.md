@@ -19,7 +19,7 @@ FrostPi never auto-confirms a request.
 
 ## Fire-and-forget methods
 
-- `notify` becomes a scoped VS Code/Webview notification.
+- `notify` appends a sanitized notice, including its severity, to the emitting session's conversation timeline. Notices remain in the live projection but are not persisted across session rehydration or process restart.
 - `setStatus` upserts/deletes keyed status text.
 - `setWidget` upserts/deletes keyed line widgets above or below the composer.
 - `setTitle` changes the owning session title.

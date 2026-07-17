@@ -22,7 +22,6 @@ import type { ProxySecretStore } from "../network/ProxySecretStore.js";
 
 export interface SessionRuntimeHooks {
   onChange(runtime: SessionRuntime): void;
-  onToast(level: "info" | "warning" | "error", message: string): void;
   onEditorText(runtime: SessionRuntime, text: string): void;
 }
 
@@ -124,7 +123,7 @@ export class SessionRuntime {
       });
     } catch (error) {
       const message = errorMessage(error);
-      this.#projection.appendSystemMessage(message, "error");
+      this.#projection.appendNotice(message, "error");
       this.#notifyChange();
       throw error;
     }
@@ -246,7 +245,7 @@ export class SessionRuntime {
         this.#syncExtensionUiSnapshot();
         this.#notifyChange();
       },
-      onNotify: (level, message) => this.#hooks.onToast(level, message),
+      onNotify: (level, message) => this.#projection.appendNotice(message, level),
       onTitle: (title) => {
         this.#projection.setTitle(title);
         this.#notifyChange();
