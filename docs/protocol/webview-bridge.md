@@ -5,7 +5,7 @@ scope:
   - /apps/vscode/src/shared/bridge/**
   - /apps/vscode/src/extension/webview-host/**
   - /apps/vscode/src/webview/bridge/**
-updated: 2026-07-16
+updated: 2026-07-17
 ---
 
 # Host–Webview Synchronization
@@ -14,4 +14,4 @@ The host sends a complete snapshot after `ready` and whenever the active session
 
 `upsert` requires unchanged prefix order and carries appended or reference-changed objects. `replace` carries the full collection after removal/reordering. Projection writers must replace changed objects, not mutate them.
 
-Webview commands are Zod-validated and versioned. Prompt and file-search replies are request-correlated. Invalid, oversized, stale, unknown, or incompatible messages perform no host action. Recovery after Webview reload is always a fresh snapshot; browser persistence is not authoritative.
+Webview commands are Zod-validated and versioned. Prompt and file-search replies are request-correlated. Session selection changes presentation only; process ownership remains in `SessionRegistry`. Explicit large-history loading is a host command addressed to one session. Invalid, oversized, stale, unknown, or incompatible messages perform no host action. Recovery after Webview reload is always a fresh snapshot; browser persistence is not authoritative. Session-bar visibility is local presentation state and resets on Webview reload.

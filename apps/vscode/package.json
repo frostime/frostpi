@@ -144,23 +144,6 @@
       }
     ],
     "menus": {
-      "view/title": [
-        {
-          "command": "frostpi.newSession",
-          "when": "view == frostpi.chat",
-          "group": "navigation@1"
-        },
-        {
-          "command": "frostpi.resumeSession",
-          "when": "view == frostpi.chat",
-          "group": "frostpi@1"
-        },
-        {
-          "command": "frostpi.stop",
-          "when": "view == frostpi.chat && frostpi.sessionRunning",
-          "group": "navigation@3"
-        }
-      ],
       "editor/context": [
         {
           "command": "frostpi.sendSelection",

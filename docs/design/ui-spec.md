@@ -3,12 +3,19 @@ title: UI Design Specification
 description: Visual language, density, theming, and interaction rules for FrostPi.
 scope:
   - /apps/vscode/src/webview/**
-updated: 2026-07-16
+updated: 2026-07-17
 ---
 
 # UI Design Specification
 
 FrostPi should feel like a first-party desktop coding surface: compact, low-noise, keyboard-usable, and native to the active VS Code theme.
+
+## Sessions
+
+- The Webview session bar is the sole in-view location for new, resume, switch, and close actions; do not duplicate those actions in VS Code's View title menu.
+- The bar is a compact single row and may be hidden. The conversation uses the released height while the composer remains bottom-anchored; a floating restore control consumes no layout height and signals background input requests.
+- The session list distinguishes the selected session, background execution, queued startup, failure, and required user input. Closing a running session requires confirmation; closing a temporary unused session does not.
+- At 280px width, secondary status text may disappear but switching, creation, closing, and restoring the bar remain available.
 
 ## Conversation
 

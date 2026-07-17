@@ -1,7 +1,10 @@
+import { stat } from "node:fs/promises";
+
 import {
   PiRpcApi,
   PiRpcConnection,
   isExtensionUiRequest,
+  type RpcEvent,
   type RpcExtensionUiResponse,
   type RpcModel,
   type ThinkingLevel,
@@ -36,7 +39,10 @@ export class SessionRuntime {
   #api: PiRpcApi | null = null;
   #extensionUi: ExtensionUiCoordinator | null = null;
   #starting: Promise<void> | null = null;
+  #historyLoading: Promise<void> | null = null;
+  #historyEventBuffer: RpcEvent[] | null = null;
   #disposed = false;
+  #lifecycleVersion = 0;
   #appliedProxyFingerprint: string | null = null;
   #proxyRestartForced = false;
 
@@ -73,22 +79,35 @@ export class SessionRuntime {
     return this.view.sessionFile;
   }
 
+  markWaitingToStart(): void {
+    if (this.#disposed || this.#connection?.started || this.#starting) return;
+    this.#projection.setStatus("queued");
+    this.#notifyChange();
+  }
+
   async start(sessionFile?: string): Promise<void> {
     if (this.#disposed) throw new Error("Session runtime is disposed");
     if (this.#starting) return this.#starting;
     if (this.#connection?.started) return;
 
-    this.#starting = this.#startInternal(sessionFile).finally(() => {
+    const lifecycleVersion = ++this.#lifecycleVersion;
+    this.#projection.setHistoryStatus(sessionFile ? "queued" : "loaded");
+    this.#starting = this.#startInternal(sessionFile, lifecycleVersion).finally(() => {
       this.#starting = null;
     });
     return this.#starting;
   }
 
   async stop(): Promise<void> {
+    this.#lifecycleVersion += 1;
     this.#projection.setStatus("stopping");
     this.#notifyChange();
     await this.#extensionUi?.cancelAll();
     await this.#connection?.stop();
+    this.#connection = null;
+    this.#api = null;
+    this.#extensionUi = null;
+    this.#historyEventBuffer = null;
     this.#appliedProxyFingerprint = null;
     this.#proxyRestartForced = false;
     this.#projection.setStatus("stopped");
@@ -172,6 +191,36 @@ export class SessionRuntime {
     this.#notifyChange();
   }
 
+  markHistoryWaiting(): void {
+    this.#projection.setHistoryStatus("queued");
+    this.#notifyChange();
+  }
+
+  async loadHistory(force = false): Promise<void> {
+    const activeLoad = this.#historyLoading;
+    if (activeLoad) {
+      try {
+        await activeLoad;
+      } catch (error) {
+        if (!force) throw error;
+      }
+      if (!force || this.view.historyStatus === "loaded") return;
+      return this.loadHistory(true);
+    }
+    const api = this.#requireApi();
+    const sessionFile = this.view.sessionFile;
+    if (!sessionFile) {
+      this.#projection.setHistoryStatus("loaded");
+      this.#notifyChange();
+      return;
+    }
+
+    this.#historyLoading = this.#loadHistoryInternal(api, sessionFile, force).finally(() => {
+      this.#historyLoading = null;
+    });
+    return this.#historyLoading;
+  }
+
   async respondExtensionUi(requestId: string, response: RpcExtensionUiResponse): Promise<void> {
     await this.#extensionUi?.respond(requestId, response);
   }
@@ -215,7 +264,7 @@ export class SessionRuntime {
     ].join("\n");
   }
 
-  async #startInternal(sessionFile?: string): Promise<void> {
+  async #startInternal(sessionFile: string | undefined, lifecycleVersion: number): Promise<void> {
     this.#projection.setStatus("starting");
     this.#notifyChange();
 
@@ -227,6 +276,7 @@ export class SessionRuntime {
     ];
     const vscodeProxy = readVsCodeProxy(this.cwd);
     const credentials = await this.#proxySecrets.get();
+    if (this.#disposed || lifecycleVersion !== this.#lifecycleVersion) return;
     const proxyEnvironment = buildPiProcessEnvironment(configuration.proxy, credentials, vscodeProxy);
     const connection = new PiRpcConnection({
       cwd: this.cwd,
@@ -254,10 +304,12 @@ export class SessionRuntime {
     });
 
     connection.onEvent((event) => {
-      if (isExtensionUiRequest(event)) this.#extensionUi?.handle(event);
-      else this.#projection.applyEvent(event);
+      if (this.#historyEventBuffer && shouldBufferDuringHistoryLoad(event)) {
+        this.#historyEventBuffer.push(event);
+        return;
+      }
+      this.#applyConnectionEvent(event);
       this.#notifyChange();
-      if (event.type === "agent_settled") void this.#refreshAfterSettled();
     });
     connection.onFailure((error) => {
       this.#logger.error(`Session ${this.id} failed`, error);
@@ -270,14 +322,19 @@ export class SessionRuntime {
 
     try {
       const state = await connection.start();
+      if (this.#disposed || lifecycleVersion !== this.#lifecycleVersion) {
+        await connection.stop();
+        return;
+      }
       this.#appliedProxyFingerprint = proxyFingerprint(configuration.proxy, vscodeProxy);
       this.#proxyRestartForced = false;
       this.#projection.setNetworkProxy({ mode: configuration.proxy.mode, label: proxyEnvironment.label, restartRequired: false });
       this.#projection.applyState(state);
-      await this.#hydrate(api);
       this.#logger.info(`Started Pi session ${this.id} in ${this.cwd}`);
       this.#notifyChange();
+      void this.#loadSessionInformation(api);
     } catch (error) {
+      if (this.#disposed || lifecycleVersion !== this.#lifecycleVersion) return;
       const message = errorMessage(error);
       this.#projection.setStatus("failed", message);
       this.#logger.error(`Failed to start Pi session ${this.id}`, error);
@@ -286,12 +343,8 @@ export class SessionRuntime {
     }
   }
 
-  async #hydrate(api: PiRpcApi): Promise<void> {
-    const [messages, models, commands, stats] = await Promise.all([
-      api.getMessages().catch((error) => {
-        this.#logger.error("Failed to load Pi messages", error);
-        return [];
-      }),
+  async #loadSessionInformation(api: PiRpcApi): Promise<void> {
+    const [models, commands, stats] = await Promise.all([
       api.getAvailableModels().catch((error) => {
         this.#logger.error("Failed to load Pi models", error);
         return [];
@@ -302,10 +355,58 @@ export class SessionRuntime {
       }),
       api.getSessionStats().catch(() => undefined),
     ]);
-    this.#projection.hydrateMessages(messages);
+    if (this.#disposed || api !== this.#api) return;
     this.#projection.setModels(models);
     this.#projection.setCommands(commands);
     if (stats) this.#projection.setStats(stats);
+    this.#notifyChange();
+  }
+
+  async #loadHistoryInternal(api: PiRpcApi, sessionFile: string, force: boolean): Promise<void> {
+    if (this.view.isStreaming) {
+      this.#projection.setHistoryStatus("deferred");
+      this.#notifyChange();
+      throw new Error("Stop the running session before loading its conversation history.");
+    }
+
+    try {
+      if (!force && (await stat(sessionFile)).size > MAX_AUTO_HISTORY_LOAD_BYTES) {
+        this.#projection.setHistoryStatus("deferred");
+        this.#projection.appendNotice("Conversation history is large and was not loaded automatically.", "info");
+        this.#notifyChange();
+        return;
+      }
+      this.#projection.setHistoryStatus("loading");
+      this.#historyEventBuffer = [];
+      this.#notifyChange();
+      const messages = await api.getMessages();
+      const bufferedEvents = this.#takeHistoryEvents();
+      if (this.#disposed || api !== this.#api) return;
+      this.#projection.hydrateMessages(messages);
+      for (const event of bufferedEvents) this.#applyConnectionEvent(event);
+      this.#notifyChange();
+    } catch (error) {
+      const bufferedEvents = this.#takeHistoryEvents();
+      if (this.#disposed || api !== this.#api) return;
+      for (const event of bufferedEvents) this.#applyConnectionEvent(event);
+      this.#logger.error("Failed to load Pi messages", error);
+      this.#projection.setHistoryStatus("failed");
+      this.#projection.appendNotice(`Unable to load conversation history: ${errorMessage(error)}`, "error");
+      this.#notifyChange();
+      throw error;
+    }
+  }
+
+  #takeHistoryEvents(): RpcEvent[] {
+    const events = this.#historyEventBuffer ?? [];
+    this.#historyEventBuffer = null;
+    return events;
+  }
+
+  #applyConnectionEvent(event: RpcEvent): void {
+    if (isExtensionUiRequest(event)) this.#extensionUi?.handle(event);
+    else this.#projection.applyEvent(event);
+    if (event.type === "agent_settled") void this.#refreshAfterSettled();
   }
 
   async #refreshAfterSettled(): Promise<void> {
@@ -336,6 +437,13 @@ export class SessionRuntime {
   #notifyChange(): void {
     this.#hooks.onChange(this);
   }
+}
+
+const MAX_AUTO_HISTORY_LOAD_BYTES = 8 * 1024 * 1024;
+const IMMEDIATE_EXTENSION_UI_METHODS = new Set(["select", "confirm", "input", "editor"]);
+
+function shouldBufferDuringHistoryLoad(event: RpcEvent): boolean {
+  return !isExtensionUiRequest(event) || !IMMEDIATE_EXTENSION_UI_METHODS.has(event.method);
 }
 
 function commandName(text: string): string | undefined {

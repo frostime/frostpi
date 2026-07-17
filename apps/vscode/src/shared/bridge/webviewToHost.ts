@@ -57,6 +57,7 @@ const payloadSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("openExternal"), url: z.string().url().max(2_048) }),
   z.object({ type: z.literal("refreshCommands"), sessionId: z.string().min(1).max(128) }),
   z.object({ type: z.literal("refreshModels"), sessionId: z.string().min(1).max(128) }),
+  z.object({ type: z.literal("loadHistory"), sessionId: z.string().min(1).max(128) }),
   z.object({ type: z.literal("searchWorkspaceFiles"), requestId: z.string().min(1).max(128), sessionId: z.string().min(1).max(128), query: z.string().max(1_024), limit: z.number().int().min(1).max(50) }),
   z.object({ type: z.literal("openSettings") }),
   z.object({ type: z.literal("openProxySettings") }),

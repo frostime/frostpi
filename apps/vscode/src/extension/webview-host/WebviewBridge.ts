@@ -220,6 +220,9 @@ export class WebviewBridge implements vscode.Disposable {
       case "refreshModels":
         await this.#registry.refreshModels(message.sessionId);
         break;
+      case "loadHistory":
+        await this.#registry.loadHistory(message.sessionId);
+        break;
       case "searchWorkspaceFiles": {
         try {
           const session = this.#registry.snapshot().activeSession;

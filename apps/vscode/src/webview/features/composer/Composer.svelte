@@ -19,7 +19,11 @@
 
   const draft = $derived($composerDrafts[session.id] ?? { text: "", images: [] });
   const commands = $derived(withLocalCommands(session.commands));
-  const canSend = $derived((draft.text.trim().length > 0 || draft.images.length > 0) && session.status !== "starting" && session.status !== "failed" && !pendingRequestId);
+  const unavailable = $derived(
+    session.status === "queued" || session.status === "starting" || session.status === "stopping" || session.status === "failed"
+    || session.historyStatus === "queued" || session.historyStatus === "loading",
+  );
+  const canSend = $derived((draft.text.trim().length > 0 || draft.images.length > 0) && !unavailable && !pendingRequestId);
   const supportsImages = $derived(modelSupportsImages(session.model));
 
   $effect(() => {
@@ -107,8 +111,8 @@
     <div class="composer-toolbar">
       <div class="composer-toolbar-left">
         <AddContextMenu />
-        <ModelPicker sessionId={session.id} model={session.model} models={session.availableModels} disabled={session.status === "starting"} />
-        <ThinkingLevelPicker sessionId={session.id} model={session.model} level={session.thinkingLevel} disabled={session.status === "starting"} />
+        <ModelPicker sessionId={session.id} model={session.model} models={session.availableModels} disabled={unavailable} />
+        <ThinkingLevelPicker sessionId={session.id} model={session.model} level={session.thinkingLevel} disabled={unavailable} />
       </div>
       <div class="composer-toolbar-right">
         <span class="send-hint">Ctrl ↵</span>
