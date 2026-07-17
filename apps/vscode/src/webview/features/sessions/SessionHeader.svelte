@@ -78,8 +78,14 @@
     if (active.status === "queued") return "waiting to start";
     if (active.historyStatus === "queued") return "waiting for history";
     if (active.historyStatus === "loading") return "loading history";
+    if (active.status === "running") {
+      if (active.historyStatus === "deferred") return "running · history not loaded";
+      if (active.historyStatus === "failed") return "running · history load failed";
+      return "running";
+    }
+    if (active.historyStatus === "deferred") return "history not loaded";
+    if (active.historyStatus === "failed") return "history load failed";
     if (active.status === "ready") return "ready";
-    if (active.status === "running") return "running";
     return active.status;
   }
 </script>

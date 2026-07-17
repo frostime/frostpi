@@ -53,7 +53,7 @@ It does not persist message bodies, reasoning, tool output, images, provider cre
 
 ## Conversation history
 
-A resumed Pi process becomes ready after startup state is available; loading prior messages is separate. Prompt submission remains disabled during an automatic history load so live events cannot race with replacement of the displayed history. History loads are serialized. Session files larger than 8 MiB are not loaded automatically because Pi returns `get_messages` as one potentially large JSONL record; these sessions remain usable and the user may explicitly request history loading from the session menu.
+A resumed Pi process becomes ready after startup state is available; loading prior messages is separate. The Webview disables and the host rejects prompt submission during an automatic history load. Pi events received while `get_messages` is pending are retained and applied in order after the displayed history is replaced. History loads are serialized. Session files larger than 8 MiB are not loaded automatically because Pi returns `get_messages` as one potentially large JSONL record; these sessions remain usable and the user may explicitly request history loading from the session menu.
 
 A history-load failure does not fail the live Pi process. The session remains usable and exposes the failed history state for retry.
 

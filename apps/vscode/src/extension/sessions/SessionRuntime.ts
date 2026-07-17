@@ -4,6 +4,7 @@ import {
   PiRpcApi,
   PiRpcConnection,
   isExtensionUiRequest,
+  type RpcEvent,
   type RpcExtensionUiResponse,
   type RpcModel,
   type ThinkingLevel,
@@ -39,6 +40,7 @@ export class SessionRuntime {
   #extensionUi: ExtensionUiCoordinator | null = null;
   #starting: Promise<void> | null = null;
   #historyLoading: Promise<void> | null = null;
+  #historyEventBuffer: RpcEvent[] | null = null;
   #disposed = false;
   #lifecycleVersion = 0;
   #appliedProxyFingerprint: string | null = null;
@@ -105,6 +107,7 @@ export class SessionRuntime {
     this.#connection = null;
     this.#api = null;
     this.#extensionUi = null;
+    this.#historyEventBuffer = null;
     this.#appliedProxyFingerprint = null;
     this.#proxyRestartForced = false;
     this.#projection.setStatus("stopped");
@@ -194,7 +197,16 @@ export class SessionRuntime {
   }
 
   async loadHistory(force = false): Promise<void> {
-    if (this.#historyLoading) return this.#historyLoading;
+    const activeLoad = this.#historyLoading;
+    if (activeLoad) {
+      try {
+        await activeLoad;
+      } catch (error) {
+        if (!force) throw error;
+      }
+      if (!force || this.view.historyStatus === "loaded") return;
+      return this.loadHistory(true);
+    }
     const api = this.#requireApi();
     const sessionFile = this.view.sessionFile;
     if (!sessionFile) {
@@ -292,10 +304,12 @@ export class SessionRuntime {
     });
 
     connection.onEvent((event) => {
-      if (isExtensionUiRequest(event)) this.#extensionUi?.handle(event);
-      else this.#projection.applyEvent(event);
+      if (this.#historyEventBuffer && shouldBufferDuringHistoryLoad(event)) {
+        this.#historyEventBuffer.push(event);
+        return;
+      }
+      this.#applyConnectionEvent(event);
       this.#notifyChange();
-      if (event.type === "agent_settled") void this.#refreshAfterSettled();
     });
     connection.onFailure((error) => {
       this.#logger.error(`Session ${this.id} failed`, error);
@@ -349,6 +363,12 @@ export class SessionRuntime {
   }
 
   async #loadHistoryInternal(api: PiRpcApi, sessionFile: string, force: boolean): Promise<void> {
+    if (this.view.isStreaming) {
+      this.#projection.setHistoryStatus("deferred");
+      this.#notifyChange();
+      throw new Error("Stop the running session before loading its conversation history.");
+    }
+
     try {
       if (!force && (await stat(sessionFile)).size > MAX_AUTO_HISTORY_LOAD_BYTES) {
         this.#projection.setHistoryStatus("deferred");
@@ -357,19 +377,36 @@ export class SessionRuntime {
         return;
       }
       this.#projection.setHistoryStatus("loading");
+      this.#historyEventBuffer = [];
       this.#notifyChange();
       const messages = await api.getMessages();
+      const bufferedEvents = this.#takeHistoryEvents();
       if (this.#disposed || api !== this.#api) return;
       this.#projection.hydrateMessages(messages);
+      for (const event of bufferedEvents) this.#applyConnectionEvent(event);
       this.#notifyChange();
     } catch (error) {
+      const bufferedEvents = this.#takeHistoryEvents();
       if (this.#disposed || api !== this.#api) return;
+      for (const event of bufferedEvents) this.#applyConnectionEvent(event);
       this.#logger.error("Failed to load Pi messages", error);
       this.#projection.setHistoryStatus("failed");
       this.#projection.appendNotice(`Unable to load conversation history: ${errorMessage(error)}`, "error");
       this.#notifyChange();
       throw error;
     }
+  }
+
+  #takeHistoryEvents(): RpcEvent[] {
+    const events = this.#historyEventBuffer ?? [];
+    this.#historyEventBuffer = null;
+    return events;
+  }
+
+  #applyConnectionEvent(event: RpcEvent): void {
+    if (isExtensionUiRequest(event)) this.#extensionUi?.handle(event);
+    else this.#projection.applyEvent(event);
+    if (event.type === "agent_settled") void this.#refreshAfterSettled();
   }
 
   async #refreshAfterSettled(): Promise<void> {
@@ -403,6 +440,11 @@ export class SessionRuntime {
 }
 
 const MAX_AUTO_HISTORY_LOAD_BYTES = 8 * 1024 * 1024;
+const IMMEDIATE_EXTENSION_UI_METHODS = new Set(["select", "confirm", "input", "editor"]);
+
+function shouldBufferDuringHistoryLoad(event: RpcEvent): boolean {
+  return !isExtensionUiRequest(event) || !IMMEDIATE_EXTENSION_UI_METHODS.has(event.method);
+}
 
 function commandName(text: string): string | undefined {
   const trimmed = text.trimStart();

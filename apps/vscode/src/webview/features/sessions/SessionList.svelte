@@ -22,9 +22,15 @@
     if (session.status === "queued") return "Waiting to start";
     if (session.historyStatus === "queued") return "Waiting for history";
     if (session.historyStatus === "loading") return "Loading history";
-    if (session.status === "running" && session.id !== activeId) return "Running in background";
+    if (session.status === "running") {
+      const location = session.id === activeId ? "Running" : "Running in background";
+      if (session.historyStatus === "deferred") return `${location} · history not loaded`;
+      if (session.historyStatus === "failed") return `${location} · history load failed`;
+      return location;
+    }
+    if (session.historyStatus === "deferred") return "History not loaded";
+    if (session.historyStatus === "failed") return "History load failed";
     if (session.status === "ready") return "Ready";
-    if (session.status === "running") return "Running";
     if (session.status === "starting") return "Starting";
     if (session.status === "stopping") return "Stopping";
     if (session.status === "failed") return "Failed";

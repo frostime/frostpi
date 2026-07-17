@@ -40,7 +40,21 @@ process.stdin.on("data", chunk => {
     input = input.slice(index + 1);
     const base = { type: "response", id: command.id, success: true };
     if (command.type === "get_state") base.data = { model: null, thinkingLevel: "off", isStreaming: false, isCompacting: false, sessionFile, sessionId: "history-test" };
-    else if (command.type === "get_messages") base.data = { messages: [{ role: "user", content: "Earlier request", timestamp: 1 }] };
+    else if (command.type === "get_messages") {
+      process.stdout.write(JSON.stringify({ type: "extension_ui_request", id: "notice-during-history", method: "notify", message: "Notice during history load" }) + "\n");
+      process.stdout.write(JSON.stringify({ type: "message_start", message: { id: "live-assistant", role: "assistant", timestamp: 2, content: [{ type: "text", text: "Live response" }] } }) + "\n");
+      process.stdout.write(JSON.stringify({ type: "message_end", message: { id: "live-assistant", role: "assistant", timestamp: 2, stopReason: "stop", content: [{ type: "text", text: "Live response" }] } }) + "\n");
+      setTimeout(() => {
+        base.data = { messages: [{ role: "user", content: "Earlier request", timestamp: 1 }] };
+        process.stdout.write(JSON.stringify(base) + "\n");
+      }, 25);
+      continue;
+    }
+    else if (command.type === "prompt") {
+      process.stdout.write(JSON.stringify(base) + "\n");
+      process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\n");
+      continue;
+    }
     else if (command.type === "get_available_models") base.data = { models: [] };
     else if (command.type === "get_commands") base.data = { commands: [] };
     else if (command.type === "get_session_stats") base.data = { sessionFile, sessionId: "history-test", userMessages: 1, assistantMessages: 0, toolCalls: 0, toolResults: 0, totalMessages: 1, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, cost: 0 };
@@ -78,8 +92,23 @@ process.on("SIGTERM", () => process.exit(0));
     expect(runtime.view.historyStatus).toBe("deferred");
     expect(runtime.view.turns).toHaveLength(0);
 
-    await runtime.loadHistory(true);
+    const repeatedAutomaticLoad = runtime.loadHistory(false);
+    const explicitLoad = runtime.loadHistory(true);
+    await Promise.all([repeatedAutomaticLoad, explicitLoad]);
     expect(runtime.view.historyStatus).toBe("loaded");
-    expect(runtime.view.turns).toHaveLength(1);
+    expect(runtime.view.turns).toHaveLength(2);
+    expect(runtime.view.turns.flatMap((turn) => turn.activities)).toContainEqual(
+      expect.objectContaining({ type: "response", blocks: [{ type: "text", text: "Live response" }] }),
+    );
+    expect(runtime.view.notices).toEqual([
+      expect.objectContaining({ text: "Notice during history load" }),
+    ]);
+
+    await runtime.sendPrompt("New request", []);
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(runtime.view.isStreaming).toBe(true);
+    runtime.markHistoryWaiting();
+    await expect(runtime.loadHistory(true)).rejects.toThrow("Stop the running session");
+    expect(runtime.view.historyStatus).toBe("deferred");
   });
 });

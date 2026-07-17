@@ -180,7 +180,7 @@ export class SessionRegistry implements vscode.Disposable {
 
   async closeSession(sessionId: string): Promise<void> {
     const runtime = this.#requireRuntime(sessionId);
-    if (!this.#temporarySessionIds.has(sessionId) && !await confirmClose(runtime)) return;
+    if (!await confirmClose(runtime)) return;
     await runtime.dispose();
     this.#removeSession(sessionId);
     if (this.#activeSessionId === sessionId) {
@@ -211,6 +211,9 @@ export class SessionRegistry implements vscode.Disposable {
     if (!text.trim() && images.length === 0) return;
     const runtime = this.#requireRuntime(sessionId);
     await this.#ensureRunning(runtime);
+    if (runtime.view.historyStatus === "queued" || runtime.view.historyStatus === "loading") {
+      throw new Error("Wait for conversation history to finish loading before sending a prompt.");
+    }
     await runtime.sendPrompt(text, images);
     if (this.#temporarySessionIds.delete(sessionId)) await this.#persist();
   }
@@ -253,7 +256,6 @@ export class SessionRegistry implements vscode.Disposable {
   async loadHistory(sessionId: string): Promise<void> {
     const runtime = this.#requireRuntime(sessionId);
     await this.#ensureRunning(runtime);
-    if (runtime.view.isStreaming) throw new Error("Stop the running session before loading its conversation history.");
     await this.#queueHistory(runtime, true);
   }
 
@@ -322,8 +324,8 @@ export class SessionRegistry implements vscode.Disposable {
     const pending = this.#startJobs.get(runtime.id);
     if (pending) return pending;
 
-    runtime.markWaitingToStart();
     const sessionFile = this.#records.get(runtime.id)?.sessionFile;
+    runtime.markWaitingToStart();
     const job = this.#startQueue.catch(() => undefined).then(async () => {
       if (this.#runtimes.get(runtime.id) !== runtime) return;
       try {
@@ -384,7 +386,7 @@ export class SessionRegistry implements vscode.Disposable {
     }
     const metadataChanged = Boolean(previous && (
       previous.title !== view.title ||
-      previous.sessionFile !== view.sessionFile ||
+      (view.sessionFile !== undefined && previous.sessionFile !== view.sessionFile) ||
       previous.cwd !== view.cwd
     ));
     const runSettled = Boolean(
@@ -392,11 +394,12 @@ export class SessionRegistry implements vscode.Disposable {
       && ["ready", "failed", "stopped"].includes(view.status),
     );
     if (previous && (metadataChanged || runSettled)) {
+      const sessionFile = view.sessionFile ?? previous.sessionFile;
       this.#records.set(runtime.id, {
         id: runtime.id,
         title: view.title,
         cwd: view.cwd,
-        ...(view.sessionFile ? { sessionFile: view.sessionFile } : {}),
+        ...(sessionFile ? { sessionFile } : {}),
         updatedAt: view.updatedAt,
       });
       void this.#persist();
@@ -425,7 +428,7 @@ export class SessionRegistry implements vscode.Disposable {
       ? this.#activeSessionId
       : null;
     const job = this.#persistenceQueue.catch(() => undefined).then(() => this.#persistence.save(activeSessionId, sessions));
-    this.#persistenceQueue = Promise.resolve(job);
+    this.#persistenceQueue = job;
     return job;
   }
 
