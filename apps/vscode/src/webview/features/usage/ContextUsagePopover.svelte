@@ -25,20 +25,26 @@
   </button>
   {#if open && stats}
     <div class="context-usage-popover" role="dialog" tabindex="-1" aria-label="Context and session usage" onmouseenter={show} onmouseleave={scheduleClose}>
-      <div class="usage-heading"><strong>Context</strong><span>{session.isCompacting ? "Compacting" : session.status}</span></div>
+      <div class="usage-heading">
+        <strong>Context</strong>
+        <span>{session.isCompacting ? "Compacting" : session.status}</span>
+      </div>
       <div class="usage-current">
-        <div><span>Current context</span><strong>{context?.tokens === null || context?.tokens === undefined ? "—" : number(context.tokens)} / {context ? number(context.contextWindow) : "—"}</strong></div>
-        <div class="usage-bar"><span style={`width:${clamp(context?.percent ?? 0)}%`}></span></div>
+        <div>
+          <span>In use</span>
+          <strong>{context?.tokens == null ? "—" : compactNumber(context.tokens)} / {context ? compactNumber(context.contextWindow) : "—"}</strong>
+        </div>
+        <div class="usage-bar" aria-hidden="true"><span style={`width:${clamp(context?.percent ?? 0)}%`}></span></div>
       </div>
       <dl class="usage-grid">
-        <dt>Input</dt><dd>{number(stats.tokens.input)}</dd>
-        <dt>Output</dt><dd>{number(stats.tokens.output)}</dd>
-        <dt>Cache read</dt><dd>{number(stats.tokens.cacheRead)}</dd>
-        <dt>Cache write</dt><dd>{number(stats.tokens.cacheWrite)}</dd>
-        <dt>Total tokens</dt><dd>{number(stats.tokens.total)}</dd>
-        <dt>Messages</dt><dd>{stats.userMessages} user · {stats.assistantMessages} assistant</dd>
-        <dt>Tool calls</dt><dd>{stats.toolCalls}</dd>
-        <dt>Estimated cost</dt><dd>${stats.cost.toFixed(4)}</dd>
+        <dt>Input</dt><dd>{compactNumber(stats.tokens.input)}</dd>
+        <dt>Output</dt><dd>{compactNumber(stats.tokens.output)}</dd>
+        <dt>Cache read</dt><dd>{compactNumber(stats.tokens.cacheRead)}</dd>
+        <dt>Cache write</dt><dd>{compactNumber(stats.tokens.cacheWrite)}</dd>
+        <dt>Total</dt><dd>{compactNumber(stats.tokens.total)}</dd>
+        <dt>Messages</dt><dd title={`${stats.userMessages} user · ${stats.assistantMessages} assistant`}>{stats.userMessages}u · {stats.assistantMessages}a</dd>
+        <dt>Tools</dt><dd>{compactNumber(stats.toolCalls)}</dd>
+        <dt>Cost</dt><dd>${stats.cost.toFixed(3)}</dd>
         <dt>Model</dt><dd title={session.model ? `${session.model.provider}/${session.model.id}` : ""}>{modelLabel}</dd>
       </dl>
     </div>
@@ -46,7 +52,16 @@
 </div>
 
 <script lang="ts" module>
-  const formatter = new Intl.NumberFormat();
-  function number(value: number): string { return formatter.format(value); }
-  function clamp(value: number): number { return Math.max(0, Math.min(100, value)); }
+  const full = new Intl.NumberFormat();
+  const compact = new Intl.NumberFormat(undefined, { notation: "compact", maximumFractionDigits: 1 });
+
+  function compactNumber(value: number): string {
+    if (!Number.isFinite(value)) return "—";
+    // Keep exact values for small counts; compress large token totals that force width.
+    return Math.abs(value) >= 10_000 ? compact.format(value) : full.format(value);
+  }
+
+  function clamp(value: number): number {
+    return Math.max(0, Math.min(100, value));
+  }
 </script>
