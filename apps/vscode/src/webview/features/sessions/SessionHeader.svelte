@@ -96,6 +96,7 @@
   editing = false;
 }} />
 
+<div class="session-header-slot">
 {#if hidden}
   <button
     class="session-header-restore"
@@ -191,3 +192,4 @@
     </div>
   </header>
 {/if}
+</div>

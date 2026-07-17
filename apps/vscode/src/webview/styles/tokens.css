@@ -29,6 +29,7 @@
 }
 
 .app-shell { position: relative; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.session-header-slot { position: relative; min-width: 0; }
 
 .session-header {
   position: relative;
