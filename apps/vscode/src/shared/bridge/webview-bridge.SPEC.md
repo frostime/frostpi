@@ -5,7 +5,7 @@ scope:
   - /apps/vscode/src/shared/bridge/**
   - /apps/vscode/src/extension/webview-host/**
   - /apps/vscode/src/webview/bridge/**
-updated: 2026-07-16
+updated: 2026-07-17
 ---
 
 # Webview Bridge Compatibility Contract
@@ -16,4 +16,4 @@ Turns and notices are ordered collections with stable ids. `upsert` is valid onl
 
 Every Webview command is validated as a complete discriminated union. Prompt acceptance is correlated by request id. File-suggestion requests and responses are also correlated; stale or unknown responses have no effect.
 
-Required-field or delta-semantic changes increment `BRIDGE_VERSION`. Unknown versions are rejected rather than guessed, and recovery is a fresh snapshot.
+`BRIDGE_VERSION` is an opaque string compared for exact equality in both directions. Dotted values such as `"2.1"` are identifiers, not semantic versions: the bridge performs no ordering, range, or backward-compatibility inference. Required-field or delta-semantic changes assign a new value. Unknown values are rejected rather than guessed, and recovery is a fresh snapshot.

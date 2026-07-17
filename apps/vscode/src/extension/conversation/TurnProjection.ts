@@ -6,6 +6,7 @@ import type {
   AgentTurnView,
   ResponseActivityView,
   SessionNoticeView,
+  SessionNoticeLevel,
 } from "../../shared/model/agentTurnModel.js";
 import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
 import type { ConversationMessageView, ImageAttachmentView, MessageBlockView, MessageStatus } from "../../shared/model/conversationModel.js";
@@ -91,7 +92,7 @@ export class TurnProjection {
       if (raw.role === "bashExecution") {
         const command = stringValue(raw.command, "command");
         const output = stringValue(raw.output, "");
-        this.appendNotice(`Ran \`${command}\`${output ? `\n\n${output}` : ""}`, Number(raw.exitCode ?? 0) === 0 ? "complete" : "error", timestamp);
+        this.appendNotice(`Ran \`${command}\`${output ? `\n\n${output}` : ""}`, Number(raw.exitCode ?? 0) === 0 ? "info" : "error", timestamp);
       }
     }
   }
@@ -129,13 +130,18 @@ export class TurnProjection {
     this.#activeTurnId = turn.id;
   }
 
-  appendNotice(text: string, status: "complete" | "error" = "complete", timestamp = Date.now()): void {
-    this.#notices = [...this.#notices, {
+  appendNotice(text: string, level: SessionNoticeLevel = "info", timestamp = Date.now()): void {
+    const notice = {
       id: `notice-${timestamp}-${++this.#sequence}`,
       text,
-      status,
+      level,
       timestamp,
-    }];
+    };
+    if (this.#activeTurnId) {
+      this.#upsertActivity(this.#activeTurnId, { ...notice, type: "notice" });
+      return;
+    }
+    this.#notices = [...this.#notices, notice];
   }
 
   applyEvent(event: RpcEvent): void {
@@ -282,16 +288,23 @@ export class TurnProjection {
   }
 
   #replaceMessageActivities(turnId: string, messageId: string, activities: AgentActivityView[]): void {
-    const previous = this.#messageActivities.get(messageId) ?? [];
-    const previousIds = new Set(previous.map((item) => item.activityId));
+    const previousIds = new Set((this.#messageActivities.get(messageId) ?? []).map((item) => item.activityId));
+    const replacements = new Map(activities.map((activity) => [activity.id, activity]));
+    const observedIds = new Set<string>();
     const turn = this.#turn(turnId);
-    const retained = turn.activities.filter((item) => !previousIds.has(item.id));
-    const previousIndex = previous.length
-      ? turn.activities.findIndex((item) => item.id === previous[0]?.activityId)
-      : -1;
-    const firstIndex = previousIndex >= 0 ? previousIndex : retained.length;
-    const nextActivities = [...retained];
-    nextActivities.splice(firstIndex, 0, ...activities);
+    const nextActivities: AgentActivityView[] = [];
+    for (const current of turn.activities) {
+      const replacement = replacements.get(current.id);
+      if (replacement) {
+        nextActivities.push(replacement);
+        observedIds.add(current.id);
+      } else if (!previousIds.has(current.id)) {
+        nextActivities.push(current);
+      }
+    }
+    for (const activity of activities) {
+      if (!observedIds.has(activity.id)) nextActivities.push(activity);
+    }
     this.#replaceTurn({ ...turn, activities: nextActivities });
     const locations = activities.map((activity) => ({ turnId, activityId: activity.id }));
     this.#messageActivities.set(messageId, locations);

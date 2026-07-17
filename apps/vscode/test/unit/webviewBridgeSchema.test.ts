@@ -23,6 +23,6 @@ describe("Webview bridge validation", () => {
   });
 
   it("rejects incompatible bridge versions", () => {
-    expect(webviewToHostSchema.safeParse({ bridgeVersion: BRIDGE_VERSION + 1, type: "ready" }).success).toBe(false);
+    expect(webviewToHostSchema.safeParse({ bridgeVersion: "stale-version", type: "ready" }).success).toBe(false);
   });
 });

@@ -29,6 +29,15 @@ describe("live Pi event projection", () => {
       expect(activity.tool).toMatchObject({ id: "t1", label: "npm test", status: "error", isError: true, output: "failed" });
     }
   });
+  it("projects multiline session notices with their severity", () => {
+    const projection = new SessionProjection("s1", "/workspace", "Session");
+    projection.appendNotice("line 1\nline 2", "warning");
+
+    expect(projection.snapshot().notices).toEqual([
+      expect.objectContaining({ text: "line 1\nline 2", level: "warning" }),
+    ]);
+  });
+
   it("does not mutate timestamps when a view is only read", () => {
     const projection = new SessionProjection("s1", "/workspace", "Session");
     const before = projection.read().updatedAt;

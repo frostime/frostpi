@@ -32,4 +32,4 @@ export type HostToWebviewPayload =
   | { type: "workspaceFileSuggestions"; requestId: string; items: WorkspaceFileCandidateView[]; error?: string }
   | { type: "toast"; level: "info" | "warning" | "error"; message: string };
 
-export type HostToWebviewMessage = HostToWebviewPayload & { bridgeVersion: number };
+export type HostToWebviewMessage = HostToWebviewPayload & { bridgeVersion: string };

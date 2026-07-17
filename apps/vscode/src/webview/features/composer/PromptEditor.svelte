@@ -126,7 +126,7 @@
           },
           ".cm-content": {
             minHeight: "72px",
-            padding: "10px 11px 8px",
+            padding: "13px 14px 11px",
             caretColor: "var(--frost-text)",
           },
           ".cm-line": { padding: "0" },

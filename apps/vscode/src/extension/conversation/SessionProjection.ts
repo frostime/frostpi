@@ -1,6 +1,7 @@
 import type { RpcEvent, RpcSessionState } from "@frostime/pi-rpc";
 
 import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
+import type { SessionNoticeLevel } from "../../shared/model/agentTurnModel.js";
 import type { AttachmentLimitsView, SessionRuntimeStatus, SessionViewModel } from "../../shared/model/sessionViewModel.js";
 import { TurnProjection } from "./TurnProjection.js";
 
@@ -117,8 +118,8 @@ export class SessionProjection {
     this.#touch();
   }
 
-  appendSystemMessage(text: string, status: "complete" | "error" = "complete"): void {
-    this.#conversation.appendNotice(text, status);
+  appendNotice(text: string, level: SessionNoticeLevel = "info"): void {
+    this.#conversation.appendNotice(text, level);
     this.#syncConversation();
     this.#touch();
   }
