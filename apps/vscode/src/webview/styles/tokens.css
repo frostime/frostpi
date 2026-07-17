@@ -410,28 +410,36 @@ button.session-heading:hover, button.session-heading.active { background: var(--
 .prompt-editor .cm-prompt-command { color: var(--frost-link); background: color-mix(in srgb, var(--frost-link) 9%, transparent); border-radius: 3px; font-weight: 550; }
 .prompt-editor .cm-prompt-command-unknown { color: var(--frost-warning); text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: color-mix(in srgb, var(--frost-warning) 75%, transparent); text-underline-offset: 3px; }
 .prompt-editor .cm-prompt-mention { color: var(--vscode-textLink-activeForeground, var(--frost-link)); background: color-mix(in srgb, var(--frost-link) 8%, transparent); border-radius: 3px; }
-.prompt-editor .cm-tooltip-autocomplete {
+/* Shared / and @ completion surface.
+   Tooltips mount on document.body (see PromptEditor), so selectors are not nested under .prompt-editor.
+   Outer shell owns max-height + rounded clip; CodeMirror scrolls the selected option via the inner <ul>. */
+.cm-tooltip.cm-tooltip-autocomplete {
+  display: flex;
+  flex-direction: column;
   min-width: min(390px, calc(100vw - 26px));
   max-width: min(480px, calc(100vw - 18px));
+  max-height: min(320px, 45vh, calc(100vh - 24px));
+  overflow: hidden;
   border: 1px solid var(--frost-border);
   border-radius: 8px;
   background: var(--frost-surface-raised);
   box-shadow: var(--frost-shadow);
-  /* Keep the outer tooltip from clipping; CM scrolls the inner <ul>. */
-  overflow: visible;
+  z-index: 80;
 }
-.prompt-editor .cm-tooltip-autocomplete > ul {
-  max-height: min(320px, 42vh);
+.cm-tooltip.cm-tooltip-autocomplete > ul {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
   height: auto;
   overflow-x: hidden;
   overflow-y: auto;
   font-family: var(--font-ui);
 }
-.prompt-editor .cm-tooltip-autocomplete > ul > li { min-height: 30px; padding: 5px 8px; color: var(--frost-text); }
-.prompt-editor .cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--frost-hover); }
-.prompt-editor .cm-completionLabel { font-size: 11px; }
-.prompt-editor .cm-completionDetail { float: right; max-width: 55%; overflow: hidden; text-overflow: ellipsis; color: var(--frost-muted); font-size: 9.5px; }
-.prompt-editor .cm-completionIcon { color: var(--frost-muted); }
+.cm-tooltip.cm-tooltip-autocomplete > ul > li { min-height: 30px; padding: 5px 8px; color: var(--frost-text); }
+.cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected] { background: var(--frost-hover); }
+.cm-tooltip.cm-tooltip-autocomplete .cm-completionLabel { font-size: 11px; }
+.cm-tooltip.cm-tooltip-autocomplete .cm-completionDetail { float: right; max-width: 55%; overflow: hidden; text-overflow: ellipsis; color: var(--frost-muted); font-size: 9.5px; }
+.cm-tooltip.cm-tooltip-autocomplete .cm-completionIcon { color: var(--frost-muted); }
 
 /* Compact model and thinking menus */
 .model-picker-panel { position: absolute; left: 0; right: auto; bottom: calc(100% + 8px); width: min(370px, calc(100vw - 20px)); max-height: min(410px, 55vh); grid-template-rows: auto auto minmax(0,1fr); border-radius: 9px; }
@@ -523,40 +531,30 @@ button.session-heading:hover, button.session-heading.active { background: var(--
 .thinking-trigger-label { font-size: var(--font-size-compact); font-weight: 500; }
 .thinking-trigger-label { color: var(--frost-text); }
 
-/* Compact command and file completion surface.
-   CodeMirror scrolls the selected option via the inner <ul>; do not put
-   max-height + overflow:hidden on the outer tooltip or keyboard navigation
-   will move into clipped options without scrolling them into view. */
-.prompt-editor .cm-tooltip-autocomplete {
+/* Compact / and @ completion surface. */
+.cm-tooltip.cm-tooltip-autocomplete {
   min-width: min(280px, calc(100vw - 20px));
   max-width: min(430px, calc(100vw - 14px));
-  max-height: none;
-  overflow: visible;
+  max-height: min(300px, 42vh, calc(100vh - 24px));
   border-radius: 7px;
 }
-.prompt-editor .cm-tooltip-autocomplete > ul {
-  max-height: min(270px, 38vh);
-  height: auto;
-  overflow-x: hidden;
-  overflow-y: auto;
-  padding: 3px;
-}
-.prompt-editor .cm-tooltip-autocomplete > ul > li {
+.cm-tooltip.cm-tooltip-autocomplete > ul { padding: 3px; }
+.cm-tooltip.cm-tooltip-autocomplete > ul > li {
   min-height: 28px;
   display: flex;
   align-items: center;
   padding: 3px 7px;
   border-radius: 4px;
 }
-.prompt-editor .cm-completionIcon { display: none; }
-.prompt-editor .cm-completionLabel {
+.cm-tooltip.cm-tooltip-autocomplete .cm-completionIcon { display: none; }
+.cm-tooltip.cm-tooltip-autocomplete .cm-completionLabel {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: var(--font-size-compact);
 }
-.prompt-editor .cm-completionDetail {
+.cm-tooltip.cm-tooltip-autocomplete .cm-completionDetail {
   flex: none;
   max-width: 42%;
   margin-left: auto;
@@ -567,8 +565,8 @@ button.session-heading:hover, button.session-heading.active { background: var(--
   color: var(--frost-muted);
   font-size: var(--font-size-detail);
 }
-.prompt-editor .cm-completionInfo { display: none !important; }
-.prompt-editor .frostpi-completion-status { color: var(--frost-muted); font-style: italic; }
+.cm-tooltip.cm-tooltip-autocomplete .cm-completionInfo { display: none !important; }
+.cm-tooltip.cm-tooltip-autocomplete .frostpi-completion-status { color: var(--frost-muted); font-style: italic; }
 
 /* Model picker: fixed row heights, no hover-driven reflow. */
 .model-picker-panel {

@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Execute Pi extension slash commands with arguments (for example `/toggle-web-proxy on`), trim surrounding whitespace before RPC, and close the local turn when the command finishes without an agent run.
-- Keep slash-command completion keyboard selection in view by scrolling the option list instead of clipping it.
+- Keep `/` and `@` completion keyboard selection in view by scrolling the option list, and mount completion tooltips outside the editor so long file lists are not clipped.
 
 ## [0.3.0] - 2026-07-17
 

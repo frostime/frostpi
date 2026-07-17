@@ -6,7 +6,7 @@ The composer is a plain-text CodeMirror 6 editor. FrostPi sends exactly the visi
 - The editor starts at roughly three lines, grows with content, and scrolls internally after its maximum height.
 - CodeMirror focus must not create a second nested focus border; screen-reader live regions remain off-screen.
 - `/command` completion comes from Pi `get_commands` plus FrostPi-local `/resume` and `/compact`; descriptions must not open a layout-shifting info panel.
-- Completion lists that exceed the visible height must scroll inside the CodeMirror option list (`ul`). Keyboard selection must keep the highlighted option in view; the outer tooltip must not clip options with `overflow: hidden`.
+- `/` and `@` share one completion surface. Lists that exceed the available height scroll inside the CodeMirror option list (`ul`). Keyboard selection must keep the highlighted option in view. Tooltips mount on `document.body` so composer/editor geometry cannot clip long file lists; the outer shell may clip only for rounded corners while the inner list remains the scroll container.
 - A text-only `/compact` or `/compact <instructions>` submission is translated to Pi's `compact` RPC request and is never appended as a user prompt. Pi's built-in command takes precedence over a same-named extension command, matching interactive Pi.
 - Submitted composer text is trimmed before host handling so `/command args` with surrounding whitespace still matches Pi extension commands. Args after the first token remain part of the prompt string and are parsed by Pi, not FrostPi.
 - Only a command in the first non-whitespace token of a line is decorated as a command.

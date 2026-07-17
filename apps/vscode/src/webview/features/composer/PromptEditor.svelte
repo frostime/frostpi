@@ -9,7 +9,7 @@
   } from "@codemirror/autocomplete";
   import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
   import { Compartment, EditorState } from "@codemirror/state";
-  import { EditorView, keymap, placeholder as editorPlaceholder } from "@codemirror/view";
+  import { EditorView, keymap, placeholder as editorPlaceholder, tooltips } from "@codemirror/view";
   import type { RpcCommandDescriptor } from "@frostime/pi-rpc";
   import { onMount } from "svelte";
 
@@ -84,6 +84,8 @@
       doc,
       extensions: [
         history(),
+        // Mount completion outside the editor so composer/editor geometry cannot clip long lists.
+        tooltips({ parent: document.body }),
         keymap.of([
           ...completionKeymap,
           ...historyKeymap,
@@ -134,7 +136,6 @@
           ".cm-gutters": { display: "none" },
           ".cm-activeLine": { backgroundColor: "transparent" },
           ".cm-selectionBackground, ::selection": { backgroundColor: "var(--vscode-editor-selectionBackground) !important" },
-          ".cm-tooltip": { zIndex: "80" },
         }),
       ],
     });
