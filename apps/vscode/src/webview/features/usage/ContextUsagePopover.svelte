@@ -20,7 +20,7 @@
 </script>
 
 <div class="context-usage-wrap" role="presentation" onmouseenter={show} onmouseleave={scheduleClose}>
-  <button class="context-usage-trigger" type="button" aria-expanded={open} onfocus={show} onblur={scheduleClose} onclick={() => open = !open}>
+  <button class="context-usage-trigger" type="button" aria-expanded={open} onfocus={show} onblur={scheduleClose}>
     Context {context?.percent === null || context?.percent === undefined ? "—" : `${Math.round(context.percent)}%`}
   </button>
   {#if open && stats}

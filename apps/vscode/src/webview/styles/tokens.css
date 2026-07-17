@@ -218,7 +218,8 @@
 .extension-widget pre { white-space: pre-wrap; font: 10.5px/1.45 var(--font-mono); }
 
 .session-metrics { width: 100%; max-width: 820px; min-height: 17px; margin: 0 auto 4px; display: flex; align-items: center; justify-content: space-between; gap: 8px; color: var(--frost-faint); font-size: 9px; }
-.extension-statuses, .metrics-right { display: flex; align-items: center; gap: 8px; overflow: hidden; }
+.extension-statuses, .metrics-right { display: flex; align-items: center; gap: 8px; }
+.extension-statuses { overflow: hidden; }
 .extension-statuses span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .status-mini-dot { display: inline-block; width: 4px; height: 4px; margin-right: 4px; border-radius: 50%; background: var(--frost-link); }
 
