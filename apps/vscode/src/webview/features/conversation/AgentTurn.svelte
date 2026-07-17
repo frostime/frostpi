@@ -5,6 +5,7 @@
   import ThinkingActivity from "./ThinkingActivity.svelte";
   import ToolActivity from "./ToolActivity.svelte";
   import ResponseActivity from "./ResponseActivity.svelte";
+  import SessionNotice from "./SessionNotice.svelte";
 
   let { turn }: { turn: AgentTurnView } = $props();
 </script>
@@ -17,6 +18,8 @@
         <ThinkingActivity {activity} />
       {:else if activity.type === "tool"}
         <ToolActivity {activity} />
+      {:else if activity.type === "notice"}
+        <SessionNotice notice={activity} />
       {:else}
         <ResponseActivity {activity} />
       {/if}

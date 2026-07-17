@@ -21,6 +21,30 @@ describe("TurnProjection", () => {
     expect(projection.snapshot().turns[0]?.activities[1]).toMatchObject({ type: "tool", tool: { status: "complete", output: "clean" } });
   });
 
+  it("keeps notices between the turn activities observed before and after them", () => {
+    const projection = new TurnProjection();
+    projection.appendUserPrompt("test", []);
+    projection.applyEvent({ type: "agent_start" });
+    projection.applyEvent({
+      type: "message_start",
+      message: { id: "a1", role: "assistant", timestamp: 1, content: [{ type: "thinking", thinking: "Inspect" }] },
+    });
+    projection.appendNotice("Retrying", "info", 2);
+    projection.applyEvent({
+      type: "message_update",
+      message: {
+        id: "a1",
+        role: "assistant",
+        timestamp: 1,
+        content: [{ type: "thinking", thinking: "Inspect" }, { type: "text", text: "Done" }],
+      },
+      assistantMessageEvent: { type: "text_delta" },
+    });
+
+    expect(projection.snapshot().turns[0]?.activities.map((activity) => activity.type)).toEqual(["reasoning", "notice", "response"]);
+    expect(projection.snapshot().notices).toEqual([]);
+  });
+
   it("does not attach a new orphan run to the final historical turn", () => {
     const projection = new TurnProjection();
     projection.hydrate([{ role: "user", id: "u1", timestamp: 1, content: "old" }]);

@@ -26,7 +26,20 @@ export interface ToolActivityView {
   timestamp: number;
 }
 
-export type AgentActivityView = ReasoningActivityView | ResponseActivityView | ToolActivityView;
+export type SessionNoticeLevel = "info" | "warning" | "error";
+
+export interface SessionNoticeView {
+  id: string;
+  text: string;
+  level: SessionNoticeLevel;
+  timestamp: number;
+}
+
+export interface NoticeActivityView extends SessionNoticeView {
+  type: "notice";
+}
+
+export type AgentActivityView = ReasoningActivityView | ResponseActivityView | ToolActivityView | NoticeActivityView;
 
 export interface AgentTurnView {
   id: string;
@@ -35,13 +48,4 @@ export interface AgentTurnView {
   status: AgentTurnStatus;
   startedAt: number;
   endedAt?: number;
-}
-
-export type SessionNoticeLevel = "info" | "warning" | "error";
-
-export interface SessionNoticeView {
-  id: string;
-  text: string;
-  level: SessionNoticeLevel;
-  timestamp: number;
 }
