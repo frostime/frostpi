@@ -3,7 +3,8 @@ import type { RpcCommandDescriptor, RpcModel, RpcSessionStats, ThinkingLevel } f
 import type { AgentTurnView, SessionNoticeView } from "./agentTurnModel.js";
 import type { ExtensionStatusView, ExtensionWidgetView, PendingExtensionUiView } from "./extensionUiModel.js";
 
-export type SessionRuntimeStatus = "starting" | "ready" | "running" | "stopping" | "stopped" | "failed";
+export type SessionRuntimeStatus = "queued" | "starting" | "ready" | "running" | "stopping" | "stopped" | "failed";
+export type SessionHistoryStatus = "loaded" | "queued" | "loading" | "deferred" | "failed";
 
 export interface SessionSummaryView {
   id: string;
@@ -13,6 +14,7 @@ export interface SessionSummaryView {
   isActive: boolean;
   modelLabel?: string;
   thinkingLevel?: ThinkingLevel;
+  requiresUserInput: boolean;
   updatedAt: number;
 }
 
@@ -38,6 +40,7 @@ export interface SessionViewModel {
   status: SessionRuntimeStatus;
   isStreaming: boolean;
   isCompacting: boolean;
+  historyStatus: SessionHistoryStatus;
   sessionFile?: string;
   sessionId?: string;
   model: RpcModel | null;

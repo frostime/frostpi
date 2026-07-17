@@ -31,8 +31,15 @@ export class SessionRegistry implements vscode.Disposable {
   readonly #insertTextEmitter = new vscode.EventEmitter<string>();
   readonly #pendingEditorText = new Map<string, string>();
   readonly #lastStatuses = new Map<string, SessionRuntimeStatus>();
+  readonly #lastPendingUiCounts = new Map<string, number>();
+  readonly #temporarySessionIds = new Set<string>();
+  readonly #startJobs = new Map<string, Promise<void>>();
+  readonly #historyJobs = new Map<string, Promise<void>>();
 
   #activeSessionId: string | null = null;
+  #startQueue: Promise<void> = Promise.resolve();
+  #historyQueue: Promise<void> = Promise.resolve();
+  #persistenceQueue: Promise<void> = Promise.resolve();
   #emitTimer: ReturnType<typeof setTimeout> | null = null;
   #disposed = false;
 
@@ -80,6 +87,7 @@ export class SessionRegistry implements vscode.Disposable {
           isActive: view.id === this.#activeSessionId,
           ...(view.model ? { modelLabel: view.model.name ?? `${view.model.provider}/${view.model.id}` } : {}),
           thinkingLevel: view.thinkingLevel,
+          requiresUserInput: view.pendingExtensionUi.length > 0,
           updatedAt: view.updatedAt,
         };
       })
@@ -98,6 +106,7 @@ export class SessionRegistry implements vscode.Disposable {
 
   async createSession(cwd = activeWorkspaceFolder()?.uri.fsPath): Promise<string> {
     if (!cwd) throw new Error("Open a workspace folder before creating a Pi session.");
+    await this.#discardActiveTemporarySession();
     const id = randomUUID();
     const record: PersistedSessionRecord = {
       id,
@@ -106,6 +115,7 @@ export class SessionRegistry implements vscode.Disposable {
       updatedAt: Date.now(),
     };
     this.#records.set(id, record);
+    this.#temporarySessionIds.add(id);
     const runtime = this.#createRuntime(record);
     this.#runtimes.set(id, runtime);
     this.#activeSessionId = id;
@@ -128,10 +138,12 @@ export class SessionRegistry implements vscode.Disposable {
   async openSession(entry: PiSessionCatalogEntry): Promise<string> {
     const existing = [...this.#records.values()].find((record) => record.sessionFile && samePath(record.sessionFile, entry.path));
     if (existing) {
+      if (existing.id !== this.#activeSessionId) await this.#discardActiveTemporarySession();
       await this.activateSession(existing.id);
       return existing.id;
     }
 
+    await this.#discardActiveTemporarySession();
     const id = randomUUID();
     const record: PersistedSessionRecord = {
       id,
@@ -152,6 +164,7 @@ export class SessionRegistry implements vscode.Disposable {
 
   async activateSession(sessionId: string): Promise<void> {
     const runtime = this.#requireRuntime(sessionId);
+    if (sessionId !== this.#activeSessionId) await this.#discardActiveTemporarySession();
     this.#activeSessionId = sessionId;
     await this.#persist();
     const pendingText = this.#pendingEditorText.get(sessionId);
@@ -166,13 +179,12 @@ export class SessionRegistry implements vscode.Disposable {
 
   async closeSession(sessionId: string): Promise<void> {
     const runtime = this.#requireRuntime(sessionId);
+    if (!this.#temporarySessionIds.has(sessionId) && !await confirmClose(runtime)) return;
     await runtime.dispose();
-    this.#runtimes.delete(sessionId);
-    this.#records.delete(sessionId);
-    this.#pendingEditorText.delete(sessionId);
-    this.#lastStatuses.delete(sessionId);
+    this.#removeSession(sessionId);
     if (this.#activeSessionId === sessionId) {
-      this.#activeSessionId = [...this.#runtimes.keys()][0] ?? null;
+      this.#activeSessionId = [...this.#runtimes.values()]
+        .sort((left, right) => right.view.updatedAt - left.view.updatedAt)[0]?.id ?? null;
     }
     await this.#persist();
     this.#emitChange();
@@ -195,9 +207,11 @@ export class SessionRegistry implements vscode.Disposable {
   }
 
   async sendPrompt(sessionId: string, text: string, images: WebviewImageInput[]): Promise<void> {
+    if (!text.trim() && images.length === 0) return;
     const runtime = this.#requireRuntime(sessionId);
     await this.#ensureRunning(runtime);
     await runtime.sendPrompt(text, images);
+    if (this.#temporarySessionIds.delete(sessionId)) await this.#persist();
   }
 
   async abort(sessionId = this.#requireActiveId()): Promise<void> {
@@ -208,6 +222,7 @@ export class SessionRegistry implements vscode.Disposable {
     const runtime = this.#requireRuntime(sessionId);
     await this.#ensureRunning(runtime);
     await runtime.rename(name);
+    if (this.#temporarySessionIds.delete(sessionId)) await this.#persist();
   }
 
   async setModel(sessionId: string, provider: string, modelId: string): Promise<void> {
@@ -232,6 +247,12 @@ export class SessionRegistry implements vscode.Disposable {
     const runtime = this.#requireRuntime(sessionId);
     await this.#ensureRunning(runtime);
     await runtime.refreshCommands();
+  }
+
+  async loadHistory(sessionId: string): Promise<void> {
+    const runtime = this.#requireRuntime(sessionId);
+    await this.#ensureRunning(runtime);
+    await this.#queueHistory(runtime, true);
   }
 
   async respondExtensionUi(sessionId: string, requestId: string, response: RpcExtensionUiResponse): Promise<void> {
@@ -296,13 +317,29 @@ export class SessionRegistry implements vscode.Disposable {
   }
 
   async #startRuntime(runtime: SessionRuntime): Promise<void> {
-    const record = this.#records.get(runtime.id);
+    const pending = this.#startJobs.get(runtime.id);
+    if (pending) return pending;
+
+    runtime.markWaitingToStart();
+    const sessionFile = this.#records.get(runtime.id)?.sessionFile;
+    const job = this.#startQueue.catch(() => undefined).then(async () => {
+      if (this.#runtimes.get(runtime.id) !== runtime) return;
+      try {
+        await runtime.start(sessionFile);
+        if (sessionFile) void this.#queueHistory(runtime, false);
+      } catch (error) {
+        if (this.#runtimes.get(runtime.id) !== runtime) return;
+        const message = error instanceof Error ? error.message : String(error);
+        this.#toastEmitter.fire({ level: "error", message: `Unable to start Pi: ${message}` });
+        throw error;
+      }
+    });
+    this.#startQueue = job.catch(() => undefined);
+    this.#startJobs.set(runtime.id, job);
     try {
-      await runtime.start(record?.sessionFile);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      this.#toastEmitter.fire({ level: "error", message: `Unable to start Pi: ${message}` });
-      throw error;
+      await job;
+    } finally {
+      if (this.#startJobs.get(runtime.id) === job) this.#startJobs.delete(runtime.id);
     }
   }
 
@@ -313,7 +350,23 @@ export class SessionRegistry implements vscode.Disposable {
 
   async #ensureRunning(runtime: SessionRuntime): Promise<void> {
     const status = runtime.view.status;
-    if (status === "stopped" || status === "failed") await this.#startRuntime(runtime);
+    if (status === "queued" || status === "stopped" || status === "failed") await this.#startRuntime(runtime);
+  }
+
+  async #queueHistory(runtime: SessionRuntime, force: boolean): Promise<void> {
+    const pending = this.#historyJobs.get(runtime.id);
+    if (pending) return pending;
+    const job = this.#historyQueue.catch(() => undefined).then(async () => {
+      if (this.#runtimes.get(runtime.id) !== runtime) return;
+      await runtime.loadHistory(force);
+    });
+    this.#historyQueue = job.catch(() => undefined);
+    this.#historyJobs.set(runtime.id, job);
+    try {
+      await job;
+    } finally {
+      if (this.#historyJobs.get(runtime.id) === job) this.#historyJobs.delete(runtime.id);
+    }
   }
 
   #handleRuntimeChange(runtime: SessionRuntime): void {
@@ -321,6 +374,11 @@ export class SessionRegistry implements vscode.Disposable {
     const previous = this.#records.get(runtime.id);
     const previousStatus = this.#lastStatuses.get(runtime.id);
     this.#lastStatuses.set(runtime.id, view.status);
+    const previousPendingUiCount = this.#lastPendingUiCounts.get(runtime.id) ?? 0;
+    this.#lastPendingUiCounts.set(runtime.id, view.pendingExtensionUi.length);
+    if (runtime.id !== this.#activeSessionId && previousPendingUiCount === 0 && view.pendingExtensionUi.length > 0) {
+      this.#toastEmitter.fire({ level: "info", message: "A background FrostPi session is waiting for input." });
+    }
     const metadataChanged = Boolean(previous && (
       previous.title !== view.title ||
       previous.sessionFile !== view.sessionFile ||
@@ -359,7 +417,31 @@ export class SessionRegistry implements vscode.Disposable {
   }
 
   #persist(): Thenable<void> {
-    return this.#persistence.save(this.#activeSessionId, [...this.#records.values()]);
+    const sessions = [...this.#records.values()].filter((record) => !this.#temporarySessionIds.has(record.id));
+    const activeSessionId = this.#activeSessionId && !this.#temporarySessionIds.has(this.#activeSessionId)
+      ? this.#activeSessionId
+      : null;
+    const job = this.#persistenceQueue.catch(() => undefined).then(() => this.#persistence.save(activeSessionId, sessions));
+    this.#persistenceQueue = Promise.resolve(job);
+    return job;
+  }
+
+  async #discardActiveTemporarySession(): Promise<void> {
+    const sessionId = this.#activeSessionId;
+    if (!sessionId || !this.#temporarySessionIds.has(sessionId)) return;
+    const runtime = this.#runtimes.get(sessionId);
+    if (runtime) await runtime.dispose();
+    this.#removeSession(sessionId);
+    this.#activeSessionId = null;
+  }
+
+  #removeSession(sessionId: string): void {
+    this.#runtimes.delete(sessionId);
+    this.#records.delete(sessionId);
+    this.#temporarySessionIds.delete(sessionId);
+    this.#pendingEditorText.delete(sessionId);
+    this.#lastStatuses.delete(sessionId);
+    this.#lastPendingUiCounts.delete(sessionId);
   }
 
   #requireRuntime(sessionId: string): SessionRuntime {
@@ -372,6 +454,19 @@ export class SessionRegistry implements vscode.Disposable {
     if (!this.#activeSessionId) throw new Error("No active FrostPi session");
     return this.#activeSessionId;
   }
+}
+
+async function confirmClose(runtime: SessionRuntime): Promise<boolean> {
+  const view = runtime.view;
+  if (!view.isStreaming && view.pendingExtensionUi.length === 0) return true;
+  const choice = await vscode.window.showWarningMessage(
+    view.pendingExtensionUi.length > 0
+      ? "Closing this FrostPi session will cancel its pending user interaction and stop its Pi process. Persisted Pi history is retained."
+      : "Closing this FrostPi session will stop its active response and tools. Persisted Pi history is retained.",
+    { modal: true },
+    "Close session",
+  );
+  return choice === "Close session";
 }
 
 async function confirmRestart(runtimes: readonly SessionRuntime[]): Promise<boolean> {

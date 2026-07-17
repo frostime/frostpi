@@ -23,6 +23,7 @@ export class SessionProjection {
       status: "stopped",
       isStreaming: false,
       isCompacting: false,
+      historyStatus: "loaded",
       model: null,
       thinkingLevel: "off",
       availableModels: [],
@@ -68,6 +69,12 @@ export class SessionProjection {
   hydrateMessages(rawMessages: unknown[]): void {
     this.#conversation.hydrate(rawMessages);
     this.#syncConversation();
+    this.#view.historyStatus = "loaded";
+    this.#touch();
+  }
+
+  setHistoryStatus(status: SessionViewModel["historyStatus"]): void {
+    this.#view.historyStatus = status;
     this.#touch();
   }
 

@@ -18,8 +18,9 @@ describe("Webview bridge validation", () => {
     expect(webviewToHostSchema.safeParse({ bridgeVersion: BRIDGE_VERSION, type: "sendPrompt", requestId: "r", sessionId: "s", text: "x", images }).success).toBe(false);
   });
 
-  it("accepts the local resume-session action", () => {
+  it("accepts local session and history actions", () => {
     expect(webviewToHostSchema.safeParse({ bridgeVersion: BRIDGE_VERSION, type: "resumeSession" }).success).toBe(true);
+    expect(webviewToHostSchema.safeParse({ bridgeVersion: BRIDGE_VERSION, type: "loadHistory", sessionId: "session-1" }).success).toBe(true);
   });
 
   it("rejects incompatible bridge versions", () => {

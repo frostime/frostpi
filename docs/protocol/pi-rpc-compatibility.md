@@ -4,7 +4,7 @@ description: Supported Pi RPC commands/events, executable resolution, and compat
 scope:
   - /packages/pi-rpc/**
   - /apps/vscode/src/extension/pi-runtime/**
-updated: 2026-07-16
+updated: 2026-07-17
 ---
 
 # Pi RPC Compatibility
@@ -31,4 +31,4 @@ The Webview treats the active model object returned by Pi as authoritative. Reas
 
 ## Existing sessions
 
-FrostPi discovers existing Pi JSONL files for the active workspace, then starts a normal independent RPC process with `--session <absolute-path>`. Pi remains responsible for file migration, tree position, history, model state, and extension lifecycle. See `apps/vscode/src/extension/sessions/session-catalog.SPEC.md`.
+FrostPi discovers existing Pi JSONL files for the active workspace, then starts a normal independent RPC process with `--session <absolute-path>`. Pi remains responsible for file migration, tree position, history, model state, and extension lifecycle. FrostPi requests `get_messages` separately after startup; files larger than 8 MiB require an explicit user request to avoid parsing a very large RPC record during startup. See `apps/vscode/src/extension/sessions/session-catalog.SPEC.md`.
