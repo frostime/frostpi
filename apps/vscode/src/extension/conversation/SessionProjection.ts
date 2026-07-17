@@ -1,7 +1,7 @@
 import type { RpcEvent, RpcSessionState } from "@frostime/pi-rpc";
 
 import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
-import type { SessionNoticeLevel } from "../../shared/model/agentTurnModel.js";
+import type { AgentTurnStatus, SessionNoticeLevel } from "../../shared/model/agentTurnModel.js";
 import type { AttachmentLimitsView, SessionRuntimeStatus, SessionViewModel } from "../../shared/model/sessionViewModel.js";
 import { TurnProjection } from "./TurnProjection.js";
 
@@ -120,16 +120,26 @@ export class SessionProjection {
     this.#touch();
   }
 
-  appendUserPrompt(text: string, images: WebviewImageInput[]): void {
-    this.#conversation.appendUserPrompt(text, images);
+  appendUserPrompt(text: string, images: WebviewImageInput[]): string {
+    const turnId = this.#conversation.appendUserPrompt(text, images);
     this.#syncConversation();
     this.#touch();
+    return turnId;
   }
 
   appendNotice(text: string, level: SessionNoticeLevel = "info"): void {
     this.#conversation.appendNotice(text, level);
     this.#syncConversation();
     this.#touch();
+  }
+
+  completeTurn(turnId: string, status: AgentTurnStatus = "completed"): boolean {
+    const completed = this.#conversation.completeTurn(turnId, status);
+    if (completed) {
+      this.#syncConversation();
+      this.#touch();
+    }
+    return completed;
   }
 
   applyEvent(event: RpcEvent): void {

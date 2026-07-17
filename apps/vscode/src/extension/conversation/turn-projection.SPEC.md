@@ -8,6 +8,7 @@ FrostPi presents one user prompt and all subsequent Pi activity as a turn. Pi RP
 - Notices emitted during an active turn participate in that activity order; notices emitted while idle remain session-level timeline items.
 - Tool result events update the existing tool activity by tool-call ID.
 - `agent_settled` closes the active turn.
+- A host-side completion path may close a specific still-running local turn by id when that turn never received agent events (Pi extension slash commands).
 - Historical messages and live events use the same activity model.
 - View objects are replaced, not mutated, so incremental bridge updates remain observable.
 - Disclosure state is Webview-only and never stored in the Pi session.

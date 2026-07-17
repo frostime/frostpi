@@ -111,4 +111,173 @@ process.on("SIGTERM", () => process.exit(0));
     await expect(runtime.loadHistory(true)).rejects.toThrow("Stop the running session");
     expect(runtime.view.historyStatus).toBe("deferred");
   });
+
+  it("trims slash text, executes extension commands with args, and closes the local turn without agent events", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "frostpi-runtime-ext-"));
+    const fakePi = join(dir, "fake-pi.cjs");
+    await writeFile(fakePi, String.raw`#!/usr/bin/env node
+let input = "";
+let promptCount = 0;
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => {
+  input += chunk;
+  while (input.includes("\n")) {
+    const index = input.indexOf("\n");
+    const command = JSON.parse(input.slice(0, index));
+    input = input.slice(index + 1);
+    const base = { type: "response", id: command.id, success: true };
+    if (command.type === "get_state") {
+      base.data = {
+        model: null,
+        thinkingLevel: "off",
+        isStreaming: false,
+        isCompacting: false,
+        pendingMessageCount: 0,
+        sessionFile: undefined,
+        sessionId: "extension-cmd",
+      };
+    } else if (command.type === "get_commands") {
+      base.data = {
+        commands: [
+          { name: "toggle-web-proxy", description: "Toggle proxy", source: "extension" },
+          { name: "inspect", description: "Inspect", source: "prompt" },
+        ],
+      };
+    } else if (command.type === "get_available_models") base.data = { models: [] };
+    else if (command.type === "get_session_stats") {
+      base.data = {
+        sessionId: "extension-cmd",
+        userMessages: 0,
+        assistantMessages: 0,
+        toolCalls: 0,
+        toolResults: 0,
+        totalMessages: 0,
+        tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        cost: 0,
+      };
+    } else if (command.type === "prompt") {
+      promptCount += 1;
+      process.stdout.write(JSON.stringify({
+        type: "extension_ui_request",
+        id: "proxy-notify-" + promptCount,
+        method: "notify",
+        notifyType: "info",
+        message: "Proxy enabled\nHTTP_PROXY=http://127.0.0.1:10808\nargs=" + String(command.message),
+      }) + "\n");
+      process.stdout.write(JSON.stringify(base) + "\n");
+      continue;
+    }
+    process.stdout.write(JSON.stringify(base) + "\n");
+  }
 });
+process.on("SIGTERM", () => process.exit(0));
+`);
+
+    const configuration = {
+      piExecutable: fakePi,
+      piArguments: [],
+      startSessionOnOpen: true,
+      streamingBehavior: "followUp" as const,
+      maxImageBytes: 10 * 1024 * 1024,
+      diagnosticsLevel: "info" as const,
+      proxy: { mode: "inherit" as const },
+      fileMentionMaxFiles: 50_000,
+      fileMentionRespectSearchExclude: true,
+    };
+    const secrets = new ProxySecretStore({ get: () => Promise.resolve(undefined) } as never);
+    const logger = { error: vi.fn(), info: vi.fn() };
+    const runtime = new SessionRuntime("session", dir, "Extension command", Date.now(), () => configuration, secrets, logger as never, {
+      onChange: vi.fn(),
+      onEditorText: vi.fn(),
+    });
+    runtimes.push(runtime);
+
+    await runtime.start();
+    await waitFor(() => runtime.view.commands.some((command) => command.name === "toggle-web-proxy"));
+
+    await runtime.sendPrompt("  /toggle-web-proxy on  ", []);
+
+    expect(runtime.view.isStreaming).toBe(false);
+    expect(runtime.view.status).toBe("ready");
+    expect(runtime.view.turns).toHaveLength(1);
+    expect(runtime.view.turns[0]?.userMessage?.blocks).toEqual([
+      { type: "text", text: "/toggle-web-proxy on" },
+    ]);
+    expect(runtime.view.turns[0]?.status).toBe("completed");
+    expect(runtime.view.turns[0]?.activities).toEqual([
+      expect.objectContaining({
+        type: "notice",
+        text: expect.stringContaining("args=/toggle-web-proxy on"),
+      }),
+    ]);
+  });
+
+  it("does not force-complete a known non-extension slash that starts an agent run", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "frostpi-runtime-prompt-"));
+    const fakePi = join(dir, "fake-pi.cjs");
+    await writeFile(fakePi, String.raw`#!/usr/bin/env node
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => {
+  input += chunk;
+  while (input.includes("\n")) {
+    const index = input.indexOf("\n");
+    const command = JSON.parse(input.slice(0, index));
+    input = input.slice(index + 1);
+    const base = { type: "response", id: command.id, success: true };
+    if (command.type === "get_state") {
+      base.data = { model: null, thinkingLevel: "off", isStreaming: false, isCompacting: false, pendingMessageCount: 0, sessionId: "prompt-cmd" };
+    } else if (command.type === "get_commands") {
+      base.data = { commands: [{ name: "inspect", description: "Inspect", source: "prompt" }] };
+    } else if (command.type === "get_available_models") base.data = { models: [] };
+    else if (command.type === "get_session_stats") {
+      base.data = { sessionId: "prompt-cmd", userMessages: 0, assistantMessages: 0, toolCalls: 0, toolResults: 0, totalMessages: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, cost: 0 };
+    } else if (command.type === "prompt") {
+      process.stdout.write(JSON.stringify(base) + "\n");
+      process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\n");
+      continue;
+    }
+    process.stdout.write(JSON.stringify(base) + "\n");
+  }
+});
+process.on("SIGTERM", () => process.exit(0));
+`);
+
+    const configuration = {
+      piExecutable: fakePi,
+      piArguments: [],
+      startSessionOnOpen: true,
+      streamingBehavior: "followUp" as const,
+      maxImageBytes: 10 * 1024 * 1024,
+      diagnosticsLevel: "info" as const,
+      proxy: { mode: "inherit" as const },
+      fileMentionMaxFiles: 50_000,
+      fileMentionRespectSearchExclude: true,
+    };
+    const secrets = new ProxySecretStore({ get: () => Promise.resolve(undefined) } as never);
+    const logger = { error: vi.fn(), info: vi.fn() };
+    const runtime = new SessionRuntime("session", dir, "Prompt command", Date.now(), () => configuration, secrets, logger as never, {
+      onChange: vi.fn(),
+      onEditorText: vi.fn(),
+    });
+    runtimes.push(runtime);
+
+    await runtime.start();
+    await waitFor(() => runtime.view.commands.some((command) => command.name === "inspect"));
+
+    await runtime.sendPrompt("/inspect src", []);
+    await waitFor(() => runtime.view.isStreaming);
+
+    // Misclassifying as extension would force-complete after idle checks.
+    expect(runtime.view.turns[0]?.status).toBe("running");
+    expect(runtime.view.turns[0]?.userMessage?.blocks).toEqual([{ type: "text", text: "/inspect src" }]);
+  });
+});
+
+async function waitFor(predicate: () => boolean, timeoutMs = 1_000): Promise<void> {
+  const started = Date.now();
+  while (!predicate()) {
+    if (Date.now() - started > timeoutMs) throw new Error("Timed out waiting for condition");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}

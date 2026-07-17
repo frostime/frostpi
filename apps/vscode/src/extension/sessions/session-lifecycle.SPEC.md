@@ -5,7 +5,7 @@ scope:
   - /apps/vscode/src/extension/sessions/**
   - /apps/vscode/src/extension/conversation/**
   - /apps/vscode/src/extension/extension-ui/**
-updated: 2026-07-17
+updated: 2026-07-18
 ---
 
 # Pi Session Lifecycle
@@ -50,6 +50,12 @@ It does not persist message bodies, reasoning, tool output, images, provider cre
 - `failed`: startup, protocol, stdin, or unexpected process failure occurred.
 
 `agent_end` is not considered completion. Only `agent_settled` changes a running session back to ready because retries, compaction retries, or queued continuations may follow `agent_end`.
+
+## Slash commands
+
+Composer text is trimmed before RPC submission so leading/trailing whitespace cannot bypass Pi's leading-`/` extension-command match. FrostPi-local `/compact` and `/resume` remain host-handled; every other slash is sent as a normal `prompt`.
+
+Pi extension commands (from `get_commands` with `source: "extension"`) execute inside the `prompt` request and often never emit `agent_start` / `agent_settled`. After such a prompt returns, FrostPi closes the turn opened for that prompt once short idle checks (`get_state`) report no agent work, or falls back to local non-streaming completion if every `get_state` fails. Command classification uses the cached list by exact name: a known non-extension slash is not re-fetched; a name missing from the cache triggers one `get_commands` refresh, then classification. Prompt templates and skills still expand into ordinary agent turns and close only on `agent_settled`.
 
 ## Conversation history
 
