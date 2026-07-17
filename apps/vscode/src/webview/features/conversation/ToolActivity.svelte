@@ -37,7 +37,20 @@
     </div>
     {#if Object.keys(tool.args).length}
       <div class="tool-section-label">Input</div>
-      <pre class="tool-json">{JSON.stringify(tool.args, null, 2)}</pre>
+      <div class="tool-input">
+        {#each Object.entries(tool.args) as [key, value] (key)}
+          {@const rendered = renderArg(value)}
+          {#if rendered.kind === "block"}
+            <div class="tool-section-label">{key}</div>
+            <pre class="tool-json">{rendered.text}</pre>
+          {:else}
+            <div class="tool-input-row">
+              <span class="tool-input-key">{key}:</span>
+              <span class="tool-input-value">{rendered.text}</span>
+            </div>
+          {/if}
+        {/each}
+      </div>
     {/if}
     {#if tool.output}
       <div class="tool-section-label">Output</div>
@@ -58,5 +71,23 @@
     if (!value) return "Failed";
     const line = value.split(/\r?\n/, 1)[0]?.trim() || "Failed";
     return line.length > 72 ? `${line.slice(0, 69)}…` : line;
+  }
+
+  interface RenderedArg {
+    kind: "inline" | "block";
+    text: string;
+  }
+
+  function renderArg(value: unknown): RenderedArg {
+    if (typeof value === "string") {
+      if (value.includes("\n") || value.length > 120) {
+        return { kind: "block", text: value };
+      }
+      return { kind: "inline", text: value };
+    }
+    if (value === null || value === undefined || typeof value === "number" || typeof value === "boolean") {
+      return { kind: "inline", text: String(value) };
+    }
+    return { kind: "block", text: JSON.stringify(value, null, 2) };
   }
 </script>
