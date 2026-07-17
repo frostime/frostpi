@@ -6,12 +6,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Show an ephemeral "Compacting context" status in the conversation while `/compact` runs.
+
+### Changed
+
+- Tighten the context usage hover card: narrower layout, compact large token counts, and shorter message labels.
+- Keep a single root `CHANGELOG.md`; VSIX packaging copies it into the extension package.
+
 ### Fixed
 
 - Execute Pi extension slash commands with arguments (for example `/toggle-web-proxy on`), trim surrounding whitespace before RPC, and close the local turn when the command finishes without an agent run.
-- Keep `/` and `@` completion keyboard selection in view by scrolling the option list, and mount completion tooltips outside the editor so long file lists are not clipped.
-- Show an ephemeral "Compacting context" status in the conversation while `/compact` runs.
-- Tighten the context usage hover card width, labels, and large token formatting.
+- Keep `/` and `@` completion keyboard selection in view by scrolling the option list instead of clipping selected options.
 
 ## [0.3.0] - 2026-07-17
 
