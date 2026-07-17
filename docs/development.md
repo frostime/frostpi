@@ -8,7 +8,7 @@ updated: 2026-07-16
 
 # Development Workflow
 
-Use Node 20.19+ and pnpm 10. The Pi executable used for manual testing may require a newer external Node; this is independent of the extension build runtime.
+Use Node 20.19+ and pnpm 10. The Pi executable used for manual testing may require a newer external Node; this is independent of the extension build runtime. Install dependencies only from the repository root; the shared lockfile covers the root, `apps/*`, and `packages/*`.
 
 ```bash
 pnpm install
@@ -17,6 +17,8 @@ pnpm typecheck
 pnpm test
 pnpm build
 ```
+
+Each workspace package owns its local `build`, `clean`, `lint`, `typecheck`, and `test` implementation. Root commands only orchestrate those package scripts and release artifact checks. Add shared development tools with `pnpm add -Dw <package>`; add package dependencies with `pnpm --filter <workspace-name> add <package>`.
 
 Launch the Extension Development Host with the repository's `.vscode/launch.json`. The extension bundle is built by esbuild; the Svelte Webview is built by Vite. Production builds omit source maps unless `FROSTPI_SOURCEMAP=1` is set.
 

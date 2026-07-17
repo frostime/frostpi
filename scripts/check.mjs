@@ -1,6 +1,8 @@
 import { runQuality } from "./quality.mjs";
 import { run } from "./lib.mjs";
 
+console.log("[check] version policy");
+run(process.execPath, ["scripts/version.mjs", "check"]);
 for (const target of ["lint", "typecheck", "test"]) {
   console.log(`[check] ${target}`);
   runQuality(target);

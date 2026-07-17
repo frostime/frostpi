@@ -1,6 +1,5 @@
 {
   "name": "frostpi-workspace",
-  "version": "0.2.2",
   "private": true,
   "packageManager": "pnpm@10.13.1",
   "engines": {
@@ -8,7 +7,9 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "clean": "pnpm -r clean && node scripts/clean-dir.mjs artifacts",
+    "clean": "pnpm --filter @frostime/pi-rpc clean && pnpm --filter frostpi clean && node scripts/clean-dir.mjs artifacts",
+    "version:set": "node scripts/version.mjs set",
+    "version:check": "node scripts/version.mjs check",
     "typecheck": "node scripts/quality.mjs typecheck",
     "test": "node scripts/quality.mjs test",
     "test:watch": "pnpm --filter frostpi test:watch",

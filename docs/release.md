@@ -4,13 +4,15 @@ description: Versioning, quality gates, VSIX inspection, and Marketplace/Open VS
 scope:
   - /scripts/**
   - /.github/workflows/**
+  - /package.json
   - /apps/vscode/package.json
+  - /packages/pi-rpc/package.json
 updated: 2026-07-16
 ---
 
 # Release Procedure
 
-1. Update version in root/app/package metadata and `CHANGELOG.md`.
+1. Set the product version with `pnpm version:set <version>` and update `CHANGELOG.md`. `apps/vscode/package.json` is the only version source; private workspace manifests must not duplicate it.
 2. Confirm supported VS Code and Pi compatibility assumptions.
 3. Run `pnpm install --frozen-lockfile`, `pnpm check`, and `node scripts/check-bundle-size.mjs`.
 4. Run `pnpm package:vsix` and `pnpm verify:vsix`.

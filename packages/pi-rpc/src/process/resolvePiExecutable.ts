@@ -29,13 +29,14 @@ export function resolvePiExecutable(options: ResolvePiExecutableOptions = {}): P
     return { command: process.execPath, args: [currentScript], source: "current-process" };
   }
 
+  const platform = options.platform ?? process.platform;
   const installedCli = findInstalledPiCli(options.path ?? process.env.PATH ?? "");
   if (installedCli) {
-    return { command: options.platform === "win32" || process.platform === "win32" ? "node.exe" : "node", args: [installedCli], source: "path-module" };
+    return { command: platform === "win32" ? "node.exe" : "node", args: [installedCli], source: "path-module" };
   }
 
   return {
-    command: options.platform === "win32" || process.platform === "win32" ? "pi.cmd" : "pi",
+    command: platform === "win32" ? "pi.cmd" : "pi",
     args: [],
     source: "path-command",
   };
