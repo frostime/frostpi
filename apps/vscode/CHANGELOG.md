@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Execute Pi extension slash commands with arguments (for example `/toggle-web-proxy on`), trim surrounding whitespace before RPC, and close the local turn when the command finishes without an agent run.
+
 ## [0.3.0] - 2026-07-17
 
 ### Added
