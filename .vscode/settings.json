@@ -3,5 +3,5 @@
     "frostpi.network.proxy.https": "http://120.0.0.1:10808",
     "frostpi.network.proxy.all": "http://127.0.0.1:10808",
     "frostpi.network.proxy.noProxy": "localhost,127.0.0.1,::1",
-    "frostpi.network.proxy.mode": "custom"
+    "frostpi.network.proxy.mode": "direct"
 }
