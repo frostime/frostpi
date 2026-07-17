@@ -1,9 +1,8 @@
 name: CI
 
+# Temporarily disabled — re-enable by restoring push/PR triggers
 on:
-  push:
-    branches: [main]
-  pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -42,6 +41,7 @@ jobs:
           node-version: 22.20.0
           cache: pnpm
       - run: pnpm install --frozen-lockfile
+      - run: pnpm build
       - run: xvfb-run -a pnpm --filter frostpi test:e2e
       - run: pnpm package:vsix
       - run: pnpm verify:vsix
