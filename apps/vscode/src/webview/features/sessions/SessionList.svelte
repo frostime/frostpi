@@ -20,6 +20,8 @@
   function statusLabel(session: SessionSummaryView): string {
     if (session.requiresUserInput) return "Action required";
     if (session.status === "queued") return "Waiting to start";
+    if (session.historyStatus === "queued") return "Waiting for history";
+    if (session.historyStatus === "loading") return "Loading history";
     if (session.status === "running" && session.id !== activeId) return "Running in background";
     if (session.status === "ready") return "Ready";
     if (session.status === "running") return "Running";

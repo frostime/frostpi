@@ -13,7 +13,7 @@ updated: 2026-07-17
 - **Tool/reasoning:** collapsed by default, including errors. State updates never override a user's disclosure choice.
 - **Scroll following:** initial load, session switch, new user turn, manual bottom reach, or jump button follows output. User scroll-away pauses without losing updates.
 - **Pending extension UI:** stays visible until answered, timed out by Pi, or cancelled by stop/restart. A background owner is marked as requiring input.
-- **Conversation history:** a resumed session is usable before prior messages finish loading. Large histories are deferred and expose an explicit load action; failure is retryable without failing the Pi process.
+- **Conversation history:** a resumed Pi process reaches ready before prior messages finish loading, but submission remains disabled until an automatic load completes. Large histories are deferred, remain usable, and expose an explicit load action; failure is retryable without failing the Pi process.
 - **Temporary new session:** replacing it closes it without confirmation until a prompt is accepted or the session is renamed.
 - **Proxy changed:** running sessions show restart-required. Saving settings never silently interrupts work.
 - **File mention:** `@` opens bounded workspace path completion; selection inserts text only.

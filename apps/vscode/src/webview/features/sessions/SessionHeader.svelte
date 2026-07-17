@@ -76,6 +76,7 @@
   function statusLabel(): string {
     if (active.pendingExtensionUi.length > 0) return "action required";
     if (active.status === "queued") return "waiting to start";
+    if (active.historyStatus === "queued") return "waiting for history";
     if (active.historyStatus === "loading") return "loading history";
     if (active.status === "ready") return "ready";
     if (active.status === "running") return "running";

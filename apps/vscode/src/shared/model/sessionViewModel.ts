@@ -14,6 +14,7 @@ export interface SessionSummaryView {
   isActive: boolean;
   modelLabel?: string;
   thinkingLevel?: ThinkingLevel;
+  historyStatus: SessionHistoryStatus;
   requiresUserInput: boolean;
   updatedAt: number;
 }

@@ -19,7 +19,10 @@
 
   const draft = $derived($composerDrafts[session.id] ?? { text: "", images: [] });
   const commands = $derived(withLocalCommands(session.commands));
-  const unavailable = $derived(session.status === "queued" || session.status === "starting" || session.status === "stopping" || session.status === "failed");
+  const unavailable = $derived(
+    session.status === "queued" || session.status === "starting" || session.status === "stopping" || session.status === "failed"
+    || session.historyStatus === "queued" || session.historyStatus === "loading",
+  );
   const canSend = $derived((draft.text.trim().length > 0 || draft.images.length > 0) && !unavailable && !pendingRequestId);
   const supportsImages = $derived(modelSupportsImages(session.model));
 

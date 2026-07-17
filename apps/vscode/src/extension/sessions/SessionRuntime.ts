@@ -188,6 +188,11 @@ export class SessionRuntime {
     this.#notifyChange();
   }
 
+  markHistoryWaiting(): void {
+    this.#projection.setHistoryStatus("queued");
+    this.#notifyChange();
+  }
+
   async loadHistory(force = false): Promise<void> {
     if (this.#historyLoading) return this.#historyLoading;
     const api = this.#requireApi();

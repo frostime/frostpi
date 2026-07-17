@@ -87,6 +87,7 @@ export class SessionRegistry implements vscode.Disposable {
           isActive: view.id === this.#activeSessionId,
           ...(view.model ? { modelLabel: view.model.name ?? `${view.model.provider}/${view.model.id}` } : {}),
           thinkingLevel: view.thinkingLevel,
+          historyStatus: view.historyStatus,
           requiresUserInput: view.pendingExtensionUi.length > 0,
           updatedAt: view.updatedAt,
         };
@@ -252,6 +253,7 @@ export class SessionRegistry implements vscode.Disposable {
   async loadHistory(sessionId: string): Promise<void> {
     const runtime = this.#requireRuntime(sessionId);
     await this.#ensureRunning(runtime);
+    if (runtime.view.isStreaming) throw new Error("Stop the running session before loading its conversation history.");
     await this.#queueHistory(runtime, true);
   }
 
@@ -326,7 +328,7 @@ export class SessionRegistry implements vscode.Disposable {
       if (this.#runtimes.get(runtime.id) !== runtime) return;
       try {
         await runtime.start(sessionFile);
-        if (sessionFile) void this.#queueHistory(runtime, false);
+        if (sessionFile) void this.#queueHistory(runtime, false).catch(() => undefined);
       } catch (error) {
         if (this.#runtimes.get(runtime.id) !== runtime) return;
         const message = error instanceof Error ? error.message : String(error);
@@ -356,6 +358,7 @@ export class SessionRegistry implements vscode.Disposable {
   async #queueHistory(runtime: SessionRuntime, force: boolean): Promise<void> {
     const pending = this.#historyJobs.get(runtime.id);
     if (pending) return pending;
+    runtime.markHistoryWaiting();
     const job = this.#historyQueue.catch(() => undefined).then(async () => {
       if (this.#runtimes.get(runtime.id) !== runtime) return;
       await runtime.loadHistory(force);
