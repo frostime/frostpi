@@ -26,6 +26,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve Pi events received while prior conversation history is being loaded and replaced.
 - Preserve the selected Pi session file while a resumed session waits to start.
 - Keep the composer anchored to the bottom when the session bar is hidden.
+- Correct code-block horizontal banding by preventing double translucent background stacking in `pre > code`.
+- Correct composer text flush against the edge by reclaiming padding control from the VS Code Webview default reset.
+- Correct CI failure in the `Verify VSIX` job by adding the missing `pnpm build` step.
 
 ## [0.2.2] - 2026-07-17
 

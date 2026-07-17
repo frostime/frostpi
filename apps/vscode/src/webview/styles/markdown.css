@@ -14,6 +14,7 @@
 .markdown-body code:not(pre code) { padding: .12em .35em; border: 1px solid var(--frost-border-soft); border-radius: 4px; background: var(--frost-code-bg); font-family: var(--font-mono); font-size: .91em; }
 .markdown-body pre { position: relative; max-width: 100%; margin: .65em 0 .85em; padding: 10px 11px; overflow: auto; background: var(--frost-code-bg); border: 1px solid var(--frost-border-soft); border-radius: 7px; font: 11px/1.55 var(--font-mono); tab-size: 2; }
 .markdown-body pre.hljs { padding: 10px 11px; }
+.markdown-body pre code { background: transparent; display: block; }
 .markdown-body table { width: 100%; margin: .7em 0; border-collapse: collapse; font-size: .95em; }
 .markdown-body th, .markdown-body td { padding: 5px 7px; border: 1px solid var(--frost-border); text-align: left; }
 .markdown-body th { background: var(--frost-surface); }

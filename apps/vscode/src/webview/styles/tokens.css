@@ -405,7 +405,7 @@ button.session-heading:hover, button.session-heading.active { background: var(--
 .prompt-editor .cm-editor { min-width: 0; }
 .prompt-editor .cm-editor.cm-focused { outline: 0; }
 .prompt-editor .cm-scroller { scrollbar-color: var(--frost-scrollbar) transparent; }
-.prompt-editor .cm-content { word-break: break-word; }
+.prompt-editor .cm-content { word-break: break-word; padding: 13px 14px 11px; }
 .prompt-editor .cm-placeholder { color: var(--frost-faint); font-style: normal; }
 .prompt-editor .cm-prompt-command { color: var(--frost-link); background: color-mix(in srgb, var(--frost-link) 9%, transparent); border-radius: 3px; font-weight: 550; }
 .prompt-editor .cm-prompt-command-unknown { color: var(--frost-warning); text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: color-mix(in srgb, var(--frost-warning) 75%, transparent); text-underline-offset: 3px; }
