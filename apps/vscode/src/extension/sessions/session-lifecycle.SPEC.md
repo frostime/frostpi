@@ -20,6 +20,10 @@ Multiple sessions may run concurrently, including sessions sharing a workspace. 
 
 Pi process starts are serialized to avoid concurrent startup spikes. Conversation-history loads are serialized separately, so a slow history load does not prevent an already started Pi process from becoming usable. FrostPi does not add a global execution lock, command gate, file-write proxy, or conflict resolver. Workspace conflicts are visible consequences of concurrent agents and remain the user's responsibility.
 
+## Initial open
+
+Extension activation restores persisted session metadata only. It does not create a new session when none exist; the Webview shows the onboarding home until the user creates or resumes one. `frostpi.session.startOnOpen` may start the already-selected restored session's Pi process, but never invents a session identity.
+
 ## Temporary new sessions
 
 A locally created session remains temporary until Pi accepts its first non-empty prompt or the user renames it. Temporary sessions appear in the live session list but are excluded from workspace persistence. Selecting, creating, or resuming another session closes the currently selected temporary session without confirmation.

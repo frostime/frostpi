@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Open FrostPi on the onboarding home when no session is selected instead of auto-creating a new session.
 - Tighten the context usage hover card: narrower layout, compact large token counts, and shorter message labels.
 - Keep a single root `CHANGELOG.md`; VSIX packaging copies it into the extension package.
 

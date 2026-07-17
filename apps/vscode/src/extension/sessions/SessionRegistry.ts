@@ -65,7 +65,8 @@ export class SessionRegistry implements vscode.Disposable {
   async ensureInitialSession(): Promise<void> {
     if (!vscode.workspace.workspaceFolders?.length) return;
     await this.#repairGeneratedTitles();
-    if (!this.#activeSessionId) await this.createSession();
+    // Never invent a new session on open. Empty workspaces stay on the onboarding home until
+    // the user creates or resumes a session. Optionally start only an already-selected one.
     const active = this.#activeSessionId ? this.#runtimes.get(this.#activeSessionId) : undefined;
     if (active && readConfiguration(workspaceUriForPath(active.cwd)).startSessionOnOpen) {
       await this.#startRuntime(active).catch(() => undefined);

@@ -46,6 +46,20 @@ describe("FrostPi session collection", () => {
     await Promise.all(registries.splice(0).map((registry) => registry.dispose()));
   });
 
+  it("does not create a session when none are persisted on open", async () => {
+    testEnvironment.cwd = resolve("test/e2e/fixtures/workspace");
+    testEnvironment.piExecutable = resolve("test/e2e/fake-pi.cjs");
+    const registry = new SessionRegistry(createContext() as never, { error: vi.fn(), info: vi.fn() } as never);
+    registries.push(registry);
+
+    await registry.ensureInitialSession();
+
+    const snapshot = registry.snapshot();
+    expect(snapshot.activeSessionId).toBeNull();
+    expect(snapshot.activeSession).toBeNull();
+    expect(snapshot.sessions).toEqual([]);
+  });
+
   it("rejects prompts while a resumed conversation history is loading", async () => {
     const dir = await mkdtemp(join(tmpdir(), "frostpi-registry-"));
     const sessionFile = join(dir, "session.jsonl");

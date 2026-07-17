@@ -179,7 +179,7 @@
           "type": "boolean",
           "default": true,
           "scope": "resource",
-          "description": "Start or restore the most recent workspace session when the FrostPi view opens."
+          "description": "When a previously selected session exists, start its Pi process when FrostPi activates. Does not create a new session if none exist."
         },
         "frostpi.composer.streamingBehavior": {
           "type": "string",
