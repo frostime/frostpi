@@ -14,6 +14,7 @@ updated: 2026-07-17
 - **Scroll following:** initial load, session switch, new user turn, manual bottom reach, or jump button follows output. User scroll-away pauses without losing updates.
 - **Pending extension UI:** stays visible until answered, timed out by Pi, or cancelled by stop/restart. A background owner is marked as requiring input.
 - **Conversation history:** a resumed Pi process reaches ready before prior messages finish loading, but submission remains disabled until an automatic load completes. Large histories are deferred, remain usable, and expose an explicit load action; failure is retryable without failing the Pi process.
+- **Compaction:** manual `/compact` delegates to Pi and may abort an active run, matching Pi CLI semantics. While Pi compacts, submission is disabled. Success preserves visible prior turns and inserts a collapsed summary boundary; failure preserves the conversation and reports Pi's error.
 - **Temporary new session:** replacing it closes it without confirmation until a prompt is accepted or the session is renamed.
 - **Proxy changed:** running sessions show restart-required. Saving settings never silently interrupts work.
 - **File mention:** `@` opens bounded workspace path completion; selection inserts text only.

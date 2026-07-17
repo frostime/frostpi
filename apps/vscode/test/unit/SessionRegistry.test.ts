@@ -121,6 +121,21 @@ process.on("SIGTERM", () => process.exit(0));
 
     await registry.sendPrompt(second, "Keep this session", []);
     expect((persisted as { sessions: Array<{ id: string }> }).sessions.map((session) => session.id)).toEqual([second]);
+    const turnsBeforeCompaction = registry.snapshot().activeSession?.turns.length;
+
+    await expect(registry.sendPrompt(second, "/compact Keep code changes", [{
+      id: "image",
+      name: "image.png",
+      mimeType: "image/png",
+      data: "AA==",
+      size: 1,
+    }])).rejects.toThrow("/compact does not support image attachments");
+
+    await registry.sendPrompt(second, "/compact Keep code changes", []);
+    expect(registry.snapshot().activeSession?.turns).toHaveLength(turnsBeforeCompaction ?? 0);
+    expect(registry.snapshot().activeSession?.compactions).toEqual([
+      expect.objectContaining({ summary: "Compacted context: Keep code changes", tokensBefore: 42_000 }),
+    ]);
 
     const third = await registry.createSession(testEnvironment.cwd);
     expect(new Set(registry.snapshot().sessions.map((session) => session.id))).toEqual(new Set([second, third]));

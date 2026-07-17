@@ -29,6 +29,55 @@ describe("live Pi event projection", () => {
       expect(activity.tool).toMatchObject({ id: "t1", label: "npm test", status: "error", isError: true, output: "failed" });
     }
   });
+  it("keeps prior turns around a compaction boundary and appends later turns", () => {
+    const projection = new SessionProjection("s1", "/workspace", "Session");
+    projection.hydrateMessages([
+      { role: "user", id: "before", timestamp: 1, content: "Before compaction" },
+      { role: "assistant", id: "answer", timestamp: 2, stopReason: "stop", content: [{ type: "text", text: "Earlier answer" }] },
+    ]);
+
+    projection.applyEvent({ type: "compaction_start", reason: "manual" });
+    projection.applyEvent({
+      type: "compaction_end",
+      reason: "manual",
+      result: { summary: "Earlier work summary", tokensBefore: 42_000 },
+      aborted: false,
+      willRetry: false,
+    });
+    projection.applyEvent({ type: "agent_start" });
+    projection.applyEvent({ type: "message_end", message: { id: "later", role: "assistant", timestamp: 4, stopReason: "stop", content: [{ type: "text", text: "Later answer" }] } });
+    projection.applyEvent({ type: "agent_settled" });
+
+    const view = projection.snapshot();
+    expect(view.turns[0]?.userMessage?.blocks).toEqual([{ type: "text", text: "Before compaction" }]);
+    expect(view.compactions).toEqual([
+      expect.objectContaining({ summary: "Earlier work summary", tokensBefore: 42_000 }),
+    ]);
+    expect(view.turns.at(-1)?.activities).toEqual([
+      expect.objectContaining({ type: "response", blocks: [{ type: "text", text: "Later answer" }] }),
+    ]);
+  });
+
+  it("restores compaction summaries returned by Pi history", () => {
+    const projection = new SessionProjection("s1", "/workspace", "Session");
+    projection.hydrateMessages([
+      { role: "compactionSummary", summary: "Restored summary", tokensBefore: 80_000, timestamp: 2 },
+      { role: "user", id: "kept", content: "Kept message", timestamp: 3 },
+    ]);
+
+    projection.applyEvent({
+      type: "compaction_end",
+      reason: "manual",
+      result: { summary: "Restored summary", tokensBefore: 80_000 },
+      aborted: false,
+      willRetry: false,
+    });
+
+    expect(projection.snapshot().compactions).toEqual([
+      expect.objectContaining({ summary: "Restored summary", tokensBefore: 80_000, timestamp: 2 }),
+    ]);
+  });
+
   it("projects multiline session notices with their severity", () => {
     const projection = new SessionProjection("s1", "/workspace", "Session");
     projection.appendNotice("line 1\nline 2", "warning");

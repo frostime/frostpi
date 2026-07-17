@@ -6,6 +6,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-07-17
+
+### Added
+
+- Add a compact, hideable session bar with session switching, closing, background activity, and required-input indicators.
+- Add explicit loading for large or previously failed conversation histories.
+- Add Pi-compatible `/compact [instructions]` handling with expandable compaction records in the conversation timeline.
+
+### Changed
+
+- Keep running sessions active in the background when creating, resuming, or selecting another session.
+- Serialize Pi process startup and conversation-history loading to limit Extension Host resource spikes, and defer automatic loading for histories larger than 8 MiB.
+- Treat unused new sessions as temporary until they accept a prompt or are renamed.
+- Consolidate session actions in the Webview instead of duplicating them in the VS Code View title menu.
+
+### Fixed
+
+- Preserve Pi events received while prior conversation history is being loaded and replaced.
+- Preserve the selected Pi session file while a resumed session waits to start.
+- Keep the composer anchored to the bottom when the session bar is hidden.
+
 ## [0.2.2] - 2026-07-17
 
 ### Changed
@@ -65,7 +86,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add editor context capture, file navigation, Git-base diffs, diagnostics export, CSP, and trusted-workspace constraints.
 - Add production builds, tests, VSIX verification, release scripts, and maintenance documentation.
 
-[Unreleased]: https://github.com/frostime/frostpi/compare/v0.2.2...HEAD
+[Unreleased]: https://github.com/frostime/frostpi/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/frostime/frostpi/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/frostime/frostpi/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/frostime/frostpi/compare/v0.1.1...v0.2.1
 [0.1.1]: https://github.com/frostime/frostpi/compare/10ca43a728ae697fe5b6fbfbf1bb40b607e5edcb...v0.1.1

@@ -32,6 +32,7 @@ export class SessionProjection {
       networkProxy: { mode: "inherit", label: "Inherited", restartRequired: false },
       turns: [],
       notices: [],
+      compactions: [],
       pendingExtensionUi: [],
       extensionStatuses: [],
       extensionWidgets: [],
@@ -160,6 +161,7 @@ export class SessionProjection {
     const snapshot = this.#conversation.snapshot();
     this.#view.turns = snapshot.turns;
     this.#view.notices = snapshot.notices;
+    this.#view.compactions = snapshot.compactions;
   }
 
   #touch(): void {

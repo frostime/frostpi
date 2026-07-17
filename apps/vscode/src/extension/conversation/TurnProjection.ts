@@ -9,13 +9,14 @@ import type {
   SessionNoticeLevel,
 } from "../../shared/model/agentTurnModel.js";
 import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
-import type { ConversationMessageView, ImageAttachmentView, MessageBlockView, MessageStatus } from "../../shared/model/conversationModel.js";
+import type { CompactionView, ConversationMessageView, ImageAttachmentView, MessageBlockView, MessageStatus } from "../../shared/model/conversationModel.js";
 import type { ToolCallView } from "../../shared/model/toolCallModel.js";
 import { createToolView, extractText, isRecord, recordValue, stringValue } from "./messageAssembler.js";
 
 export interface TurnProjectionSnapshot {
   turns: AgentTurnView[];
   notices: SessionNoticeView[];
+  compactions: CompactionView[];
 }
 
 interface ActivityLocation {
@@ -26,6 +27,7 @@ interface ActivityLocation {
 export class TurnProjection {
   #turns: AgentTurnView[] = [];
   #notices: SessionNoticeView[] = [];
+  #compactions: CompactionView[] = [];
   #activeTurnId: string | null = null;
   #streamingMessageId: string | null = null;
   #sequence = 0;
@@ -33,12 +35,13 @@ export class TurnProjection {
   readonly #toolActivities = new Map<string, ActivityLocation>();
 
   snapshot(): TurnProjectionSnapshot {
-    return { turns: this.#turns, notices: this.#notices };
+    return { turns: this.#turns, notices: this.#notices, compactions: this.#compactions };
   }
 
   hydrate(rawMessages: unknown[]): void {
     this.#turns = [];
     this.#notices = [];
+    this.#compactions = [];
     this.#activeTurnId = null;
     this.#streamingMessageId = null;
     this.#messageActivities.clear();
@@ -49,6 +52,12 @@ export class TurnProjection {
     for (const raw of rawMessages) {
       if (!isRecord(raw) || typeof raw.role !== "string") continue;
       const timestamp = typeof raw.timestamp === "number" ? raw.timestamp : fallbackTimestamp++;
+      if (raw.role === "compactionSummary" && typeof raw.summary === "string" && typeof raw.tokensBefore === "number") {
+        this.#appendCompaction(raw.summary, raw.tokensBefore, timestamp);
+        currentTurnId = null;
+        continue;
+      }
+
       if (raw.role === "user") {
         const message = createUserMessage(raw, timestamp, `history-user-${++this.#sequence}`);
         const turn: AgentTurnView = {
@@ -184,9 +193,28 @@ export class TurnProjection {
       case "auto_retry_end":
         if (event.success === false) this.appendNotice(`Automatic retry failed: ${stringValue(event.finalError, "Unknown error")}`, "error");
         break;
+      case "compaction_end": {
+        const result = recordValue(event.result);
+        if (typeof result.summary === "string" && typeof result.tokensBefore === "number") {
+          this.#appendCompaction(result.summary, result.tokensBefore, Date.now());
+          this.#activeTurnId = null;
+        }
+        break;
+      }
       default:
         break;
     }
+  }
+
+  #appendCompaction(summary: string, tokensBefore: number, timestamp: number): void {
+    const previous = this.#compactions.at(-1);
+    if (previous?.summary === summary && previous.tokensBefore === tokensBefore) return;
+    this.#compactions = [...this.#compactions, {
+      id: `compaction-${timestamp}-${++this.#sequence}`,
+      summary,
+      tokensBefore,
+      timestamp,
+    }];
   }
 
   #applyMessageEvent(event: RpcEvent): void {

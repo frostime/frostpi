@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { RpcCommandDescriptor, RpcModel } from "@frostime/pi-rpc";
+  import type { RpcModel } from "@frostime/pi-rpc";
   import type { SessionViewModel } from "$shared/model/sessionViewModel";
 
   import { postToHost } from "../../bridge/vscodeBridge";
@@ -7,6 +7,7 @@
   import { promptSubmissionResult } from "../../state/promptSubmissionStore.svelte";
   import { composerFocusTick, showToast } from "../../state/sessionViewStore.svelte";
   import { createId } from "../../utils/createId";
+  import { withFrostPiCommands } from "./frostPiCommands";
   import ModelPicker from "../models/ModelPicker.svelte";
   import ThinkingLevelPicker from "../models/ThinkingLevelPicker.svelte";
   import AddContextMenu from "./AddContextMenu.svelte";
@@ -18,10 +19,10 @@
   let pendingRequestId = $state<string | null>(null);
 
   const draft = $derived($composerDrafts[session.id] ?? { text: "", images: [] });
-  const commands = $derived(withLocalCommands(session.commands));
+  const commands = $derived(withFrostPiCommands(session.commands));
   const unavailable = $derived(
     session.status === "queued" || session.status === "starting" || session.status === "stopping" || session.status === "failed"
-    || session.historyStatus === "queued" || session.historyStatus === "loading",
+    || session.historyStatus === "queued" || session.historyStatus === "loading" || session.isCompacting,
   );
   const canSend = $derived((draft.text.trim().length > 0 || draft.images.length > 0) && !unavailable && !pendingRequestId);
   const supportsImages = $derived(modelSupportsImages(session.model));
@@ -131,15 +132,6 @@
 </div>
 
 <script lang="ts" module>
-  function withLocalCommands(commands: RpcCommandDescriptor[]): RpcCommandDescriptor[] {
-    const local: RpcCommandDescriptor = {
-      name: "resume",
-      description: "Open an existing Pi session for this workspace",
-      source: "frostpi",
-    };
-    return commands.some((command) => command.name === local.name) ? commands : [local, ...commands];
-  }
-
   function modelSupportsImages(model: RpcModel | null): boolean {
     return Boolean(model && (model.supportsImages === true || (Array.isArray(model.input) && model.input.includes("image"))));
   }

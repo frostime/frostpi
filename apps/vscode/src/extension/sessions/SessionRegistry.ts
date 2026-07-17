@@ -214,7 +214,11 @@ export class SessionRegistry implements vscode.Disposable {
     if (runtime.view.historyStatus === "queued" || runtime.view.historyStatus === "loading") {
       throw new Error("Wait for conversation history to finish loading before sending a prompt.");
     }
-    await runtime.sendPrompt(text, images);
+    if (runtime.view.isCompacting) throw new Error("Wait for context compaction to finish before sending a prompt.");
+    const compactInstructions = compactCommandInstructions(text);
+    if (compactInstructions !== null && images.length > 0) throw new Error("/compact does not support image attachments.");
+    if (compactInstructions !== null) await runtime.compact(compactInstructions || undefined);
+    else await runtime.sendPrompt(text, images);
     if (this.#temporarySessionIds.delete(sessionId)) await this.#persist();
   }
 
@@ -460,6 +464,12 @@ export class SessionRegistry implements vscode.Disposable {
     if (!this.#activeSessionId) throw new Error("No active FrostPi session");
     return this.#activeSessionId;
   }
+}
+
+function compactCommandInstructions(text: string): string | null {
+  const trimmed = text.trim();
+  if (trimmed === "/compact") return "";
+  return trimmed.startsWith("/compact ") ? trimmed.slice(9).trim() : null;
 }
 
 async function confirmClose(runtime: SessionRuntime): Promise<boolean> {

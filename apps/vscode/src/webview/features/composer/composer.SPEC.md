@@ -5,7 +5,8 @@ The composer is a plain-text CodeMirror 6 editor. FrostPi sends exactly the visi
 - `Enter` inserts a newline; `Ctrl+Enter` and `Cmd+Enter` submit.
 - The editor starts at roughly three lines, grows with content, and scrolls internally after its maximum height.
 - CodeMirror focus must not create a second nested focus border; screen-reader live regions remain off-screen.
-- `/command` completion comes from Pi `get_commands` plus FrostPi-local `/resume`; descriptions must not open a layout-shifting info panel.
+- `/command` completion comes from Pi `get_commands` plus FrostPi-local `/resume` and `/compact`; descriptions must not open a layout-shifting info panel.
+- A text-only `/compact` or `/compact <instructions>` submission is translated to Pi's `compact` RPC request and is never appended as a user prompt. Pi's built-in command takes precedence over a same-named extension command, matching interactive Pi.
 - Only a command in the first non-whitespace token of a line is decorated as a command.
 - Typing `@` must immediately start workspace-file completion. Empty, error, and timeout results must be observable rather than silent.
 - `@file` completion inserts a workspace-relative path. Paths containing whitespace use `@"path with spaces"`.

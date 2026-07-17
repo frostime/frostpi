@@ -1,11 +1,13 @@
 <script lang="ts">
   import type { AgentTurnView, SessionNoticeView } from "$shared/model/agentTurnModel";
+  import type { CompactionView } from "$shared/model/conversationModel";
   import type { SessionViewModel } from "$shared/model/sessionViewModel";
   import { onDestroy, onMount } from "svelte";
 
   import NewUpdatesButton from "../scrolling/NewUpdatesButton.svelte";
   import { INITIAL_SCROLL_FOLLOW_STATE, reduceScrollFollow } from "../scrolling/scrollFollowState";
   import AgentTurn from "./AgentTurn.svelte";
+  import CompactionBlock from "./CompactionBlock.svelte";
   import SessionNotice from "./SessionNotice.svelte";
 
   let { session }: { session: SessionViewModel } = $props();
@@ -19,11 +21,13 @@
 
   type TimelineItem =
     | { kind: "turn"; timestamp: number; value: AgentTurnView }
-    | { kind: "notice"; timestamp: number; value: SessionNoticeView };
+    | { kind: "notice"; timestamp: number; value: SessionNoticeView }
+    | { kind: "compaction"; timestamp: number; value: CompactionView };
 
   const timeline = $derived.by<TimelineItem[]>(() => [
     ...session.turns.map((value) => ({ kind: "turn" as const, timestamp: value.startedAt, value })),
     ...session.notices.map((value) => ({ kind: "notice" as const, timestamp: value.timestamp, value })),
+    ...session.compactions.map((value) => ({ kind: "compaction" as const, timestamp: value.timestamp, value })),
   ].sort((left, right) => left.timestamp - right.timestamp));
 
   onMount(() => {
@@ -90,7 +94,13 @@
         </div>
       {:else}
         {#each timeline as item (`${item.kind}-${item.value.id}`)}
-          {#if item.kind === "turn"}<AgentTurn turn={item.value} />{:else}<SessionNotice notice={item.value} />{/if}
+          {#if item.kind === "turn"}
+            <AgentTurn turn={item.value} />
+          {:else if item.kind === "compaction"}
+            <CompactionBlock compaction={item.value} />
+          {:else}
+            <SessionNotice notice={item.value} />
+          {/if}
         {/each}
       {/if}
       <div class="conversation-tail" aria-hidden="true"></div>

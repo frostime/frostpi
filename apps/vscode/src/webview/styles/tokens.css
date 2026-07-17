@@ -388,6 +388,15 @@ button.session-heading:hover, button.session-heading.active { background: var(--
 .session-notice-warning, .session-notice-warning > .codicon { color: var(--frost-warning); }
 .session-notice-error, .session-notice-error > .codicon { color: var(--frost-error); }
 .session-notice .markdown-body p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.compaction-block { margin: 5px 0 16px; overflow: hidden; border: 1px solid var(--frost-border-soft); border-radius: 7px; background: color-mix(in srgb, var(--frost-surface) 56%, transparent); }
+.compaction-trigger { width: 100%; min-height: 34px; display: grid; grid-template-columns: 16px auto minmax(0, 1fr) 16px; align-items: center; gap: 7px; padding: 6px 8px; background: transparent; color: var(--frost-muted); cursor: pointer; text-align: left; }
+.compaction-trigger:hover { color: var(--frost-text); background: var(--frost-hover); }
+.compaction-trigger > .codicon:first-child { color: var(--frost-link); }
+.compaction-label { color: var(--frost-text); font-size: 11px; font-weight: 600; }
+.compaction-tokens { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10.5px; }
+.compaction-summary { padding: 8px 10px 10px 31px; border-top: 1px solid var(--frost-border-soft); color: var(--frost-muted); font-size: 11.5px; }
+.compaction-summary .markdown-body > :first-child { margin-top: 0; }
+.compaction-summary .markdown-body > :last-child { margin-bottom: 0; }
 .new-updates-button { position: absolute; z-index: 12; left: 50%; bottom: 11px; transform: translateX(-50%); max-width: calc(100% - 28px); height: 30px; display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 0 10px; border: 1px solid var(--frost-border); border-radius: 999px; background: var(--frost-surface-raised); color: var(--frost-text); box-shadow: 0 5px 18px rgba(0,0,0,.24); cursor: pointer; font-size: 10.5px; white-space: nowrap; }
 .new-updates-button:hover { background: color-mix(in srgb, var(--frost-surface-raised) 80%, var(--frost-hover)); }
 

@@ -1,6 +1,7 @@
 import type { RpcCommandDescriptor, RpcModel, RpcSessionStats, ThinkingLevel } from "@frostime/pi-rpc";
 
 import type { AgentTurnView, SessionNoticeView } from "./agentTurnModel.js";
+import type { CompactionView } from "./conversationModel.js";
 import type { ExtensionStatusView, ExtensionWidgetView, PendingExtensionUiView } from "./extensionUiModel.js";
 
 export type SessionRuntimeStatus = "queued" | "starting" | "ready" | "running" | "stopping" | "stopped" | "failed";
@@ -52,6 +53,7 @@ export interface SessionViewModel {
   networkProxy: NetworkProxyView;
   turns: AgentTurnView[];
   notices: SessionNoticeView[];
+  compactions: CompactionView[];
   pendingExtensionUi: PendingExtensionUiView[];
   extensionStatuses: ExtensionStatusView[];
   extensionWidgets: ExtensionWidgetView[];

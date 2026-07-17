@@ -148,6 +148,10 @@ export class SessionRuntime {
     }
   }
 
+  async compact(customInstructions?: string): Promise<void> {
+    await this.#requireApi().compact(customInstructions);
+  }
+
   async abort(): Promise<void> {
     await this.#requireApi().abort();
   }
@@ -407,6 +411,16 @@ export class SessionRuntime {
     if (isExtensionUiRequest(event)) this.#extensionUi?.handle(event);
     else this.#projection.applyEvent(event);
     if (event.type === "agent_settled") void this.#refreshAfterSettled();
+    if (event.type === "compaction_end") void this.#refreshAfterCompaction();
+  }
+
+  async #refreshAfterCompaction(): Promise<void> {
+    const api = this.#api;
+    if (!api) return;
+    const stats = await api.getSessionStats().catch(() => undefined);
+    if (this.#disposed || api !== this.#api) return;
+    if (stats) this.#projection.setStats(stats);
+    this.#notifyChange();
   }
 
   async #refreshAfterSettled(): Promise<void> {

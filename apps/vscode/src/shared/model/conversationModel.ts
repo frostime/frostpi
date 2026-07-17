@@ -15,6 +15,13 @@ export type MessageBlockView =
   | { type: "images"; images: ImageAttachmentView[] }
   | { type: "error"; text: string };
 
+export interface CompactionView {
+  id: string;
+  summary: string;
+  tokensBefore: number;
+  timestamp: number;
+}
+
 export interface ConversationMessageView {
   id: string;
   role: MessageRole;

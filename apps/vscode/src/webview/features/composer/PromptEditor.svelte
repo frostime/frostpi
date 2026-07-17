@@ -14,6 +14,7 @@
   import { onMount } from "svelte";
 
   import { shouldStartPromptCompletion } from "./completionPolicy";
+  import { withFrostPiCommands } from "./frostPiCommands";
   import { requestWorkspaceFileSuggestions } from "./fileSuggestionClient";
   import { promptSyntax } from "./promptSyntax";
 
@@ -61,7 +62,7 @@
   });
 
   $effect(() => {
-    const allCommands = withLocalCommands(commands);
+    const allCommands = withFrostPiCommands(commands);
     const activeSessionId = sessionId;
     const editor = view;
     if (!editor) return;
@@ -78,7 +79,7 @@
   }
 
   function createState(doc: string): EditorState {
-    const allCommands = withLocalCommands(commands);
+    const allCommands = withFrostPiCommands(commands);
     return EditorState.create({
       doc,
       extensions: [
@@ -207,8 +208,4 @@
     return /\s/.test(path) ? `@"${path.replaceAll('"', '\\"')}" ` : `@${path} `;
   }
 
-  function withLocalCommands(commands: RpcCommandDescriptor[]): RpcCommandDescriptor[] {
-    const local: RpcCommandDescriptor = { name: "resume", description: "Open an existing Pi session for this workspace", source: "frostpi" };
-    return commands.some((command) => command.name === local.name) ? commands : [local, ...commands];
-  }
 </script>

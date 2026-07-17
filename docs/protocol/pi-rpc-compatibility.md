@@ -13,7 +13,9 @@ FrostPi targets the documented RPC mode of the current `@earendil-works/pi-codin
 
 ## Required surface
 
-Startup requires `get_state`. The product additionally uses prompt/abort, messages, commands, available models, model selection, thinking level, session naming, session stats, and extension UI responses. Unknown asynchronous events are ignored unless their absence violates an existing projection invariant.
+Startup requires `get_state`. The product additionally uses prompt/abort, manual compact, messages, commands, available models, model selection, thinking level, session naming, session stats, and extension UI responses. Unknown asynchronous events are ignored unless their absence violates an existing projection invariant.
+
+Pi built-in interactive commands are not returned by `get_commands` and do not execute through RPC `prompt`. FrostPi therefore translates text-only `/compact` and `/compact <instructions>` submissions to the documented `compact` request. Successful `compaction_end` events append a visible compaction boundary without removing already projected turns; resumed `compactionSummary` messages restore the same boundary.
 
 The client accepts documented additive fields. It treats malformed JSONL, invalid response envelopes, stdout termination, stdin errors, startup timeout, and unexpected process exit as connection failures.
 

@@ -58,6 +58,23 @@ function handle(command) {
       break;
     case "set_thinking_level": respond(id); break;
     case "abort": respond(id); event({ type: "agent_settled" }); break;
+    case "compact":
+      event({ type: "compaction_start", reason: "manual" });
+      event({
+        type: "compaction_end",
+        reason: "manual",
+        result: {
+          summary: `Compacted context${command.customInstructions ? `: ${command.customInstructions}` : ""}`,
+          firstKeptEntryId: "kept-entry",
+          tokensBefore: 42_000,
+          estimatedTokensAfter: 8_000,
+          details: {},
+        },
+        aborted: false,
+        willRetry: false,
+      });
+      respond(id, { summary: "Compacted context", tokensBefore: 42_000 });
+      break;
     case "prompt":
       respond(id);
       event({ type: "agent_start" });
