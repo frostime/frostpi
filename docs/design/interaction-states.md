@@ -17,7 +17,7 @@ updated: 2026-07-18
 - **Compaction:** manual `/compact` delegates to Pi and may abort an active run, matching Pi CLI semantics. While Pi compacts, submission is disabled and the conversation shows an ephemeral "Compacting context" status that is not stored in the timeline. Success preserves visible prior turns and inserts a collapsed summary boundary; failure preserves the conversation and reports Pi's error.
 - **Temporary new session:** replacing it closes it without confirmation until a prompt is accepted or the session is renamed.
 - **Proxy changed:** running sessions show restart-required. Saving settings never silently interrupts work.
-- **File mention:** `@` opens bounded workspace path completion; selection inserts text only.
+- **File mention:** `@` opens mention completion with `@Selection` / `@CurrentFile` above bounded workspace paths; selection inserts path/line references only, never file bodies.
 - **Model/thinking:** compact anchored menus stay within the Webview viewport and remain keyboard navigable.
 - **Resume:** available through the session launcher, Command Palette, onboarding, and local `/resume`.
 - **Narrow sidebar:** labels may truncate and secondary status may disappear or move to menus, but no committed capability disappears or requires horizontal scrolling.

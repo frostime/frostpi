@@ -10,10 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Show an ephemeral "Compacting context" status in the conversation while `/compact` runs.
 - Show follow-up prompts accepted during an active run as temporary "Queued" bubbles at the conversation tail. Promote them into the durable turn stream when Pi emits the matching user message (with `agent_start` as a fallback), keep parking while the local queue is non-empty, and clear the queue on abort, stop, or process failure.
+- Add `@Selection` and `@CurrentFile` as top mention completion items that insert path/line references only.
 
 ### Changed
 
 - Open FrostPi on the onboarding home when no session is selected instead of auto-creating a new session.
+- Remove the composer Add Context (+) menu; use `@` mentions for editor path/line references.
+- Insert editor selection as `@path:start-end` without embedding selected code.
 - Tighten the context usage hover card: narrower layout, compact large token counts, and shorter message labels.
 - Keep a single root `CHANGELOG.md`; VSIX packaging copies it into the extension package.
 

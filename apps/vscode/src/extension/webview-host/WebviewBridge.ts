@@ -9,6 +9,7 @@ import type { SessionViewModel } from "../../shared/model/sessionViewModel.js";
 import { collectionDelta } from "../../shared/bridge/collectionDelta.js";
 import { webviewToHostSchema, type WebviewToHostMessage } from "../../shared/bridge/webviewToHost.js";
 import { captureActiveFileReference } from "../editor-context/captureActiveFile.js";
+import { listEditorMentionSpecials } from "../editor-context/editorMentionSpecials.js";
 import { readConfiguration } from "../configuration/readConfiguration.js";
 import { workspaceUriForPath } from "../configuration/workspaceScope.js";
 import { captureActiveSelection } from "../editor-context/captureSelection.js";
@@ -192,14 +193,14 @@ export class WebviewBridge implements vscode.Disposable {
         break;
       case "addSelection": {
         const text = captureActiveSelection();
-        if (!text) throw new Error("Select text in an editor first.");
-        this.insertPromptText(text);
+        if (!text) throw new Error("Open a workspace file first.");
+        this.insertPromptText(`${text} `);
         break;
       }
       case "addCurrentFile": {
         const text = captureActiveFileReference();
         if (!text) throw new Error("Open a workspace file first.");
-        this.insertPromptText(text);
+        this.insertPromptText(`${text} `);
         break;
       }
       case "openFile":
@@ -233,7 +234,13 @@ export class WebviewBridge implements vscode.Disposable {
             respectSearchExclude: configuration.fileMentionRespectSearchExclude,
           });
           const items = await this.#fileCatalog.search(session.cwd, message.query, message.limit, workspaceFileBoosts(session));
-          this.post({ type: "workspaceFileSuggestions", requestId: message.requestId, items });
+          const specials = listEditorMentionSpecials(message.query);
+          this.post({
+            type: "workspaceFileSuggestions",
+            requestId: message.requestId,
+            items,
+            ...(specials.length ? { specials } : {}),
+          });
         } catch (error) {
           const errorText = error instanceof Error ? error.message : String(error);
           this.#logger.error("Workspace file completion failed", error);

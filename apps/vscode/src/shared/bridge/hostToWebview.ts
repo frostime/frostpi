@@ -1,6 +1,6 @@
 import type { AgentTurnView, SessionNoticeView } from "../model/agentTurnModel.js";
 import type { SessionSummaryView, SessionViewModel, WorkspaceViewModel } from "../model/sessionViewModel.js";
-import type { WorkspaceFileCandidateView } from "../model/workspaceFileModel.js";
+import type { EditorMentionSpecialView, WorkspaceFileCandidateView } from "../model/workspaceFileModel.js";
 
 export type SessionBaseView = Omit<SessionViewModel, "turns" | "notices">;
 
@@ -29,7 +29,7 @@ export type HostToWebviewPayload =
   | { type: "insertPromptText"; text: string }
   | { type: "focusComposer" }
   | { type: "promptResult"; requestId: string; ok: boolean; error?: string }
-  | { type: "workspaceFileSuggestions"; requestId: string; items: WorkspaceFileCandidateView[]; error?: string }
+  | { type: "workspaceFileSuggestions"; requestId: string; items: WorkspaceFileCandidateView[]; specials?: EditorMentionSpecialView[]; error?: string }
   | { type: "toast"; level: "info" | "warning" | "error"; message: string };
 
 export type HostToWebviewMessage = HostToWebviewPayload & { bridgeVersion: string };
