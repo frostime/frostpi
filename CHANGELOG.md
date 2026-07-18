@@ -6,11 +6,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Changed
-
-- License the product as AGPL-3.0-only and mark the VS Code extension package as publishable (`private: false`).
-- Simplify proxy configuration: accept bare `host:port` endpoints, and default `NO_PROXY` to `localhost,127.0.0.1,::1` in custom/VS Code proxy modes.
-
 ## [0.4.0] - 2026-07-18
 
 ### Added
@@ -26,11 +21,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Insert editor selection as `@path:start-end` without embedding selected code.
 - Tighten the context usage hover card: narrower layout, compact large token counts, and shorter message labels.
 - Keep a single root `CHANGELOG.md`; VSIX packaging copies it into the extension package.
+- License the product as AGPL-3.0-only and mark the VS Code extension package as publishable (`private: false`).
+- Simplify proxy configuration: accept bare `host:port` endpoints, default `NO_PROXY` to `localhost,127.0.0.1,::1`, and mirror HTTP to HTTPS when HTTPS is unset.
 
 ### Fixed
 
 - Execute Pi extension slash commands with arguments (for example `/toggle-web-proxy on`), trim surrounding whitespace before RPC, and close the local turn when the command finishes without an agent run.
 - Keep `/` and `@` completion keyboard selection in view by scrolling the option list instead of clipping selected options.
+- Accept bare `host:port` values in the guided proxy wizard, matching Settings normalization.
 
 ## [0.3.0] - 2026-07-17
 
