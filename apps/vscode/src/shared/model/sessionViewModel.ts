@@ -1,7 +1,7 @@
 import type { RpcCommandDescriptor, RpcModel, RpcSessionStats, ThinkingLevel } from "@frostime/pi-rpc";
 
 import type { AgentTurnView, SessionNoticeView } from "./agentTurnModel.js";
-import type { CompactionView } from "./conversationModel.js";
+import type { CompactionView, QueuedFollowUpView } from "./conversationModel.js";
 import type { ExtensionStatusView, ExtensionWidgetView, PendingExtensionUiView } from "./extensionUiModel.js";
 
 export type SessionRuntimeStatus = "queued" | "starting" | "ready" | "running" | "stopping" | "stopped" | "failed";
@@ -54,6 +54,8 @@ export interface SessionViewModel {
   turns: AgentTurnView[];
   notices: SessionNoticeView[];
   compactions: CompactionView[];
+  /** Follow-ups accepted while streaming in followUp mode; shown at the conversation tail until promoted. */
+  queuedFollowUps: QueuedFollowUpView[];
   pendingExtensionUi: PendingExtensionUiView[];
   extensionStatuses: ExtensionStatusView[];
   extensionWidgets: ExtensionWidgetView[];

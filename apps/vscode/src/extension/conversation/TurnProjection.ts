@@ -9,7 +9,14 @@ import type {
   SessionNoticeLevel,
 } from "../../shared/model/agentTurnModel.js";
 import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
-import type { CompactionView, ConversationMessageView, ImageAttachmentView, MessageBlockView, MessageStatus } from "../../shared/model/conversationModel.js";
+import type {
+  CompactionView,
+  ConversationMessageView,
+  ImageAttachmentView,
+  MessageBlockView,
+  MessageStatus,
+  QueuedFollowUpView,
+} from "../../shared/model/conversationModel.js";
 import type { ToolCallView } from "../../shared/model/toolCallModel.js";
 import { createToolView, extractText, isRecord, recordValue, stringValue } from "./messageAssembler.js";
 
@@ -17,6 +24,7 @@ export interface TurnProjectionSnapshot {
   turns: AgentTurnView[];
   notices: SessionNoticeView[];
   compactions: CompactionView[];
+  queuedFollowUps: QueuedFollowUpView[];
 }
 
 interface ActivityLocation {
@@ -28,6 +36,7 @@ export class TurnProjection {
   #turns: AgentTurnView[] = [];
   #notices: SessionNoticeView[] = [];
   #compactions: CompactionView[] = [];
+  #queuedFollowUps: QueuedFollowUpView[] = [];
   #activeTurnId: string | null = null;
   #streamingMessageId: string | null = null;
   #sequence = 0;
@@ -35,13 +44,19 @@ export class TurnProjection {
   readonly #toolActivities = new Map<string, ActivityLocation>();
 
   snapshot(): TurnProjectionSnapshot {
-    return { turns: this.#turns, notices: this.#notices, compactions: this.#compactions };
+    return {
+      turns: this.#turns,
+      notices: this.#notices,
+      compactions: this.#compactions,
+      queuedFollowUps: this.#queuedFollowUps,
+    };
   }
 
   hydrate(rawMessages: unknown[]): void {
     this.#turns = [];
     this.#notices = [];
     this.#compactions = [];
+    this.#queuedFollowUps = [];
     this.#activeTurnId = null;
     this.#streamingMessageId = null;
     this.#messageActivities.clear();
@@ -107,37 +122,37 @@ export class TurnProjection {
   }
 
   appendUserPrompt(text: string, images: WebviewImageInput[], timestamp = Date.now()): string {
-    const blocks: MessageBlockView[] = [];
-    if (text) blocks.push({ type: "text", text });
-    if (images.length) {
-      blocks.push({
-        type: "images",
-        images: images.map((image) => ({
-          id: image.id,
-          name: image.name,
-          mimeType: image.mimeType,
-          dataUrl: `data:${image.mimeType};base64,${image.data}`,
-          size: image.size,
-        })),
-      });
-    }
-    const message: ConversationMessageView = {
-      id: `local-user-${timestamp}-${++this.#sequence}`,
-      role: "user",
-      blocks,
-      status: "complete",
-      timestamp,
-    };
-    const turn: AgentTurnView = {
-      id: `turn-${message.id}`,
-      userMessage: message,
-      activities: [],
-      status: "running",
-      startedAt: timestamp,
-    };
+    const turn = this.#createUserTurn(text, images, timestamp);
     this.#turns = [...this.#turns, turn];
     this.#activeTurnId = turn.id;
     return turn.id;
+  }
+
+  /**
+   * Park a follow-up outside the durable timeline while the current agent run is still open.
+   * Promoted into a normal turn on the next agent_start after that run settles.
+   */
+  enqueueFollowUp(text: string, images: WebviewImageInput[], timestamp = Date.now()): string {
+    const id = `queued-follow-up-${timestamp}-${++this.#sequence}`;
+    this.#queuedFollowUps = [...this.#queuedFollowUps, {
+      id,
+      text,
+      images: toImageViews(images),
+      timestamp,
+    }];
+    return id;
+  }
+
+  clearQueuedFollowUps(): void {
+    if (this.#queuedFollowUps.length === 0) return;
+    this.#queuedFollowUps = [];
+  }
+
+  removeQueuedFollowUp(id: string): boolean {
+    const next = this.#queuedFollowUps.filter((item) => item.id !== id);
+    if (next.length === this.#queuedFollowUps.length) return false;
+    this.#queuedFollowUps = next;
+    return true;
   }
 
   appendNotice(text: string, level: SessionNoticeLevel = "info", timestamp = Date.now()): void {
@@ -172,7 +187,16 @@ export class TurnProjection {
   applyEvent(event: RpcEvent): void {
     switch (event.type) {
       case "agent_start": {
-        const turn = this.#activeTurn() ?? this.#ensureTurn(Date.now());
+        let active = this.#activeTurn();
+        // Defense: an idle-gap local turn (running, no activities) must not steal promotion.
+        if (this.#queuedFollowUps.length > 0 && active?.status === "running" && active.activities.length === 0) {
+          this.#turns = this.#turns.filter((turn) => turn.id !== active!.id);
+          this.#activeTurnId = null;
+          active = undefined;
+        }
+        const turn = active?.status === "running"
+          ? active
+          : this.#promoteQueuedFollowUp() ?? active ?? this.#ensureTurn(Date.now());
         this.#activeTurnId = turn.id;
         this.#setTurnStatus(turn.id, "running");
         break;
@@ -186,7 +210,13 @@ export class TurnProjection {
         this.#streamingMessageId = null;
         break;
       }
-      case "message_start":
+      case "message_start": {
+        // Pi drains follow-ups inside the same agent run (before agent_end), emitting
+        // message_start(role=user) without a fresh agent_start. Promote on that signal.
+        if (this.#tryPromoteQueuedUserMessage(event)) break;
+        this.#applyMessageEvent(event);
+        break;
+      }
       case "message_update":
       case "message_end":
         this.#applyMessageEvent(event);
@@ -383,6 +413,64 @@ export class TurnProjection {
     return turn;
   }
 
+  #tryPromoteQueuedUserMessage(event: RpcEvent): boolean {
+    if (this.#queuedFollowUps.length === 0) return false;
+    const raw = event.message;
+    if (!isRecord(raw) || raw.role !== "user") return false;
+
+    const text = userMessageText(raw);
+    const matchIndex = text
+      ? this.#queuedFollowUps.findIndex((item) => item.text === text)
+      : 0;
+    const index = matchIndex >= 0 ? matchIndex : 0;
+    const remaining = [...this.#queuedFollowUps];
+    const [promoted] = remaining.splice(index, 1);
+    if (!promoted) return false;
+    this.#queuedFollowUps = remaining;
+
+    // Close the prior turn so B/C activities do not append under A.
+    if (this.#activeTurnId) {
+      const prior = this.#turn(this.#activeTurnId);
+      if (prior.status === "running") this.#setTurnStatus(this.#activeTurnId, "completed", Date.now());
+    }
+    this.#streamingMessageId = null;
+
+    const turn = this.#createUserTurn(promoted.text, promoted.images, typeof raw.timestamp === "number" ? raw.timestamp : promoted.timestamp);
+    this.#turns = [...this.#turns, turn];
+    this.#activeTurnId = turn.id;
+    return true;
+  }
+
+  #promoteQueuedFollowUp(): AgentTurnView | undefined {
+    const [next, ...rest] = this.#queuedFollowUps;
+    if (!next) return undefined;
+    this.#queuedFollowUps = rest;
+    const turn = this.#createUserTurn(next.text, next.images, next.timestamp);
+    this.#turns = [...this.#turns, turn];
+    return turn;
+  }
+
+  #createUserTurn(text: string, images: WebviewImageInput[] | ImageAttachmentView[], timestamp: number): AgentTurnView {
+    const blocks: MessageBlockView[] = [];
+    if (text) blocks.push({ type: "text", text });
+    const resolvedImages = toImageViews(images);
+    if (resolvedImages.length) blocks.push({ type: "images", images: resolvedImages });
+    const message: ConversationMessageView = {
+      id: `local-user-${timestamp}-${++this.#sequence}`,
+      role: "user",
+      blocks,
+      status: "complete",
+      timestamp,
+    };
+    return {
+      id: `turn-${message.id}`,
+      userMessage: message,
+      activities: [],
+      status: "running",
+      startedAt: timestamp,
+    };
+  }
+
   #activeTurn(): AgentTurnView | undefined {
     return this.#activeTurnId ? this.#turns.find((turn) => turn.id === this.#activeTurnId) : undefined;
   }
@@ -400,6 +488,28 @@ export class TurnProjection {
   #activity(turnId: string, activityId: string): AgentActivityView | undefined {
     return this.#turns.find((turn) => turn.id === turnId)?.activities.find((activity) => activity.id === activityId);
   }
+}
+
+function userMessageText(raw: Record<string, unknown>): string {
+  if (typeof raw.content === "string") return raw.content;
+  const parts: string[] = [];
+  for (const part of Array.isArray(raw.content) ? raw.content : []) {
+    if (isRecord(part) && part.type === "text" && typeof part.text === "string") parts.push(part.text);
+  }
+  return parts.join("");
+}
+
+function toImageViews(images: Array<WebviewImageInput | ImageAttachmentView>): ImageAttachmentView[] {
+  return images.map((image) => {
+    if ("dataUrl" in image) return image;
+    return {
+      id: image.id,
+      name: image.name,
+      mimeType: image.mimeType,
+      dataUrl: `data:${image.mimeType};base64,${image.data}`,
+      size: image.size,
+    };
+  });
 }
 
 function createUserMessage(raw: Record<string, unknown>, timestamp: number, fallbackId: string): ConversationMessageView {

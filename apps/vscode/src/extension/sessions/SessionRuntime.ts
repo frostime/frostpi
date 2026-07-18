@@ -110,6 +110,8 @@ export class SessionRuntime {
     this.#historyEventBuffer = null;
     this.#appliedProxyFingerprint = null;
     this.#proxyRestartForced = false;
+    // Local follow-up bubbles are ephemeral; a dead process cannot promote them.
+    this.#projection.clearQueuedFollowUps();
     this.#projection.setStatus("stopped");
     this.refreshConfigurationState(false);
   }
@@ -127,9 +129,32 @@ export class SessionRuntime {
     const message = text.trim();
     if (!message && normalizedImages.length === 0) return;
 
+    const extensionCommand = await this.#resolveImmediateExtensionCommand(message);
+    // Park while streaming or while earlier follow-ups still await promotion; otherwise an idle-gap
+    // appendUserPrompt steals the next agent_start and leaves Queued bubbles stuck.
+    const queueAsFollowUp = !extensionCommand
+      && configuration.streamingBehavior === "followUp"
+      && (this.view.isStreaming || this.view.queuedFollowUps.length > 0);
+
+    if (queueAsFollowUp) {
+      const queuedId = this.#projection.enqueueFollowUp(message, images);
+      this.#notifyChange();
+      try {
+        await api.prompt(message, {
+          ...(normalizedImages.length ? { images: normalizedImages } : {}),
+          streamingBehavior: "followUp",
+        });
+      } catch (error) {
+        this.#projection.removeQueuedFollowUp(queuedId);
+        this.#projection.appendNotice(errorMessage(error), "error");
+        this.#notifyChange();
+        throw error;
+      }
+      return;
+    }
+
     const turnId = this.#projection.appendUserPrompt(message, images);
     this.#notifyChange();
-    const extensionCommand = await this.#resolveImmediateExtensionCommand(message);
 
     try {
       await api.prompt(message, {
@@ -154,6 +179,9 @@ export class SessionRuntime {
 
   async abort(): Promise<void> {
     await this.#requireApi().abort();
+    // Abort cancels the active run; pending local follow-up UI is no longer trustworthy.
+    this.#projection.clearQueuedFollowUps();
+    this.#notifyChange();
   }
 
   setDisplayTitle(title: string): void {
@@ -317,6 +345,7 @@ export class SessionRuntime {
     });
     connection.onFailure((error) => {
       this.#logger.error(`Session ${this.id} failed`, error);
+      this.#projection.clearQueuedFollowUps();
       this.#projection.setStatus("failed", errorMessage(error));
       this.#notifyChange();
     });

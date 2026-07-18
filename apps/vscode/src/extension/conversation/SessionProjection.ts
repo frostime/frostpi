@@ -33,6 +33,7 @@ export class SessionProjection {
       turns: [],
       notices: [],
       compactions: [],
+      queuedFollowUps: [],
       pendingExtensionUi: [],
       extensionStatuses: [],
       extensionWidgets: [],
@@ -127,6 +128,28 @@ export class SessionProjection {
     return turnId;
   }
 
+  enqueueFollowUp(text: string, images: WebviewImageInput[]): string {
+    const id = this.#conversation.enqueueFollowUp(text, images);
+    this.#syncConversation();
+    this.#touch();
+    return id;
+  }
+
+  clearQueuedFollowUps(): void {
+    this.#conversation.clearQueuedFollowUps();
+    this.#syncConversation();
+    this.#touch();
+  }
+
+  removeQueuedFollowUp(id: string): boolean {
+    const removed = this.#conversation.removeQueuedFollowUp(id);
+    if (removed) {
+      this.#syncConversation();
+      this.#touch();
+    }
+    return removed;
+  }
+
   appendNotice(text: string, level: SessionNoticeLevel = "info"): void {
     this.#conversation.appendNotice(text, level);
     this.#syncConversation();
@@ -172,6 +195,7 @@ export class SessionProjection {
     this.#view.turns = snapshot.turns;
     this.#view.notices = snapshot.notices;
     this.#view.compactions = snapshot.compactions;
+    this.#view.queuedFollowUps = snapshot.queuedFollowUps;
   }
 
   #touch(): void {

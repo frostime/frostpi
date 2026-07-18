@@ -55,6 +55,10 @@ It does not persist message bodies, reasoning, tool output, images, provider cre
 
 `agent_end` is not considered completion. Only `agent_settled` changes a running session back to ready because retries, compaction retries, or queued continuations may follow `agent_end`.
 
+## Follow-up prompts while streaming
+
+When `frostpi.composer.streamingBehavior` is `followUp` (default), a normal prompt accepted while Pi is streaming is projected as a session-level queued follow-up, not as a durable turn. The host also parks subsequent normal prompts while that local queue is non-empty. Pi typically drains follow-ups before `agent_end` and emits `message_start` (`role: user`) without a new `agent_start`; promotion keys off that user message event (text match, else FIFO). `agent_start` is only a fallback after settle. Extension slash commands are not parked. Abort, process stop, and process failure clear the local queue.
+
 ## Slash commands
 
 Composer text is trimmed before RPC submission so leading/trailing whitespace cannot bypass Pi's leading-`/` extension-command match. FrostPi-local `/compact` and `/resume` remain host-handled; every other slash is sent as a normal `prompt`.

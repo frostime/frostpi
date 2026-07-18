@@ -110,6 +110,24 @@
           <span class="thinking-pulse" aria-hidden="true"></span>
         </div>
       {/if}
+      {#if session.queuedFollowUps.length}
+        <div class="queued-follow-ups" aria-label="Queued follow-ups">
+          {#each session.queuedFollowUps as item (item.id)}
+            <article class="message message-user message-queued">
+              <div class="user-bubble queued-bubble">
+                {#if item.text}<div class="queued-text">{item.text}</div>{/if}
+                {#if item.images.length}
+                  <div class="queued-images">{item.images.length} image{item.images.length === 1 ? "" : "s"}</div>
+                {/if}
+                <div class="queued-badge">
+                  <span class="thinking-pulse" aria-hidden="true"></span>
+                  <span>Queued</span>
+                </div>
+              </div>
+            </article>
+          {/each}
+        </div>
+      {/if}
       <div class="conversation-tail" aria-hidden="true"></div>
     </div>
   </div>

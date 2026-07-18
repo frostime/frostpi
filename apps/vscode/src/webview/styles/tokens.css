@@ -388,6 +388,26 @@ button.session-heading:hover, button.session-heading.active { background: var(--
 .session-notice-warning, .session-notice-warning > .codicon { color: var(--frost-warning); }
 .session-notice-error, .session-notice-error > .codicon { color: var(--frost-error); }
 .session-notice .markdown-body p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.queued-follow-ups { display: grid; gap: 8px; margin: 4px 0 10px; }
+.message-queued { opacity: 0.88; }
+.queued-bubble {
+  position: relative;
+  border-style: dashed;
+  background: color-mix(in srgb, var(--frost-surface) 70%, transparent);
+  box-shadow: none;
+}
+.queued-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.45; }
+.queued-images { margin-top: 4px; color: var(--frost-muted); font-size: 10.5px; }
+.queued-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  color: var(--frost-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+
 /* Ephemeral session status (not part of the durable timeline). */
 .session-progress {
   margin: 5px 0 12px;

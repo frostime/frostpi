@@ -272,6 +272,77 @@ process.on("SIGTERM", () => process.exit(0));
     expect(runtime.view.turns[0]?.status).toBe("running");
     expect(runtime.view.turns[0]?.userMessage?.blocks).toEqual([{ type: "text", text: "/inspect src" }]);
   });
+
+  it("parks follow-up prompts while streaming and clears them on abort", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "frostpi-runtime-followup-"));
+    const fakePi = join(dir, "fake-pi.cjs");
+    await writeFile(fakePi, String.raw`#!/usr/bin/env node
+let input = "";
+let streaming = false;
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => {
+  input += chunk;
+  while (input.includes("\n")) {
+    const index = input.indexOf("\n");
+    const command = JSON.parse(input.slice(0, index));
+    input = input.slice(index + 1);
+    const base = { type: "response", id: command.id, success: true };
+    if (command.type === "get_state") {
+      base.data = { model: null, thinkingLevel: "off", isStreaming: streaming, isCompacting: false, pendingMessageCount: 0, sessionId: "followup" };
+    } else if (command.type === "get_commands") base.data = { commands: [] };
+    else if (command.type === "get_available_models") base.data = { models: [] };
+    else if (command.type === "get_session_stats") {
+      base.data = { sessionId: "followup", userMessages: 0, assistantMessages: 0, toolCalls: 0, toolResults: 0, totalMessages: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, cost: 0 };
+    } else if (command.type === "prompt") {
+      process.stdout.write(JSON.stringify(base) + "\n");
+      if (!streaming) {
+        streaming = true;
+        process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\n");
+      }
+      continue;
+    } else if (command.type === "abort") {
+      streaming = false;
+      process.stdout.write(JSON.stringify(base) + "\n");
+      process.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\n");
+      continue;
+    }
+    process.stdout.write(JSON.stringify(base) + "\n");
+  }
+});
+process.on("SIGTERM", () => process.exit(0));
+`);
+
+    const configuration = {
+      piExecutable: fakePi,
+      piArguments: [],
+      startSessionOnOpen: true,
+      streamingBehavior: "followUp" as const,
+      maxImageBytes: 10 * 1024 * 1024,
+      diagnosticsLevel: "info" as const,
+      proxy: { mode: "inherit" as const },
+      fileMentionMaxFiles: 50_000,
+      fileMentionRespectSearchExclude: true,
+    };
+    const secrets = new ProxySecretStore({ get: () => Promise.resolve(undefined) } as never);
+    const logger = { error: vi.fn(), info: vi.fn() };
+    const runtime = new SessionRuntime("session", dir, "Follow-up", Date.now(), () => configuration, secrets, logger as never, {
+      onChange: vi.fn(),
+      onEditorText: vi.fn(),
+    });
+    runtimes.push(runtime);
+
+    await runtime.start();
+    await runtime.sendPrompt("first", []);
+    await waitFor(() => runtime.view.isStreaming);
+    expect(runtime.view.turns).toHaveLength(1);
+
+    await runtime.sendPrompt("queued later", []);
+    expect(runtime.view.turns).toHaveLength(1);
+    expect(runtime.view.queuedFollowUps.map((item) => item.text)).toEqual(["queued later"]);
+
+    await runtime.abort();
+    expect(runtime.view.queuedFollowUps).toEqual([]);
+  });
 });
 
 async function waitFor(predicate: () => boolean, timeoutMs = 1_000): Promise<void> {
