@@ -106,11 +106,11 @@
       },
       {
         "command": "frostpi.sendSelection",
-        "title": "FrostPi: Add Selection to Prompt"
+        "title": "FrostPi: Mention Selection Path in Prompt"
       },
       {
         "command": "frostpi.sendFile",
-        "title": "FrostPi: Add Current File to Prompt"
+        "title": "FrostPi: Mention Current File in Prompt"
       },
       {
         "command": "frostpi.stop",

@@ -181,11 +181,20 @@
       const result = await request.promise;
       if (context.aborted) return null;
 
-      const options: Completion[] = result.items.map((item) => ({
-        label: item.name,
-        detail: item.directory || "workspace root",
-        apply: mentionText(item.path),
+      // Specials first when the query is empty or still matches (Copilot-style @ menu).
+      const options: Completion[] = (result.specials ?? []).map((item, index) => ({
+        label: item.label,
+        detail: item.detail,
+        apply: item.insertText,
+        boost: 2_000 - index,
       }));
+      for (const item of result.items) {
+        options.push({
+          label: item.name,
+          detail: item.directory || "workspace root",
+          apply: mentionText(item.path),
+        });
+      }
       if (!options.length) {
         options.push({
           label: result.error ?? "No workspace files found",
@@ -203,7 +212,6 @@
       };
     };
   }
-
 
   function mentionText(path: string): string {
     return /\s/.test(path) ? `@"${path.replaceAll('"', '\\"')}" ` : `@${path} `;

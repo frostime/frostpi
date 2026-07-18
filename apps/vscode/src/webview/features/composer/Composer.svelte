@@ -10,7 +10,7 @@
   import { withFrostPiCommands } from "./frostPiCommands";
   import ModelPicker from "../models/ModelPicker.svelte";
   import ThinkingLevelPicker from "../models/ThinkingLevelPicker.svelte";
-  import AddContextMenu from "./AddContextMenu.svelte";
+
   import AttachmentStrip from "./AttachmentStrip.svelte";
   import PromptEditor from "./PromptEditor.svelte";
 
@@ -111,7 +111,6 @@
     />
     <div class="composer-toolbar">
       <div class="composer-toolbar-left">
-        <AddContextMenu />
         <ModelPicker sessionId={session.id} model={session.model} models={session.availableModels} disabled={unavailable} />
         <ThinkingLevelPicker sessionId={session.id} model={session.model} level={session.thinkingLevel} disabled={unavailable} />
       </div>

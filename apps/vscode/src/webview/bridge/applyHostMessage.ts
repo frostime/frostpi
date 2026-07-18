@@ -52,7 +52,7 @@ export function applyHostMessage(message: HostToWebviewMessage): void {
       if (!message.ok && message.error) showToast("error", message.error);
       break;
     case "workspaceFileSuggestions":
-      deliverWorkspaceFileSuggestions(message.requestId, message.items, message.error);
+      deliverWorkspaceFileSuggestions(message.requestId, message.items, message.error, message.specials);
       break;
     case "toast":
       showToast(message.level, message.message);

@@ -1,10 +1,11 @@
-import type { WorkspaceFileCandidateView } from "$shared/model/workspaceFileModel";
+import type { EditorMentionSpecialView, WorkspaceFileCandidateView } from "$shared/model/workspaceFileModel";
 
 import { postToHost } from "../../bridge/vscodeBridge";
 import { createId } from "../../utils/createId";
 
 export interface WorkspaceFileSuggestionResult {
   items: WorkspaceFileCandidateView[];
+  specials?: EditorMentionSpecialView[];
   error?: string;
 }
 
@@ -36,8 +37,13 @@ export function deliverWorkspaceFileSuggestions(
   requestId: string,
   items: WorkspaceFileCandidateView[],
   error?: string,
+  specials?: EditorMentionSpecialView[],
 ): void {
-  finish(requestId, { items, ...(error ? { error } : {}) });
+  finish(requestId, {
+    items,
+    ...(specials?.length ? { specials } : {}),
+    ...(error ? { error } : {}),
+  });
 }
 
 function finish(requestId: string, result: WorkspaceFileSuggestionResult): void {

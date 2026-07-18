@@ -258,8 +258,8 @@ button.session-heading:hover, button.session-heading.active { background: var(--
 .toast-info .codicon { color: var(--frost-link); }
 
 
-.add-context-menu-wrap, .thinking-picker { position: relative; flex: none; }
-.add-context-menu, .thinking-picker-panel {
+.thinking-picker { position: relative; flex: none; }
+.thinking-picker-panel {
   position: absolute;
   z-index: 50;
   left: 0;
@@ -272,12 +272,6 @@ button.session-heading:hover, button.session-heading.active { background: var(--
   box-shadow: var(--frost-shadow);
 }
 .compact-menu-heading, .thinking-picker-heading { padding: 6px 8px; color: var(--frost-muted); font-size: 9.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; }
-.add-context-menu button { width: 100%; display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 8px; align-items: start; padding: 7px 8px; background: transparent; border-radius: 5px; text-align: left; cursor: pointer; }
-.add-context-menu button:hover { background: var(--frost-hover); }
-.add-context-menu button > span:last-child { min-width: 0; display: flex; flex-direction: column; }
-.add-context-menu strong { color: var(--frost-text); font-size: 11px; font-weight: 500; }
-.add-context-menu small, .compact-menu-note { color: var(--frost-muted); font-size: 9.5px; line-height: 1.4; }
-.compact-menu-note { display: flex; gap: 7px; margin: 4px 3px 1px; padding: 6px 5px 2px; border-top: 1px solid var(--frost-border-soft); }
 
 .thinking-trigger-button.active { background: var(--frost-hover); color: var(--frost-text); }
 .thinking-chip-copy { min-width: 0; display: inline-flex; align-items: center; gap: 4px; font-size: 10.5px; white-space: nowrap; }

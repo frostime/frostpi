@@ -31,11 +31,11 @@ export function registerCommands(
     vscode.commands.registerCommand("frostpi.sendSelection", async () => {
       const text = captureActiveSelection();
       if (!text) {
-        void vscode.window.showWarningMessage("Select text in an editor first.");
+        void vscode.window.showWarningMessage("Open a workspace file first.");
         return;
       }
       await viewProvider.reveal();
-      bridge.insertPromptText(text);
+      bridge.insertPromptText(`${text} `);
     }),
     vscode.commands.registerCommand("frostpi.sendFile", async () => {
       const text = captureActiveFileReference();
@@ -44,7 +44,7 @@ export function registerCommands(
         return;
       }
       await viewProvider.reveal();
-      bridge.insertPromptText(text);
+      bridge.insertPromptText(`${text} `);
     }),
     vscode.commands.registerCommand("frostpi.stop", () => registry.abort()),
     vscode.commands.registerCommand("frostpi.restartSession", () => registry.retrySession()),
