@@ -104,7 +104,7 @@
       sessionId={session.id}
       value={draft.text}
       {commands}
-      placeholder={session.isStreaming ? "Queue a follow-up…" : "Ask Pi about this workspace…"}
+      placeholder={session.isStreaming || session.queuedFollowUps.length > 0 ? "Queue a follow-up…" : "Ask Pi about this workspace…"}
       onchange={setText}
       onsubmit={submit}
       onpasteimages={handlePastedImages}

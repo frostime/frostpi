@@ -9,7 +9,7 @@ updated: 2026-07-18
 # Interaction States
 
 - **Queued/starting:** disable submission/model mutation; preserve session actions and show whether Pi is waiting to start or starting.
-- **Running:** composer remains editable; the primary action becomes Stop; queued prompts use configured Pi semantics.
+- **Running:** composer remains editable; the primary action becomes Stop; queued prompts use configured Pi semantics. With the default `followUp` behavior, follow-ups appear at the conversation tail as dashed "Queued" bubbles and only join the durable turn timeline when Pi starts the next run. Further submits stay parked while any local queue remains, even after `agent_settled`. Abort/stop/failure clears local queued bubbles. `steer` still inserts into the live conversation immediately.
 - **Tool/reasoning:** collapsed by default, including errors. State updates never override a user's disclosure choice.
 - **Scroll following:** initial load, session switch, new user turn, manual bottom reach, or jump button follows output. User scroll-away pauses without losing updates.
 - **Pending extension UI:** stays visible until answered, timed out by Pi, or cancelled by stop/restart. A background owner is marked as requiring input.

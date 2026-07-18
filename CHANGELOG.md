@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Show an ephemeral "Compacting context" status in the conversation while `/compact` runs.
+- Show follow-up prompts queued during an active run as temporary "Queued" bubbles at the conversation tail until Pi starts the next turn; keep parking while the local queue is non-empty and clear it on abort/stop/failure.
 
 ### Changed
 

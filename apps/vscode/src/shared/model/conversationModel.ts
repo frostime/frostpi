@@ -22,6 +22,14 @@ export interface CompactionView {
   timestamp: number;
 }
 
+/** Local follow-up waiting for the current agent run to settle. Not part of the durable turn timeline. */
+export interface QueuedFollowUpView {
+  id: string;
+  text: string;
+  images: ImageAttachmentView[];
+  timestamp: number;
+}
+
 export interface ConversationMessageView {
   id: string;
   role: MessageRole;
