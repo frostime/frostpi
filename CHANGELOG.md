@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Normalize Unicode whitespace between a leading `/command` and its args to an ASCII space before RPC so Pi extension commands such as `/toggle-web-proxy status` are not sent to the model when the separator is NBSP or similar.
 - Resolve relative Pi `sessionDir` settings against the workspace folder (Pi process cwd) so Resume discovers sessions under paths such as project `.pi/sessions`.
 - Recover session display names from both the file head and tail so early auto-names remain visible after long follow-up turns, while later renames still win.
 - Open the model picker at the current model and keep its selected row centered when space permits.

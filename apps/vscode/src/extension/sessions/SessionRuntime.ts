@@ -19,6 +19,7 @@ import { workspaceUriForPath } from "../configuration/workspaceScope.js";
 import { SessionProjection } from "../conversation/SessionProjection.js";
 import { redactDiagnosticText, type DiagnosticLogger } from "../diagnostics/DiagnosticLogger.js";
 import { ExtensionUiCoordinator } from "../extension-ui/ExtensionUiCoordinator.js";
+import { commandName, normalizePiSlashPrompt } from "./normalizePiSlashPrompt.js";
 import { configuredPiInvocation } from "../pi-runtime/resolvePiExecutable.js";
 import { buildPiProcessEnvironment, proxyFingerprint, proxyModeLabel } from "../network/buildPiProcessEnvironment.js";
 import type { ProxySecretStore } from "../network/ProxySecretStore.js";
@@ -125,8 +126,9 @@ export class SessionRuntime {
     const api = this.#requireApi();
     const configuration = this.#configurationProvider();
     const normalizedImages = normalizeImageAttachments(images, configuration.maxImageBytes);
-    // Pi extension/skill/template matching requires a leading "/"; trim so composer whitespace matches interactive Pi.
-    const message = text.trim();
+    // Pi extension matching requires a leading "/" and splits the name only on ASCII space (indexOf(" ")).
+    // Normalize so composer/completion/paste whitespace cannot turn "/cmd args" into a model prompt.
+    const message = normalizePiSlashPrompt(text);
     if (!message && normalizedImages.length === 0) return;
 
     const extensionCommand = await this.#resolveImmediateExtensionCommand(message);
@@ -557,12 +559,6 @@ const IMMEDIATE_EXTENSION_UI_METHODS = new Set(["select", "confirm", "input", "e
 
 function shouldBufferDuringHistoryLoad(event: RpcEvent): boolean {
   return !isExtensionUiRequest(event) || !IMMEDIATE_EXTENSION_UI_METHODS.has(event.method);
-}
-
-function commandName(text: string): string | undefined {
-  const trimmed = text.trim();
-  if (!trimmed.startsWith("/")) return undefined;
-  return trimmed.slice(1).split(/\s/, 1)[0] || undefined;
 }
 
 function errorMessage(error: unknown): string {

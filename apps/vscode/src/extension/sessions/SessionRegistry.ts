@@ -12,6 +12,7 @@ import type { DiagnosticLogger } from "../diagnostics/DiagnosticLogger.js";
 import { ProxySecretStore } from "../network/ProxySecretStore.js";
 import { pickPiSession, readPiSessionMetadata, type PiSessionCatalogEntry } from "./SessionCatalog.js";
 import { SessionPersistence } from "./SessionPersistence.js";
+import { normalizePiSlashPrompt } from "./normalizePiSlashPrompt.js";
 import { SessionRuntime } from "./SessionRuntime.js";
 import type { PersistedSessionRecord } from "./sessionTypes.js";
 
@@ -468,9 +469,9 @@ export class SessionRegistry implements vscode.Disposable {
 }
 
 function compactCommandInstructions(text: string): string | null {
-  const trimmed = text.trim();
-  if (trimmed === "/compact") return "";
-  return trimmed.startsWith("/compact ") ? trimmed.slice(9).trim() : null;
+  const normalized = normalizePiSlashPrompt(text);
+  if (normalized === "/compact") return "";
+  return normalized.startsWith("/compact ") ? normalized.slice("/compact ".length).trim() : null;
 }
 
 async function confirmClose(runtime: SessionRuntime): Promise<boolean> {
