@@ -58,4 +58,4 @@ FrostPi contains no telemetry or remote service of its own. Prompts and images a
 
 ## License
 
-MIT. FrostPi is an independent client and is not an official Pi distribution.
+AGPL-3.0-only. FrostPi is an independent client and is not an official Pi distribution.

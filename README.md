@@ -51,4 +51,4 @@ FrostPi does not intercept Pi file writes, approve patches before application, e
 
 ## License
 
-MIT. FrostPi is an independent client and is not an official Pi distribution. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for bundled dependency notices.
+AGPL-3.0-only. FrostPi is an independent client and is not an official Pi distribution. See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for bundled dependency notices.

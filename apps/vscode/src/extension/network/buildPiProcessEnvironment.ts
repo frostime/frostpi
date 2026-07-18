@@ -8,6 +8,9 @@ const PROXY_KEYS = [
   "NO_PROXY", "no_proxy",
 ] as const;
 
+/** Applied when custom/vscode modes do not set noProxy (empty string falls back here). */
+export const DEFAULT_NO_PROXY = "localhost,127.0.0.1,::1";
+
 export interface ProxyEnvironmentResult {
   env: NodeJS.ProcessEnv;
   label: string;
@@ -23,20 +26,20 @@ export function buildPiProcessEnvironment(
 
   const env: NodeJS.ProcessEnv = {};
   if (proxy.mode === "vscode") {
-    const url = withCredentials(vscodeProxy?.trim(), credentials);
+    const url = withCredentials(normalizeProxyEndpoint(vscodeProxy), credentials);
     if (url) setPair(env, "HTTP_PROXY", "http_proxy", url);
     if (url) setPair(env, "HTTPS_PROXY", "https_proxy", url);
-    if (proxy.noProxy) setPair(env, "NO_PROXY", "no_proxy", proxy.noProxy);
+    setPair(env, "NO_PROXY", "no_proxy", resolveNoProxy(proxy.noProxy));
     return { env, label: url ? "VS Code proxy" : "VS Code proxy (unset)" };
   }
 
-  const http = withCredentials(proxy.http, credentials);
-  const https = withCredentials(proxy.https, credentials);
-  const all = withCredentials(proxy.all, credentials);
+  const http = withCredentials(normalizeProxyEndpoint(proxy.http), credentials);
+  const https = withCredentials(normalizeProxyEndpoint(proxy.https), credentials);
+  const all = withCredentials(normalizeProxyEndpoint(proxy.all), credentials);
   if (http) setPair(env, "HTTP_PROXY", "http_proxy", http);
   if (https) setPair(env, "HTTPS_PROXY", "https_proxy", https);
   if (all) setPair(env, "ALL_PROXY", "all_proxy", all);
-  if (proxy.noProxy) setPair(env, "NO_PROXY", "no_proxy", proxy.noProxy);
+  setPair(env, "NO_PROXY", "no_proxy", resolveNoProxy(proxy.noProxy));
   return { env, label: "Custom proxy" };
 }
 
@@ -60,6 +63,22 @@ function clearProxyEnvironment(): NodeJS.ProcessEnv {
 function setPair(env: NodeJS.ProcessEnv, upper: string, lower: string, value: string): void {
   env[upper] = value;
   env[lower] = value;
+}
+
+function resolveNoProxy(value: string | undefined): string {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : DEFAULT_NO_PROXY;
+}
+
+/**
+ * Accept host:port without a scheme for HTTP(S) proxies. Explicit schemes
+ * (http/https/socks*) are kept. Bare values become http://… for env consumers.
+ */
+export function normalizeProxyEndpoint(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) return undefined;
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//.test(trimmed)) return trimmed;
+  return `http://${trimmed}`;
 }
 
 function withCredentials(value: string | undefined, credentials: ProxyCredentials | undefined): string | undefined {

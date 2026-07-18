@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- License the product as AGPL-3.0-only and mark the VS Code extension package as publishable (`private: false`).
+- Simplify proxy configuration: accept bare `host:port` endpoints, and default `NO_PROXY` to `localhost,127.0.0.1,::1` in custom/VS Code proxy modes.
+
 ## [0.4.0] - 2026-07-18
 
 ### Added
