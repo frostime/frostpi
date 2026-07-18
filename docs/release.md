@@ -18,7 +18,7 @@ updated: 2026-07-18
 4. Run `pnpm package:vsix` and `pnpm verify:vsix`.
 5. Install the versioned VSIX into clean local and remote Extension Development Hosts; exercise prompt, image, command, model, extension UI, stop, restore, diff, and failure paths.
 6. Review README, screenshots, privacy, notices, and diagnostics for sensitive content.
-7. Publish the exact verified artifact to VS Code Marketplace and Open VSX; do not rebuild between verification and publication.
-8. Tag the matching commit and attach the VSIX plus source archive.
+7. Publish to VS Code Marketplace with `pnpm publish:marketplace` (builds, copies root `CHANGELOG.md`, writes `artifacts/FrostPi-<version>.vsix`, then `vsce publish --no-dependencies`). Pass a PAT via `VSCE_PAT` or prior `vsce login frostime`. Extra vsce flags: `pnpm publish:marketplace -- --pre-release`. For Open VSX, publish the same local VSIX with `ovsx`.
+8. Tag the matching commit and attach the VSIX plus source archive (or rely on the tag-triggered Release workflow).
 
 Publisher credentials belong in CI secret storage. The repository and extension package never contain tokens.

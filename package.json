@@ -17,7 +17,8 @@
     "check": "node scripts/check.mjs",
     "package:vsix": "node scripts/package-vsix.mjs",
     "verify:vsix": "node scripts/verify-vsix.mjs",
-    "package:zip": "node scripts/package-zip.mjs"
+    "package:zip": "node scripts/package-zip.mjs",
+    "publish:marketplace": "node scripts/publish-marketplace.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
