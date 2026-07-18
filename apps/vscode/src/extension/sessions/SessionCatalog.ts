@@ -1,6 +1,6 @@
 import { open, readdir, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
-import { basename, dirname, isAbsolute, join, normalize, resolve } from "node:path";
+import { basename, isAbsolute, join, normalize, resolve } from "node:path";
 
 import * as vscode from "vscode";
 
@@ -101,17 +101,25 @@ export async function readPiSessionMetadata(path: string): Promise<PiSessionCata
     const headLength = Math.min(HEADER_BYTES, fileStat.size);
     const head = Buffer.alloc(headLength);
     await handle.read(head, 0, headLength, 0);
-    const header = firstJsonLine(head.toString("utf8"));
+    const headText = head.toString("utf8");
+    const header = firstJsonLine(headText);
     if (!header || header.type !== "session" || typeof header.cwd !== "string") return undefined;
 
     const tailLength = Math.min(TAIL_BYTES, fileStat.size);
+    const tailOffset = Math.max(0, fileStat.size - tailLength);
     const tail = Buffer.alloc(tailLength);
-    await handle.read(tail, 0, tailLength, Math.max(0, fileStat.size - tailLength));
-    const tailLines = parseJsonLines(tail.toString("utf8"));
-    let name: string | undefined;
+    await handle.read(tail, 0, tailLength, tailOffset);
+    const tailText = tail.toString("utf8");
+
+    // Prefer the session_info with the greatest file offset across head and tail
+    // windows so early auto-names and late renames both resolve (Pi latest-wins).
+    const name = latestSessionName([
+      latestSessionInfoInText(headText, 0),
+      latestSessionInfoInText(tailText, tailOffset),
+    ]);
+
     let preview: string | undefined;
-    for (const line of tailLines) {
-      if (line.type === "session_info" && typeof line.name === "string" && line.name.trim()) name = line.name.trim();
+    for (const line of parseJsonLines(tailText)) {
       const text = userMessagePreview(line);
       if (text) preview = text;
     }
@@ -135,12 +143,15 @@ export async function resolveSessionRoots(cwd: string, piArguments: string[]): P
   if (cli) roots.push(resolveSessionDir(cli, cwd));
   if (process.env.PI_CODING_AGENT_SESSION_DIR) roots.push(resolveSessionDir(process.env.PI_CODING_AGENT_SESSION_DIR, cwd));
 
+  // Relative sessionDir values follow Pi runtime semantics: normalize (~) then
+  // resolve against the process cwd (the workspace folder FrostPi launches Pi in).
+  // Do not anchor to the settings file directory — that rule applies to Pi resources, not sessionDir.
   const projectSettings = join(cwd, ".pi", "settings.json");
   const globalSettings = join(homedir(), ".pi", "agent", "settings.json");
   const projectDir = await readSessionDirSetting(projectSettings);
   const globalDir = await readSessionDirSetting(globalSettings);
-  if (projectDir) roots.push(resolveSessionDir(projectDir, dirname(projectSettings)));
-  if (globalDir) roots.push(resolveSessionDir(globalDir, dirname(globalSettings)));
+  if (projectDir) roots.push(resolveSessionDir(projectDir, cwd));
+  if (globalDir) roots.push(resolveSessionDir(globalDir, cwd));
   roots.push(join(homedir(), ".pi", "agent", "sessions"));
 
   return [...new Set(roots.map((root) => normalize(resolve(root))))];
@@ -216,6 +227,47 @@ function parseJsonLines(text: string): Record<string, unknown>[] {
     }
   }
   return result;
+}
+
+/** Latest session_info in a file window; empty/missing name clears the title (Pi getSessionName). */
+function latestSessionInfoInText(
+  text: string,
+  baseOffset: number,
+): { fileOffset: number; name: string | undefined } | undefined {
+  let latest: { fileOffset: number; name: string | undefined } | undefined;
+  // Walk complete lines; track UTF-8 byte offsets so head/tail candidates compare in file order.
+  let bytePos = 0;
+  for (const raw of text.split("\n")) {
+    const line = raw.trim();
+    if (line.startsWith("{")) {
+      try {
+        const value = JSON.parse(line) as unknown;
+        if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+          const entry = value as Record<string, unknown>;
+          if (entry.type === "session_info") {
+            const rawName = entry.name;
+            const name = typeof rawName === "string" && rawName.trim() ? rawName.trim() : undefined;
+            latest = { fileOffset: baseOffset + bytePos, name };
+          }
+        }
+      } catch {
+        // Partial line at a window boundary.
+      }
+    }
+    bytePos += Buffer.byteLength(raw, "utf8") + 1; // +1 for the split '\n' (final segment's extra 1 is harmless)
+  }
+  return latest;
+}
+
+function latestSessionName(
+  candidates: Array<{ fileOffset: number; name: string | undefined } | undefined>,
+): string | undefined {
+  let best: { fileOffset: number; name: string | undefined } | undefined;
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    if (!best || candidate.fileOffset >= best.fileOffset) best = candidate;
+  }
+  return best?.name;
 }
 
 function userMessagePreview(entry: Record<string, unknown>): string | undefined {

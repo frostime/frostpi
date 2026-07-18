@@ -30,7 +30,7 @@ Pi can assign a timeout to blocking UI requests. FrostPi removes the card when t
 
 ## Existing sessions do not appear
 
-FrostPi filters discovered sessions to the active workspace using the JSONL header `cwd`. It checks `--session-dir`, `PI_CODING_AGENT_SESSION_DIR`, project and user `sessionDir` settings, and Pi's default session directory. Use **Resume session → Browse for a session file…** when storage is non-standard. A session owned by another project must be opened from that folder.
+FrostPi filters discovered sessions to the active workspace using the JSONL header `cwd`. It checks `--session-dir`, `PI_CODING_AGENT_SESSION_DIR`, project and user `sessionDir` settings, and Pi's default session directory. Relative `sessionDir` values are resolved against the workspace folder (same as Pi's process cwd), not against the settings file directory. Use **Resume session → Browse for a session file…** when storage is non-standard or rewritten by a Pi extension. A session owned by another project must be opened from that folder.
 
 ## Icons render as empty squares
 
