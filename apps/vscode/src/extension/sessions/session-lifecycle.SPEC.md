@@ -57,7 +57,7 @@ It does not persist message bodies, reasoning, tool output, images, provider cre
 
 ## Follow-up prompts while streaming
 
-When `frostpi.composer.streamingBehavior` is `followUp` (default), a normal prompt accepted while Pi is streaming is projected as a session-level queued follow-up, not as a durable turn. The host also parks subsequent normal prompts while that local queue is non-empty, so an idle gap between `agent_settled` and the next `agent_start` cannot insert a turn that steals promotion. The oldest queued follow-up becomes a normal turn on the next `agent_start` after the prior run settles. Extension slash commands are not parked. Abort, process stop, and process failure clear the local queue.
+When `frostpi.composer.streamingBehavior` is `followUp` (default), a normal prompt accepted while Pi is streaming is projected as a session-level queued follow-up, not as a durable turn. The host also parks subsequent normal prompts while that local queue is non-empty. Pi typically drains follow-ups before `agent_end` and emits `message_start` (`role: user`) without a new `agent_start`; promotion keys off that user message event (text match, else FIFO). `agent_start` is only a fallback after settle. Extension slash commands are not parked. Abort, process stop, and process failure clear the local queue.
 
 ## Slash commands
 

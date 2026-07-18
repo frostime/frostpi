@@ -90,6 +90,42 @@ describe("TurnProjection", () => {
     expect(projection.snapshot().queuedFollowUps).toEqual([]);
   });
 
+  it("promotes queued follow-ups on user message_start within the same agent run", () => {
+    const projection = new TurnProjection();
+    projection.appendUserPrompt("first", []);
+    projection.applyEvent({ type: "agent_start" });
+    projection.applyEvent({
+      type: "message_start",
+      message: { id: "a1", role: "assistant", timestamp: 1, content: [{ type: "text", text: "answer A" }] },
+    });
+    projection.enqueueFollowUp("second", []);
+    projection.enqueueFollowUp("third", []);
+
+    // Pi drains follow-ups before agent_end without a new agent_start.
+    projection.applyEvent({
+      type: "message_start",
+      message: { role: "user", timestamp: 2, content: [{ type: "text", text: "second" }] },
+    });
+    projection.applyEvent({
+      type: "message_start",
+      message: { id: "a2", role: "assistant", timestamp: 3, content: [{ type: "text", text: "answer B" }] },
+    });
+
+    expect(projection.snapshot().turns).toHaveLength(2);
+    expect(projection.snapshot().turns[0]?.status).toBe("completed");
+    expect(projection.snapshot().turns[1]?.userMessage?.blocks).toEqual([{ type: "text", text: "second" }]);
+    expect(projection.snapshot().turns[1]?.activities.map((activity) => activity.type)).toEqual(["response"]);
+    expect(projection.snapshot().queuedFollowUps.map((item) => item.text)).toEqual(["third"]);
+
+    projection.applyEvent({
+      type: "message_start",
+      message: { role: "user", timestamp: 4, content: [{ type: "text", text: "third" }] },
+    });
+    expect(projection.snapshot().turns).toHaveLength(3);
+    expect(projection.snapshot().queuedFollowUps).toEqual([]);
+    expect(projection.snapshot().turns[2]?.userMessage?.blocks).toEqual([{ type: "text", text: "third" }]);
+  });
+
   it("prefers promoting a queued follow-up over an idle-gap local turn", () => {
     const projection = new TurnProjection();
     projection.appendUserPrompt("first", []);

@@ -190,7 +190,7 @@ export class TurnProjection {
         let active = this.#activeTurn();
         // Defense: an idle-gap local turn (running, no activities) must not steal promotion.
         if (this.#queuedFollowUps.length > 0 && active?.status === "running" && active.activities.length === 0) {
-          this.#turns = this.#turns.filter((turn) => turn.id !== active.id);
+          this.#turns = this.#turns.filter((turn) => turn.id !== active!.id);
           this.#activeTurnId = null;
           active = undefined;
         }
@@ -210,7 +210,13 @@ export class TurnProjection {
         this.#streamingMessageId = null;
         break;
       }
-      case "message_start":
+      case "message_start": {
+        // Pi drains follow-ups inside the same agent run (before agent_end), emitting
+        // message_start(role=user) without a fresh agent_start. Promote on that signal.
+        if (this.#tryPromoteQueuedUserMessage(event)) break;
+        this.#applyMessageEvent(event);
+        break;
+      }
       case "message_update":
       case "message_end":
         this.#applyMessageEvent(event);
@@ -407,6 +413,34 @@ export class TurnProjection {
     return turn;
   }
 
+  #tryPromoteQueuedUserMessage(event: RpcEvent): boolean {
+    if (this.#queuedFollowUps.length === 0) return false;
+    const raw = event.message;
+    if (!isRecord(raw) || raw.role !== "user") return false;
+
+    const text = userMessageText(raw);
+    const matchIndex = text
+      ? this.#queuedFollowUps.findIndex((item) => item.text === text)
+      : 0;
+    const index = matchIndex >= 0 ? matchIndex : 0;
+    const remaining = [...this.#queuedFollowUps];
+    const [promoted] = remaining.splice(index, 1);
+    if (!promoted) return false;
+    this.#queuedFollowUps = remaining;
+
+    // Close the prior turn so B/C activities do not append under A.
+    if (this.#activeTurnId) {
+      const prior = this.#turn(this.#activeTurnId);
+      if (prior.status === "running") this.#setTurnStatus(this.#activeTurnId, "completed", Date.now());
+    }
+    this.#streamingMessageId = null;
+
+    const turn = this.#createUserTurn(promoted.text, promoted.images, typeof raw.timestamp === "number" ? raw.timestamp : promoted.timestamp);
+    this.#turns = [...this.#turns, turn];
+    this.#activeTurnId = turn.id;
+    return true;
+  }
+
   #promoteQueuedFollowUp(): AgentTurnView | undefined {
     const [next, ...rest] = this.#queuedFollowUps;
     if (!next) return undefined;
@@ -454,6 +488,15 @@ export class TurnProjection {
   #activity(turnId: string, activityId: string): AgentActivityView | undefined {
     return this.#turns.find((turn) => turn.id === turnId)?.activities.find((activity) => activity.id === activityId);
   }
+}
+
+function userMessageText(raw: Record<string, unknown>): string {
+  if (typeof raw.content === "string") return raw.content;
+  const parts: string[] = [];
+  for (const part of Array.isArray(raw.content) ? raw.content : []) {
+    if (isRecord(part) && part.type === "text" && typeof part.text === "string") parts.push(part.text);
+  }
+  return parts.join("");
 }
 
 function toImageViews(images: Array<WebviewImageInput | ImageAttachmentView>): ImageAttachmentView[] {
