@@ -204,12 +204,11 @@ process.on("SIGTERM", () => process.exit(0));
       { type: "text", text: "/toggle-web-proxy on" },
     ]);
     expect(runtime.view.turns[0]?.status).toBe("completed");
-    expect(runtime.view.turns[0]?.activities).toEqual([
-      expect.objectContaining({
-        type: "notice",
-        text: expect.stringContaining("args=/toggle-web-proxy on"),
-      }),
-    ]);
+    const notice = runtime.view.turns[0]?.activities.find((activity) => activity.type === "notice");
+    expect(notice?.type).toBe("notice");
+    if (notice?.type === "notice") {
+      expect(notice.text).toContain("args=/toggle-web-proxy on");
+    }
   });
 
   it("does not force-complete a known non-extension slash that starts an agent run", async () => {

@@ -10,7 +10,7 @@ FrostPi is a polished VS Code client for Pi's RPC mode. It runs one independent 
 - Pause-aware output following with unseen-update counts and a jump-to-latest control.
 - Paste PNG, JPEG, or WebP images directly into prompts.
 - Use dynamic `/command` completion and highlighting for Pi extension commands, prompt templates, skills, and FrostPi's local `/resume` action.
-- Use `@file` workspace-path completion. FrostPi sends only the path text; Pi decides whether to read the file.
+- Use `@` mentions for `@Selection`, `@CurrentFile`, and workspace paths. FrostPi inserts path/line text only; Pi decides whether to read the file.
 - Switch provider/model and select only thinking levels supported by the active model's Pi metadata.
 - Review command output and tool details; open files and Git-base diffs in native VS Code editors.
 - Answer Pi extension `confirm`, `select`, `input`, and `editor` requests.
