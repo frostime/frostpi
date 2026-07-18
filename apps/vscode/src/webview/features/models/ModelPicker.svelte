@@ -8,16 +8,26 @@
   let open = $state(false);
   let query = $state("");
   let searchInput = $state<HTMLInputElement | null>(null);
+  let scrollContainer = $state<HTMLDivElement | null>(null);
   let expandedProviders = $state<Set<string>>(new Set());
-  let initializedProviders = false;
 
   $effect(() => {
     if (!open) return;
-    if (!initializedProviders) {
-      if (model?.provider) expandedProviders = new Set([model.provider]);
-      initializedProviders = true;
+    if (model?.provider && !expandedProviders.has(model.provider)) {
+      expandedProviders = new Set(expandedProviders).add(model.provider);
+      return;
     }
-    requestAnimationFrame(() => searchInput?.focus());
+
+    const frame = requestAnimationFrame(() => {
+      searchInput?.focus();
+      const selected = scrollContainer?.querySelector<HTMLButtonElement>(".model-option.selected");
+      if (!selected || !scrollContainer) return;
+
+      const selectedBounds = selected.getBoundingClientRect();
+      const containerBounds = scrollContainer.getBoundingClientRect();
+      scrollContainer.scrollTop += selectedBounds.top + selectedBounds.height / 2 - (containerBounds.top + containerBounds.height / 2);
+    });
+    return () => cancelAnimationFrame(frame);
   });
 
   const groups = $derived.by(() => {
@@ -72,7 +82,7 @@
         <span class="codicon codicon-search"></span>
         <input bind:this={searchInput} bind:value={query} placeholder="Search models" aria-label="Search models" onkeydown={(event) => { if (event.key === "Escape") open = false; }} />
       </div>
-      <div class="picker-scroll">
+      <div class="picker-scroll" bind:this={scrollContainer}>
         {#if groups.length}
           {#each groups as [provider, providerModels] (provider)}
             <ProviderGroup
