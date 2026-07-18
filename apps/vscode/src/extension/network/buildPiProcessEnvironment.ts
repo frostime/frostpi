@@ -27,19 +27,13 @@ export function buildPiProcessEnvironment(
   const env: NodeJS.ProcessEnv = {};
   if (proxy.mode === "vscode") {
     const url = withCredentials(normalizeProxyEndpoint(vscodeProxy), credentials);
-    if (url) setPair(env, "HTTP_PROXY", "http_proxy", url);
-    if (url) setPair(env, "HTTPS_PROXY", "https_proxy", url);
+    if (url) setHttpProxyPair(env, url);
     setPair(env, "NO_PROXY", "no_proxy", resolveNoProxy(proxy.noProxy));
     return { env, label: url ? "VS Code proxy" : "VS Code proxy (unset)" };
   }
 
-  const http = withCredentials(normalizeProxyEndpoint(proxy.http), credentials);
-  // When only HTTP is configured, mirror it to HTTPS_PROXY so HTTPS clients still go through the proxy.
-  const https = withCredentials(normalizeProxyEndpoint(proxy.https), credentials) ?? http;
-  const all = withCredentials(normalizeProxyEndpoint(proxy.all), credentials);
-  if (http) setPair(env, "HTTP_PROXY", "http_proxy", http);
-  if (https) setPair(env, "HTTPS_PROXY", "https_proxy", https);
-  if (all) setPair(env, "ALL_PROXY", "all_proxy", all);
+  const endpoint = withCredentials(normalizeProxyEndpoint(proxy.endpoint), credentials);
+  if (endpoint) applyCustomEndpoint(env, endpoint);
   setPair(env, "NO_PROXY", "no_proxy", resolveNoProxy(proxy.noProxy));
   return { env, label: "Custom proxy" };
 }
@@ -54,6 +48,28 @@ export function proxyModeLabel(mode: ProxyMode): string {
     case "vscode": return "VS Code proxy";
     case "direct": return "Direct";
     default: return "Inherited";
+  }
+}
+
+function applyCustomEndpoint(env: NodeJS.ProcessEnv, endpoint: string): void {
+  if (isSocksProxy(endpoint)) {
+    setPair(env, "ALL_PROXY", "all_proxy", endpoint);
+    return;
+  }
+  setHttpProxyPair(env, endpoint);
+}
+
+function setHttpProxyPair(env: NodeJS.ProcessEnv, url: string): void {
+  setPair(env, "HTTP_PROXY", "http_proxy", url);
+  setPair(env, "HTTPS_PROXY", "https_proxy", url);
+}
+
+function isSocksProxy(endpoint: string): boolean {
+  try {
+    const protocol = new URL(endpoint).protocol.toLowerCase();
+    return protocol === "socks:" || protocol === "socks5:" || protocol === "socks5h:";
+  } catch {
+    return false;
   }
 }
 
@@ -94,3 +110,4 @@ function withCredentials(value: string | undefined, credentials: ProxyCredential
     return value;
   }
 }
+

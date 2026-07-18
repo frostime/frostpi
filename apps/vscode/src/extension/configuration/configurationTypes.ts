@@ -4,9 +4,8 @@ export type ProxyMode = "inherit" | "vscode" | "custom" | "direct";
 
 export interface ProxyConfiguration {
   mode: ProxyMode;
-  http?: string;
-  https?: string;
-  all?: string;
+  /** Single custom proxy endpoint. HTTP(S)/bare → HTTP_PROXY+HTTPS_PROXY; socks* → ALL_PROXY. */
+  endpoint?: string;
   noProxy?: string;
 }
 

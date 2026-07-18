@@ -22,11 +22,11 @@ describe("Pi process proxy environment", () => {
 
   it("injects credentials without storing them in the proxy fingerprint", () => {
     const result = buildPiProcessEnvironment(
-      { mode: "custom", https: "http://proxy.example:8080" },
+      { mode: "custom", endpoint: "http://proxy.example:8080" },
       { username: "alice", password: "secret" },
     );
     expect(result.env.HTTPS_PROXY).toContain("alice:secret@");
-    expect(proxyFingerprint({ mode: "custom", https: "http://proxy.example:8080" })).not.toContain("secret");
+    expect(proxyFingerprint({ mode: "custom", endpoint: "http://proxy.example:8080" })).not.toContain("secret");
   });
 
   it("uses the VS Code proxy only in vscode mode", () => {
@@ -38,26 +38,33 @@ describe("Pi process proxy environment", () => {
     expect(normalizeProxyEndpoint("127.0.0.1:7890")).toBe("http://127.0.0.1:7890");
     expect(normalizeProxyEndpoint("http://127.0.0.1:7890")).toBe("http://127.0.0.1:7890");
     expect(normalizeProxyEndpoint("socks5://127.0.0.1:1080")).toBe("socks5://127.0.0.1:1080");
-    const result = buildPiProcessEnvironment({ mode: "custom", http: "127.0.0.1:7890", https: "127.0.0.1:7890" });
+    const result = buildPiProcessEnvironment({ mode: "custom", endpoint: "127.0.0.1:7890" });
     expect(result.env.HTTP_PROXY).toBe("http://127.0.0.1:7890");
     expect(result.env.HTTPS_PROXY).toBe("http://127.0.0.1:7890");
   });
 
   it("defaults NO_PROXY to local loopback hosts when unset", () => {
-    const custom = buildPiProcessEnvironment({ mode: "custom", http: "127.0.0.1:7890" });
+    const custom = buildPiProcessEnvironment({ mode: "custom", endpoint: "127.0.0.1:7890" });
     expect(custom.env.NO_PROXY).toBe(DEFAULT_NO_PROXY);
     const vscode = buildPiProcessEnvironment({ mode: "vscode" }, undefined, "http://proxy:1");
     expect(vscode.env.NO_PROXY).toBe(DEFAULT_NO_PROXY);
-    const explicit = buildPiProcessEnvironment({ mode: "custom", http: "127.0.0.1:7890", noProxy: "example.com" });
+    const explicit = buildPiProcessEnvironment({ mode: "custom", endpoint: "127.0.0.1:7890", noProxy: "example.com" });
     expect(explicit.env.NO_PROXY).toBe("example.com");
   });
 
-  it("mirrors HTTP proxy to HTTPS when HTTPS is unset in custom mode", () => {
-    const result = buildPiProcessEnvironment({ mode: "custom", http: "127.0.0.1:7890" });
+  it("maps one HTTP endpoint to both HTTP_PROXY and HTTPS_PROXY", () => {
+    const result = buildPiProcessEnvironment({ mode: "custom", endpoint: "127.0.0.1:7890" });
     expect(result.env.HTTP_PROXY).toBe("http://127.0.0.1:7890");
     expect(result.env.HTTPS_PROXY).toBe("http://127.0.0.1:7890");
-    const split = buildPiProcessEnvironment({ mode: "custom", http: "127.0.0.1:7890", https: "127.0.0.1:7891" });
-    expect(split.env.HTTPS_PROXY).toBe("http://127.0.0.1:7891");
+    expect(result.env.ALL_PROXY).toBeUndefined();
+  });
+
+  it("maps socks endpoints to ALL_PROXY only", () => {
+    const result = buildPiProcessEnvironment({ mode: "custom", endpoint: "socks5://127.0.0.1:1080" });
+    expect(result.env.ALL_PROXY).toBe("socks5://127.0.0.1:1080");
+    expect(result.env.all_proxy).toBe("socks5://127.0.0.1:1080");
+    expect(result.env.HTTP_PROXY).toBeUndefined();
+    expect(result.env.HTTPS_PROXY).toBeUndefined();
   });
 
   it("leaves inherit mode as an empty override map so host env is preserved", () => {

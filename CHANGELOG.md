@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Simplify custom proxy configuration to one `frostpi.network.proxy.endpoint` setting and a single guided-wizard step. `host:port` / `http(s)://…` set both `HTTP_PROXY` and `HTTPS_PROXY`; `socks5://…` sets `ALL_PROXY`. Legacy `http` / `https` / `all` values are still read when `endpoint` is empty.
+
 ### Fixed
 
 - Resolve relative Pi `sessionDir` settings against the workspace folder (Pi process cwd) so Resume discovers sessions under paths such as project `.pi/sessions`.

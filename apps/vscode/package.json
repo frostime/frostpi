@@ -2,7 +2,7 @@
   "name": "frostpi",
   "displayName": "FrostPi — Visual UI for Pi Coding Agent",
   "description": "A polished VS Code interface for Pi's RPC mode, with streaming conversations, tool activity, image prompts, extension commands, and extension UI requests.",
-  "version": "0.4.0",
+  "version": "0.4.1-dev1",
   "publisher": "frostime",
   "license": "AGPL-3.0-only",
   "private": false,
@@ -232,29 +232,17 @@
           "scope": "machine-overridable",
           "description": "Proxy mode applied when a Pi session process starts. Running sessions must be restarted."
         },
-        "frostpi.network.proxy.http": {
+        "frostpi.network.proxy.endpoint": {
           "type": "string",
           "default": "",
           "scope": "machine-overridable",
-          "description": "Custom HTTP proxy for custom mode. Host:port is enough; FrostPi normalizes to an http URL. Store authentication through the FrostPi credentials command."
-        },
-        "frostpi.network.proxy.https": {
-          "type": "string",
-          "default": "",
-          "scope": "machine-overridable",
-          "description": "Custom HTTPS proxy for custom mode. Host:port is enough; FrostPi normalizes to an http URL unless another scheme is provided."
-        },
-        "frostpi.network.proxy.all": {
-          "type": "string",
-          "default": "",
-          "scope": "machine-overridable",
-          "description": "Custom ALL_PROXY for custom mode (for example socks5://host:port or host:port)."
+          "description": "Custom proxy endpoint for custom mode. host:port or http(s)://… sets HTTP_PROXY and HTTPS_PROXY; socks5://… sets ALL_PROXY. Store authentication through the FrostPi credentials command."
         },
         "frostpi.network.proxy.noProxy": {
           "type": "string",
           "default": "localhost,127.0.0.1,::1",
           "scope": "machine-overridable",
-          "description": "Comma-separated hosts that bypass the proxy. Defaults to local loopback addresses."
+          "description": "Comma-separated hosts that bypass the proxy. Defaults to local loopback addresses. Edit in Settings when the default loopback list is not enough."
         },
         "frostpi.composer.fileMentions.maxFiles": {
           "type": "number",

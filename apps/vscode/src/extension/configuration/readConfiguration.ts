@@ -15,9 +15,7 @@ export function readConfiguration(scope?: vscode.Uri): FrostPiConfiguration {
     diagnosticsLevel: config.get<"error" | "info" | "debug">("diagnostics.level", "info"),
     proxy: {
       mode: config.get<"inherit" | "vscode" | "custom" | "direct">("network.proxy.mode", "inherit"),
-      ...optional("http", config.get<string>("network.proxy.http", "")),
-      ...optional("https", config.get<string>("network.proxy.https", "")),
-      ...optional("all", config.get<string>("network.proxy.all", "")),
+      ...optional("endpoint", readProxyEndpoint(config)),
       // Keep package default / DEFAULT_NO_PROXY aligned so empty/missing still reach buildPiProcessEnvironment.
       ...optional("noProxy", config.get<string>("network.proxy.noProxy", DEFAULT_NO_PROXY)),
     },
@@ -29,4 +27,22 @@ export function readConfiguration(scope?: vscode.Uri): FrostPiConfiguration {
 function optional<Key extends string>(key: Key, value: string): Record<Key, string> | Record<string, never> {
   const normalized = value.trim();
   return normalized ? { [key]: normalized } as Record<Key, string> : {};
+}
+
+/** Prefer endpoint; fall back to pre-simplification http/https/all keys still present in settings.json. */
+function readProxyEndpoint(config: vscode.WorkspaceConfiguration): string {
+  return firstNonEmpty(
+    config.get<string>("network.proxy.endpoint", ""),
+    config.get<string>("network.proxy.http", ""),
+    config.get<string>("network.proxy.https", ""),
+    config.get<string>("network.proxy.all", ""),
+  );
+}
+
+function firstNonEmpty(...values: Array<string | undefined>): string {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) return trimmed;
+  }
+  return "";
 }

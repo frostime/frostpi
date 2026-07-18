@@ -10,9 +10,10 @@ FrostPi proxy settings are process-start configuration.
 - Credential changes remain restart-required until restart even if unrelated settings later change.
 - Saving configuration never silently interrupts an active turn. The user explicitly chooses current-session restart, all-session restart, or later.
 - `inherit` leaves the Extension Host environment unchanged.
-- `vscode` maps VS Code `http.proxy` to HTTP/HTTPS variables and warns when that setting is empty.
-- `custom` writes configured HTTP, HTTPS, ALL, and NO_PROXY values. Bare `host:port` values are accepted in Settings and the guided wizard and normalized to `http://host:port` before writing env; explicit schemes are preserved. If only HTTP is set, HTTPS_PROXY mirrors it.
+- `vscode` maps VS Code `http.proxy` to HTTP_PROXY and HTTPS_PROXY and warns when that setting is empty.
+- `custom` uses one `endpoint` setting. Bare `host:port` values are accepted in Settings and the guided wizard and normalized to `http://host:port` before writing env; explicit schemes are preserved. `http`/`https`/bare endpoints set both HTTP_PROXY and HTTPS_PROXY; `socks`/`socks5`/`socks5h` endpoints set ALL_PROXY only. The guided wizard asks only for the endpoint; `noProxy` is left at its setting/default unless edited in Settings.
 - When `noProxy` is empty, `custom` and `vscode` modes set `NO_PROXY` to `localhost,127.0.0.1,::1`.
 - `direct` removes upper- and lower-case proxy variables.
 - Proxy variables apply to Pi and commands spawned by Pi. Third-party extensions that ignore those variables are outside FrostPi's guarantee.
 - Diagnostics and exported stderr must redact credentials.
+- Readers still accept legacy `network.proxy.http` / `https` / `all` values when `endpoint` is empty (`endpoint || http || https || all`). Writing custom mode through the guided command stores `endpoint` and clears those legacy keys.

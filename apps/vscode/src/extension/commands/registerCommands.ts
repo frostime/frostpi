@@ -80,7 +80,7 @@ async function configureProxy(registry: SessionRegistry, secrets: ProxySecretSto
   const modes: ProxyModeItem[] = [
     { mode: "inherit", label: "$(terminal) Inherit environment", description: "Use proxy variables from the Extension Host" },
     { mode: "vscode", label: "$(settings-gear) Use VS Code proxy", description: "Use the VS Code http.proxy setting" },
-    { mode: "custom", label: "$(globe) Custom proxy", description: "Configure HTTP, HTTPS, ALL_PROXY and NO_PROXY" },
+    { mode: "custom", label: "$(globe) Custom proxy", description: "Set one proxy endpoint for Pi sessions" },
     { mode: "direct", label: "$(circle-slash) Direct connection", description: "Remove inherited proxy variables for Pi" },
   ];
   const selected = await vscode.window.showQuickPick(modes, {
@@ -92,12 +92,13 @@ async function configureProxy(registry: SessionRegistry, secrets: ProxySecretSto
 
   const target = scope.target;
   if (selected.mode === "custom") {
-    const custom = await collectCustomProxy(configuration);
-    if (!custom) return;
-    await configuration.update("network.proxy.http", custom.http, target);
-    await configuration.update("network.proxy.https", custom.https, target);
-    await configuration.update("network.proxy.all", custom.all, target);
-    await configuration.update("network.proxy.noProxy", custom.noProxy, target);
+    const endpoint = await collectCustomProxyEndpoint(configuration);
+    if (endpoint === undefined) return;
+    await configuration.update("network.proxy.endpoint", endpoint, target);
+    // Clear pre-simplification keys so stale split values cannot shadow endpoint on older reads.
+    await configuration.update("network.proxy.http", undefined, target);
+    await configuration.update("network.proxy.https", undefined, target);
+    await configuration.update("network.proxy.all", undefined, target);
   } else if (selected.mode === "vscode") {
     const vscodeProxy = vscode.workspace.getConfiguration("http", scope.uri).get<string>("proxy", "").trim();
     if (!vscodeProxy) {
@@ -153,38 +154,37 @@ async function chooseProxyScope(): Promise<{ label: string; target: vscode.Confi
   return selected;
 }
 
-async function collectCustomProxy(configuration: vscode.WorkspaceConfiguration): Promise<{ http: string; https: string; all: string; noProxy: string } | undefined> {
-  const http = await proxyInput("HTTP proxy", "host:port is enough (for example 127.0.0.1:7890). Scheme optional.", configuration.get<string>("network.proxy.http", ""));
-  if (http === undefined) return undefined;
-  const https = await proxyInput("HTTPS proxy", "Leave blank to reuse HTTP_PROXY / ALL_PROXY. host:port is enough.", configuration.get<string>("network.proxy.https", ""));
-  if (https === undefined) return undefined;
-  const all = await proxyInput("ALL_PROXY", "Optional catch-all, for example socks5://127.0.0.1:7890 or host:port", configuration.get<string>("network.proxy.all", ""));
-  if (all === undefined) return undefined;
-  const noProxy = await vscode.window.showInputBox({
-    title: "NO_PROXY",
-    prompt: "Comma-separated hosts that bypass the proxy. Leave the default loopback list unless you need more.",
-    value: configuration.get<string>("network.proxy.noProxy", "localhost,127.0.0.1,::1"),
-    ignoreFocusOut: true,
-  });
-  if (noProxy === undefined) return undefined;
-  return { http: http.trim(), https: https.trim(), all: all.trim(), noProxy: noProxy.trim() };
-}
-
-function proxyInput(title: string, prompt: string, value: string): Thenable<string | undefined> {
-  return vscode.window.showInputBox({
-    title,
-    prompt,
-    value,
+async function collectCustomProxyEndpoint(configuration: vscode.WorkspaceConfiguration): Promise<string | undefined> {
+  const current = firstNonEmpty(
+    configuration.get<string>("network.proxy.endpoint", ""),
+    configuration.get<string>("network.proxy.http", ""),
+    configuration.get<string>("network.proxy.https", ""),
+    configuration.get<string>("network.proxy.all", ""),
+  );
+  const endpoint = await vscode.window.showInputBox({
+    title: "Proxy endpoint",
+    prompt: "One address is enough. host:port or http(s)://… sets HTTP_PROXY and HTTPS_PROXY; socks5://… sets ALL_PROXY. NO_PROXY defaults to loopback.",
+    value: current,
     ignoreFocusOut: true,
     validateInput: (candidate) => validateProxyEndpoint(candidate),
   });
+  if (endpoint === undefined) return undefined;
+  return endpoint.trim();
+}
+
+function firstNonEmpty(...values: Array<string | undefined>): string {
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (trimmed) return trimmed;
+  }
+  return "";
 }
 
 function validateProxyEndpoint(value: string): string | undefined {
   const candidate = value.trim();
-  if (!candidate) return undefined;
+  if (!candidate) return "Enter a proxy endpoint, for example 127.0.0.1:7890.";
   const normalized = normalizeProxyEndpoint(candidate);
-  if (!normalized) return undefined;
+  if (!normalized) return "Enter a proxy endpoint, for example 127.0.0.1:7890.";
   try {
     const url = new URL(normalized);
     if (!["http:", "https:", "socks:", "socks5:", "socks5h:"].includes(url.protocol)) {

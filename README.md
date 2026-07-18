@@ -25,7 +25,7 @@ Remote SSH, WSL, and Dev Container workspaces run FrostPi and Pi in the remote w
 
 ## Proxy configuration
 
-Run **FrostPi: Configure Network Proxy** or choose **Network & proxy** from the session menu. Select User or Workspace scope, then choose Inherit, VS Code, Custom, or Direct. Custom credentials are stored in VS Code SecretStorage. Proxy changes affect only newly started or explicitly restarted Pi sessions.
+Run **FrostPi: Configure Network Proxy** or choose **Network & proxy** from the session menu. Select User or Workspace scope, then choose Inherit, VS Code, Custom, or Direct. Custom mode needs one endpoint (`host:port`, `http(s)://…`, or `socks5://…`). Credentials are stored in VS Code SecretStorage. Proxy changes affect only newly started or explicitly restarted Pi sessions.
 
 ## Development
 

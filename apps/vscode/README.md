@@ -44,9 +44,7 @@ Proxy configuration is resolved when a Pi process starts. Changing proxy setting
 - `frostpi.composer.fileMentions.respectSearchExclude`
 - `frostpi.attachments.maxImageBytes`
 - `frostpi.network.proxy.mode`
-- `frostpi.network.proxy.http`
-- `frostpi.network.proxy.https`
-- `frostpi.network.proxy.all`
+- `frostpi.network.proxy.endpoint`
 - `frostpi.network.proxy.noProxy`
 - `frostpi.diagnostics.level`
 
