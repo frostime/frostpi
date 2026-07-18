@@ -34,7 +34,8 @@ export function buildPiProcessEnvironment(
   }
 
   const http = withCredentials(normalizeProxyEndpoint(proxy.http), credentials);
-  const https = withCredentials(normalizeProxyEndpoint(proxy.https), credentials);
+  // When only HTTP is configured, mirror it to HTTPS_PROXY so HTTPS clients still go through the proxy.
+  const https = withCredentials(normalizeProxyEndpoint(proxy.https), credentials) ?? http;
   const all = withCredentials(normalizeProxyEndpoint(proxy.all), credentials);
   if (http) setPair(env, "HTTP_PROXY", "http_proxy", http);
   if (https) setPair(env, "HTTPS_PROXY", "https_proxy", https);
