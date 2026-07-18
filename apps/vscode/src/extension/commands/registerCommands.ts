@@ -6,6 +6,7 @@ import { exportDiagnostics } from "../diagnostics/exportDiagnostics.js";
 import type { DiagnosticLogger } from "../diagnostics/DiagnosticLogger.js";
 import type { ProxyMode } from "../configuration/configurationTypes.js";
 import type { SessionRegistry } from "../sessions/SessionRegistry.js";
+import { normalizeProxyEndpoint } from "../network/buildPiProcessEnvironment.js";
 import { ProxySecretStore } from "../network/ProxySecretStore.js";
 import type { PiViewProvider } from "../webview-host/PiViewProvider.js";
 import type { WebviewBridge } from "../webview-host/WebviewBridge.js";
@@ -153,16 +154,16 @@ async function chooseProxyScope(): Promise<{ label: string; target: vscode.Confi
 }
 
 async function collectCustomProxy(configuration: vscode.WorkspaceConfiguration): Promise<{ http: string; https: string; all: string; noProxy: string } | undefined> {
-  const http = await proxyInput("HTTP proxy", "Example: http://127.0.0.1:7890", configuration.get<string>("network.proxy.http", ""));
+  const http = await proxyInput("HTTP proxy", "host:port is enough (for example 127.0.0.1:7890). Scheme optional.", configuration.get<string>("network.proxy.http", ""));
   if (http === undefined) return undefined;
-  const https = await proxyInput("HTTPS proxy", "Leave blank to use only HTTP_PROXY or ALL_PROXY", configuration.get<string>("network.proxy.https", ""));
+  const https = await proxyInput("HTTPS proxy", "Leave blank to reuse HTTP_PROXY / ALL_PROXY. host:port is enough.", configuration.get<string>("network.proxy.https", ""));
   if (https === undefined) return undefined;
-  const all = await proxyInput("ALL_PROXY", "Optional SOCKS or catch-all proxy, for example socks5://127.0.0.1:7890", configuration.get<string>("network.proxy.all", ""));
+  const all = await proxyInput("ALL_PROXY", "Optional catch-all, for example socks5://127.0.0.1:7890 or host:port", configuration.get<string>("network.proxy.all", ""));
   if (all === undefined) return undefined;
   const noProxy = await vscode.window.showInputBox({
     title: "NO_PROXY",
-    prompt: "Optional comma-separated hosts that should bypass the proxy",
-    value: configuration.get<string>("network.proxy.noProxy", ""),
+    prompt: "Comma-separated hosts that bypass the proxy. Leave the default loopback list unless you need more.",
+    value: configuration.get<string>("network.proxy.noProxy", "localhost,127.0.0.1,::1"),
     ignoreFocusOut: true,
   });
   if (noProxy === undefined) return undefined;
@@ -175,19 +176,23 @@ function proxyInput(title: string, prompt: string, value: string): Thenable<stri
     prompt,
     value,
     ignoreFocusOut: true,
-    validateInput: (candidate) => validateProxyUrl(candidate),
+    validateInput: (candidate) => validateProxyEndpoint(candidate),
   });
 }
 
-function validateProxyUrl(value: string): string | undefined {
+function validateProxyEndpoint(value: string): string | undefined {
   const candidate = value.trim();
   if (!candidate) return undefined;
+  const normalized = normalizeProxyEndpoint(candidate);
+  if (!normalized) return undefined;
   try {
-    const url = new URL(candidate);
-    if (!["http:", "https:", "socks:", "socks5:", "socks5h:"].includes(url.protocol)) return "Use an HTTP(S) or SOCKS proxy URL.";
+    const url = new URL(normalized);
+    if (!["http:", "https:", "socks:", "socks5:", "socks5h:"].includes(url.protocol)) {
+      return "Use host:port, or an HTTP(S)/SOCKS URL.";
+    }
     return undefined;
   } catch {
-    return "Enter a complete proxy URL, for example http://127.0.0.1:7890.";
+    return "Enter host:port or a proxy URL, for example 127.0.0.1:7890.";
   }
 }
 

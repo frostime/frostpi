@@ -51,4 +51,16 @@ describe("Pi process proxy environment", () => {
     const explicit = buildPiProcessEnvironment({ mode: "custom", http: "127.0.0.1:7890", noProxy: "example.com" });
     expect(explicit.env.NO_PROXY).toBe("example.com");
   });
+
+  it("mirrors HTTP proxy to HTTPS when HTTPS is unset in custom mode", () => {
+    const result = buildPiProcessEnvironment({ mode: "custom", http: "127.0.0.1:7890" });
+    expect(result.env.HTTP_PROXY).toBe("http://127.0.0.1:7890");
+    expect(result.env.HTTPS_PROXY).toBe("http://127.0.0.1:7890");
+    const split = buildPiProcessEnvironment({ mode: "custom", http: "127.0.0.1:7890", https: "127.0.0.1:7891" });
+    expect(split.env.HTTPS_PROXY).toBe("http://127.0.0.1:7891");
+  });
+
+  it("leaves inherit mode as an empty override map so host env is preserved", () => {
+    expect(buildPiProcessEnvironment({ mode: "inherit" }).env).toEqual({});
+  });
 });

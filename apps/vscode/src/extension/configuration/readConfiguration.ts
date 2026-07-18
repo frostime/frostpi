@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 
+import { DEFAULT_NO_PROXY } from "../network/buildPiProcessEnvironment.js";
 import type { FrostPiConfiguration } from "./configurationTypes.js";
 
 export function readConfiguration(scope?: vscode.Uri): FrostPiConfiguration {
@@ -17,7 +18,8 @@ export function readConfiguration(scope?: vscode.Uri): FrostPiConfiguration {
       ...optional("http", config.get<string>("network.proxy.http", "")),
       ...optional("https", config.get<string>("network.proxy.https", "")),
       ...optional("all", config.get<string>("network.proxy.all", "")),
-      ...optional("noProxy", config.get<string>("network.proxy.noProxy", "")),
+      // Keep package default / DEFAULT_NO_PROXY aligned so empty/missing still reach buildPiProcessEnvironment.
+      ...optional("noProxy", config.get<string>("network.proxy.noProxy", DEFAULT_NO_PROXY)),
     },
     fileMentionMaxFiles: config.get<number>("composer.fileMentions.maxFiles", 50_000),
     fileMentionRespectSearchExclude: config.get<boolean>("composer.fileMentions.respectSearchExclude", true),
