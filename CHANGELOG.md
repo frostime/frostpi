@@ -6,23 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-07-18
+
 ### Changed
 
-- Simplify custom proxy configuration to one `frostpi.network.proxy.endpoint` setting and a single guided-wizard step. `host:port` / `http(s)://…` set both `HTTP_PROXY` and `HTTPS_PROXY`; `socks5://…` sets `ALL_PROXY`. Legacy `http` / `https` / `all` values are still read when `endpoint` is empty.
+- Custom proxy now uses one endpoint in Settings and the guided wizard. `host:port` or `http(s)://…` covers both HTTP and HTTPS traffic; `socks5://…` sets the SOCKS proxy. Older split `http` / `https` / `all` values are still read when the new endpoint is empty.
 
 ### Fixed
 
-- Normalize Unicode whitespace between a leading `/command` and its args to an ASCII space before RPC so Pi extension commands such as `/toggle-web-proxy status` are not sent to the model when the separator is NBSP or similar.
-- Resolve relative Pi `sessionDir` settings against the workspace folder (Pi process cwd) so Resume discovers sessions under paths such as project `.pi/sessions`.
-- Recover session display names from both the file head and tail so early auto-names remain visible after long follow-up turns, while later renames still win.
-- Open the model picker at the current model and keep its selected row centered when space permits.
+- Extension slash commands with arguments (for example `/toggle-web-proxy status`) run instead of being sent to the model when the separator after the command is a special space such as a non-breaking space.
+- Resume discovers sessions when Pi `sessionDir` is a workspace-relative path such as `.pi/sessions`.
+- Early auto-generated session titles stay visible after long follow-up turns; later renames still win.
+- The model picker opens on the current model and keeps that row in view when space allows.
 
 ## [0.4.0] - 2026-07-18
 
 ### Added
 
-- Show an ephemeral "Compacting context" status in the conversation while `/compact` runs.
-- Show follow-up prompts accepted during an active run as temporary "Queued" bubbles at the conversation tail. Promote them into the durable turn stream when Pi emits the matching user message (with `agent_start` as a fallback), keep parking while the local queue is non-empty, and clear the queue on abort, stop, or process failure.
+- Show an ephemeral "Compacting context" status while `/compact` runs.
+- Show follow-up prompts accepted during an active run as temporary "Queued" bubbles, then promote them into the conversation when Pi accepts them. Clear the queue on abort, stop, or process failure.
 - Add `@Selection` and `@CurrentFile` as top mention completion items that insert path/line references only.
 
 ### Changed
@@ -30,16 +32,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Open FrostPi on the onboarding home when no session is selected instead of auto-creating a new session.
 - Remove the composer Add Context (+) menu; use `@` mentions for editor path/line references.
 - Insert editor selection as `@path:start-end` without embedding selected code.
-- Tighten the context usage hover card: narrower layout, compact large token counts, and shorter message labels.
-- Keep a single root `CHANGELOG.md`; VSIX packaging copies it into the extension package.
-- License the product as AGPL-3.0-only and mark the VS Code extension package as publishable (`private: false`).
-- Simplify proxy configuration: accept bare `host:port` endpoints, default `NO_PROXY` to `localhost,127.0.0.1,::1`, and mirror HTTP to HTTPS when HTTPS is unset.
+- Tighten the context usage hover card layout and labels.
+- Keep a single root `CHANGELOG.md`; packaging copies it into the extension VSIX.
+- License the product as AGPL-3.0-only and mark the VS Code extension package as publishable.
+- Simplify proxy setup: accept bare `host:port`, default local loopback in `NO_PROXY`, and apply a single HTTP proxy to HTTPS when HTTPS is unset.
 
 ### Fixed
 
-- Execute Pi extension slash commands with arguments (for example `/toggle-web-proxy on`), trim surrounding whitespace before RPC, and close the local turn when the command finishes without an agent run.
-- Keep `/` and `@` completion keyboard selection in view by scrolling the option list instead of clipping selected options.
-- Accept bare `host:port` values in the guided proxy wizard, matching Settings normalization.
+- Extension slash commands with arguments complete cleanly without waiting for a model turn.
+- Keep `/` and `@` completion selection in view by scrolling the option list.
+- Accept bare `host:port` values in the guided proxy wizard, matching Settings.
 
 ## [0.3.0] - 2026-07-17
 
@@ -124,10 +126,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add editor context capture, file navigation, Git-base diffs, diagnostics export, CSP, and trusted-workspace constraints.
 - Add production builds, tests, VSIX verification, release scripts, and maintenance documentation.
 
-[Unreleased]: https://github.com/frostime/frostpi/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/frostime/frostpi/compare/v0.4.1...HEAD
+[0.4.1]: https://github.com/frostime/frostpi/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/frostime/frostpi/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/frostime/frostpi/compare/v0.2.2...v0.3.0
 [0.2.2]: https://github.com/frostime/frostpi/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/frostime/frostpi/compare/v0.1.1...v0.2.1
 [0.1.1]: https://github.com/frostime/frostpi/compare/10ca43a728ae697fe5b6fbfbf1bb40b607e5edcb...v0.1.1
 [0.1.0]: https://github.com/frostime/frostpi/commit/10ca43a728ae697fe5b6fbfbf1bb40b607e5edcb
+
