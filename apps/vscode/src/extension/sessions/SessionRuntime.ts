@@ -213,6 +213,7 @@ export class SessionRuntime {
     }
     if (this.view.historyStatus !== "loaded") throw new Error("Load conversation history before forking a message.");
     if (this.view.pendingExtensionUi.length > 0) throw new Error("Answer the pending Pi request before forking.");
+    if (this.view.queuedFollowUps.length > 0) throw new Error("Wait for queued follow-ups to settle before forking.");
     const selectedMessage = this.view.turns.find((turn) => turn.userMessage?.sourceEntryId === entryId)?.userMessage;
     if (!selectedMessage) throw new Error("The selected message is no longer available for forking.");
     const projectedImages = selectedMessage.blocks.flatMap((block) => block.type === "images" ? block.images : []);

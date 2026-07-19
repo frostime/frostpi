@@ -301,6 +301,9 @@ process.stdin.on("data", chunk => {
       if (!streaming) {
         streaming = true;
         process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\n");
+      } else {
+        streaming = false;
+        process.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\n");
       }
       continue;
     } else if (command.type === "abort") {
@@ -340,8 +343,10 @@ process.on("SIGTERM", () => process.exit(0));
     expect(runtime.view.turns).toHaveLength(1);
 
     await runtime.sendPrompt("queued later", []);
+    await waitFor(() => runtime.view.status === "ready");
     expect(runtime.view.turns).toHaveLength(1);
     expect(runtime.view.queuedFollowUps.map((item) => item.text)).toEqual(["queued later"]);
+    await expect(runtime.executeFork("any-entry")).rejects.toThrow("Wait for queued follow-ups to settle");
 
     await runtime.abort();
     expect(runtime.view.queuedFollowUps).toEqual([]);

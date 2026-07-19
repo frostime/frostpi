@@ -9,7 +9,7 @@
   let { message, session }: { message: ConversationMessageView; session: SessionViewModel } = $props();
   const unavailable = $derived(
     session.status !== "ready" || session.isStreaming || session.isCompacting || session.isForking
-    || session.historyStatus !== "loaded" || session.pendingExtensionUi.length > 0,
+    || session.historyStatus !== "loaded" || session.pendingExtensionUi.length > 0 || session.queuedFollowUps.length > 0,
   );
   const pending = $derived($pendingForkEntryId === message.sourceEntryId);
 </script>
