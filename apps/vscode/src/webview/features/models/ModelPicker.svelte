@@ -10,14 +10,20 @@
   let searchInput = $state<HTMLInputElement | null>(null);
   let scrollContainer = $state<HTMLDivElement | null>(null);
   let expandedProviders = $state<Set<string>>(new Set());
+  let didInitialScroll = $state(false);
 
   $effect(() => {
-    if (!open) return;
+    if (!open) {
+      didInitialScroll = false;
+      return;
+    }
     if (model?.provider && !expandedProviders.has(model.provider)) {
       expandedProviders = new Set(expandedProviders).add(model.provider);
       return;
     }
+    if (didInitialScroll) return;
 
+    didInitialScroll = true;
     const frame = requestAnimationFrame(() => {
       searchInput?.focus();
       const selected = scrollContainer?.querySelector<HTMLButtonElement>(".model-option.selected");

@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-07-19
+
+### Fixed
+
+- Prevent the model picker from auto-scrolling back to the current model when expanding or collapsing other provider groups; the initial scroll now only happens on first open.
+
 ## [0.4.1] - 2026-07-18
 
 ### Changed
@@ -126,7 +132,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add editor context capture, file navigation, Git-base diffs, diagnostics export, CSP, and trusted-workspace constraints.
 - Add production builds, tests, VSIX verification, release scripts, and maintenance documentation.
 
-[Unreleased]: https://github.com/frostime/frostpi/compare/v0.4.1...HEAD
+[Unreleased]: https://github.com/frostime/frostpi/compare/v0.4.2...HEAD
+[0.4.2]: https://github.com/frostime/frostpi/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/frostime/frostpi/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/frostime/frostpi/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/frostime/frostpi/compare/v0.2.2...v0.3.0
@@ -134,4 +141,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.2.1]: https://github.com/frostime/frostpi/compare/v0.1.1...v0.2.1
 [0.1.1]: https://github.com/frostime/frostpi/compare/10ca43a728ae697fe5b6fbfbf1bb40b607e5edcb...v0.1.1
 [0.1.0]: https://github.com/frostime/frostpi/commit/10ca43a728ae697fe5b6fbfbf1bb40b607e5edcb
-
+
