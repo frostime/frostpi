@@ -3,7 +3,7 @@ title: UI Design Specification
 description: Visual language, density, theming, and interaction rules for FrostPi.
 scope:
   - /apps/vscode/src/webview/**
-updated: 2026-07-19
+updated: 2026-07-20
 ---
 
 # UI Design Specification
@@ -21,7 +21,7 @@ FrostPi should feel like a first-party desktop coding surface: compact, low-nois
 
 - A user prompt and subsequent Pi activity form one visual turn.
 - Assistant identity is expressed by the session header; do not repeat an avatar/icon for every fragment.
-- Responses are flat Markdown. User prompts use a restrained bubble.
+- Responses are Markdown with KaTeX math (`$…$`, `$$…$$`, `\(…\)`, `\[…\]`) and complete `mermaid` fences. Incomplete mermaid fences stay source text while streaming. User prompts use a restrained bubble.
 - Reasoning and tools are dense one-line activities, default collapsed. Failure exposes an inline summary but does not force expansion.
 - Disclosure state is user-owned; live updates must not reopen a manually collapsed activity.
 - While context is compacting, the conversation shows a non-timeline status row. A successful compaction inserts a distinct, collapsed boundary showing the pre-compaction token count. Expanding it reveals Pi's Markdown summary; prior visible turns remain scrollable.

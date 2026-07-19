@@ -1,4 +1,5 @@
 import "@vscode/codicons/dist/codicon.css";
+import "katex/dist/katex.min.css";
 import "./styles/reset.css";
 import "./styles/vscode-theme.css";
 import "./styles/tokens.css";
