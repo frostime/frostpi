@@ -10,23 +10,41 @@ describe("TurnProjection", () => {
       { role: "assistant", timestamp: 11, stopReason: "stop", content: [] },
       { role: "user", timestamp: 20, content: "repeat" },
     ], [
-      { entryId: "entry-1", timestamp: 10, text: "repeat" },
-      { entryId: "entry-2", timestamp: 20, text: "repeat" },
+      { entryId: "entry-1", timestamp: 10 },
+      { entryId: "entry-2", timestamp: 20 },
     ]);
 
     expect(projection.snapshot().turns.map((turn) => turn.userMessage?.sourceEntryId)).toEqual(["entry-1", "entry-2"]);
   });
 
-  it("attaches newly persisted entry ids to optimistic user turns", () => {
+  it("uses Pi user event timestamps to bind duplicate live prompts in protocol order", () => {
     const projection = new TurnProjection();
     projection.appendUserPrompt("repeat", [], 10);
+    projection.applyEvent({ type: "agent_start" });
+    projection.applyEvent({ type: "message_start", message: { role: "user", content: "expanded first", timestamp: 100 } });
+    projection.applyEvent({ type: "agent_settled" });
     projection.appendUserPrompt("repeat", [], 20);
+    projection.applyEvent({ type: "agent_start" });
+    projection.applyEvent({ type: "message_start", message: { role: "user", content: "expanded second", timestamp: 100 } });
 
     expect(projection.attachUserEntryReferences([
-      { entryId: "entry-1", timestamp: 11, text: "repeat" },
-      { entryId: "entry-2", timestamp: 21, text: "repeat" },
+      { entryId: "entry-1", timestamp: 100 },
+      { entryId: "entry-2", timestamp: 100 },
     ])).toBe(true);
     expect(projection.snapshot().turns.map((turn) => turn.userMessage?.sourceEntryId)).toEqual(["entry-1", "entry-2"]);
+  });
+
+  it("never attaches an entry to a rejected same-text optimistic turn", () => {
+    const projection = new TurnProjection();
+    const rejected = projection.appendUserPrompt("repeat", [], 10);
+    projection.completeTurn(rejected, "error");
+    projection.appendUserPrompt("repeat", [], 20);
+    projection.applyEvent({ type: "agent_start" });
+    projection.applyEvent({ type: "message_start", message: { role: "user", content: "repeat", timestamp: 30 } });
+
+    projection.attachUserEntryReferences([{ entryId: "accepted", timestamp: 30 }]);
+
+    expect(projection.snapshot().turns.map((turn) => turn.userMessage?.sourceEntryId)).toEqual([undefined, "accepted"]);
   });
 
   it("keeps reasoning, tools, and response segments in protocol order", () => {

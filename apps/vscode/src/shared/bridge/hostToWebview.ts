@@ -34,9 +34,7 @@ export type HostToWebviewPayload =
       requestId: string;
       ok: boolean;
       cancelled?: boolean;
-      text?: string;
       forkSessionId?: string;
-      originalSessionId?: string;
       error?: string;
     }
   | { type: "workspaceFileSuggestions"; requestId: string; items: WorkspaceFileCandidateView[]; specials?: EditorMentionSpecialView[]; error?: string }

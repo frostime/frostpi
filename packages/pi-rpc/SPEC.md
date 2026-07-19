@@ -28,8 +28,8 @@ Do not replace `/src/protocol/JsonlDecoder.ts` with `node:readline`; it does not
 - exactly one response resolves or rejects a pending request.
 - unknown/late response ids are ignored; they cannot resolve a newer request.
 - `success: true` means the command was accepted. Agent completion remains event-driven.
-- request timeout removes the pending entry before rejecting.
-- typed API helpers expose Pi's documented `get_entries` and `fork(entryId)` envelopes unchanged; session collection and replacement policy remain outside this package.
+- request timeout removes the pending entry before rejecting. A caller may explicitly disable the deadline for an interactive command; process stop/failure still rejects it.
+- typed API helpers expose Pi's documented `get_entries` and `fork(entryId)` envelopes unchanged; `fork` disables the ordinary request deadline because an upstream hook may wait for Extension UI. Session collection, cancellation by process restart, and replacement policy remain outside this package.
 
 ## Process lifecycle
 

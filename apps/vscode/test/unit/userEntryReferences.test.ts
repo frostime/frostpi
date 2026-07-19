@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { activeUserEntryReferences } from "../../src/extension/conversation/userEntryReferences.js";
+import { activeLeafContinues, activeUserEntryReferences } from "../../src/extension/conversation/userEntryReferences.js";
 
 describe("active user entry references", () => {
   it("keeps only user messages on the active root-to-leaf path", () => {
@@ -12,9 +12,18 @@ describe("active user entry references", () => {
     ];
 
     expect(activeUserEntryReferences(entries, "active")).toEqual([
-      { entryId: "root", timestamp: 1, text: "first" },
-      { entryId: "active", timestamp: 4, text: "approach B" },
+      { entryId: "root", timestamp: 1 },
+      { entryId: "active", timestamp: 4 },
     ]);
+  });
+
+  it("distinguishes normal leaf extension from movement to another branch", () => {
+    expect(activeLeafContinues("answer", [
+      entry("tool", "answer", undefined, 3, "toolResult"),
+      entry("next", "tool", "continue", 4),
+    ], "next")).toBe(true);
+    expect(activeLeafContinues("abandoned", [], "active")).toBe(false);
+    expect(activeLeafContinues("abandoned", [entry("active", "answer", "branch", 4)], "active")).toBe(false);
   });
 });
 

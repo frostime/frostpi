@@ -1,45 +1,37 @@
+import { get } from "svelte/store";
 import { describe, expect, it } from "vitest";
 
-import { forkDraftImages } from "../../src/webview/features/conversation/forkMessageClient.js";
+import { applyForkComposerSeed } from "../../src/webview/features/conversation/forkMessageClient.js";
+import { composerDrafts, updateDraft } from "../../src/webview/state/composerDraftStore.svelte.js";
 
-describe("message fork draft restoration", () => {
-  it("restores projected image bytes as Composer attachments", () => {
-    const images = forkDraftImages({
-      id: "message",
-      sourceEntryId: "entry",
-      role: "user",
-      status: "complete",
-      timestamp: 1,
-      blocks: [{
-        type: "images",
+describe("message Fork Composer restoration", () => {
+  it("applies each host-validated Composer seed once", () => {
+    composerDrafts.set({ original: { text: "Unsent original", images: [] } });
+    const session = {
+      id: "fork-session",
+      composerSeed: {
+        id: "seed-1",
+        text: "Retry this",
         images: [{ id: "image", name: "shot.png", mimeType: "image/png", dataUrl: "data:image/png;base64,AA==", size: 1 }],
-      }],
-    }, {
-      attachmentLimits: { maxImages: 12, maxImageBytes: 1024 },
-    } as never);
+      },
+    } as never;
 
-    expect(images).toEqual([{
-      id: "image",
-      name: "shot.png",
-      mimeType: "image/png",
-      data: "AA==",
-      dataUrl: "data:image/png;base64,AA==",
-      size: 1,
-    }]);
-  });
-
-  it("blocks the fork before mutation when an attachment cannot be restored exactly", () => {
-    expect(() => forkDraftImages({
-      id: "message",
-      role: "user",
-      status: "complete",
-      timestamp: 1,
-      blocks: [{
-        type: "images",
-        images: [{ id: "image", name: "large.png", mimeType: "image/png", dataUrl: "data:image/png;base64,AA==", size: 2048 }],
+    expect(applyForkComposerSeed(session)).toBe(true);
+    expect(get(composerDrafts).original?.text).toBe("Unsent original");
+    expect(get(composerDrafts)["fork-session"]).toEqual({
+      text: "Retry this",
+      images: [{
+        id: "image",
+        name: "shot.png",
+        mimeType: "image/png",
+        data: "AA==",
+        dataUrl: "data:image/png;base64,AA==",
+        size: 1,
       }],
-    }, {
-      attachmentLimits: { maxImages: 12, maxImageBytes: 1024 },
-    } as never)).toThrow("exceeds the current image size limit");
+    });
+
+    updateDraft("fork-session", (draft) => ({ ...draft, text: "Edited" }));
+    expect(applyForkComposerSeed(session)).toBe(false);
+    expect(get(composerDrafts)["fork-session"]?.text).toBe("Edited");
   });
 });

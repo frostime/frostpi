@@ -1,11 +1,12 @@
 import { BRIDGE_VERSION } from "$shared/bridge/bridgeVersion";
 import type { CollectionDelta, HostToWebviewMessage } from "$shared/bridge/hostToWebview";
+import type { SessionViewModel } from "$shared/model/sessionViewModel";
 
 import { insertDraftText } from "../state/composerDraftStore.svelte";
 import { composerFocusTick, showToast, workspaceStore } from "../state/sessionViewStore.svelte";
 import { promptSubmissionResult } from "../state/promptSubmissionStore.svelte";
 import { deliverWorkspaceFileSuggestions } from "../features/composer/fileSuggestionClient";
-import { resolveForkResult } from "../features/conversation/forkMessageClient";
+import { applyForkComposerSeed, resolveForkResult } from "../features/conversation/forkMessageClient";
 
 export function applyHostMessage(message: HostToWebviewMessage): void {
   if (message.bridgeVersion !== BRIDGE_VERSION) {
@@ -15,11 +16,18 @@ export function applyHostMessage(message: HostToWebviewMessage): void {
   switch (message.type) {
     case "snapshot":
       workspaceStore.set(message.workspace);
+      applyForkComposerSeed(message.workspace.activeSession);
       break;
-    case "workspaceDelta":
+    case "workspaceDelta": {
+      let activeSession: SessionViewModel | null = null;
       workspaceStore.update((current) => {
         const incoming = message.workspace.activeSession;
         const existing = current.activeSession?.id === incoming?.base.id ? current.activeSession : null;
+        activeSession = incoming ? {
+          ...incoming.base,
+          turns: mergeCollection(existing?.turns ?? [], incoming.turns),
+          notices: mergeCollection(existing?.notices ?? [], incoming.notices),
+        } : null;
         return {
           workspaceName: message.workspace.workspaceName,
           workspacePath: message.workspace.workspacePath,
@@ -27,14 +35,12 @@ export function applyHostMessage(message: HostToWebviewMessage): void {
           activeSessionId: message.workspace.activeSessionId,
           piAvailable: message.workspace.piAvailable,
           ...(message.workspace.piError ? { piError: message.workspace.piError } : {}),
-          activeSession: incoming ? {
-            ...incoming.base,
-            turns: mergeCollection(existing?.turns ?? [], incoming.turns),
-            notices: mergeCollection(existing?.notices ?? [], incoming.notices),
-          } : null,
+          activeSession,
         };
       });
+      applyForkComposerSeed(activeSession);
       break;
+    }
     case "insertPromptText": {
       let activeId: string | null = null;
       workspaceStore.update((workspace) => {

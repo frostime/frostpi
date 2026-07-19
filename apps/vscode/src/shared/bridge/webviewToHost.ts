@@ -29,6 +29,7 @@ const payloadSchema = z.discriminatedUnion("type", [
     images: z.array(imageSchema).max(12),
   }),
   z.object({ type: z.literal("abort"), sessionId: z.string().min(1).max(128) }),
+  z.object({ type: z.literal("cancelFork"), sessionId: z.string().min(1).max(128) }),
   z.object({
     type: z.literal("forkMessage"),
     requestId: z.string().min(1).max(128),

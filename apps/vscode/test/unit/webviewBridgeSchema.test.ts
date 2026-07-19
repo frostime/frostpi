@@ -21,6 +21,7 @@ describe("Webview bridge validation", () => {
   it("accepts local session, history, and correlated message-fork actions", () => {
     expect(webviewToHostSchema.safeParse({ bridgeVersion: BRIDGE_VERSION, type: "resumeSession" }).success).toBe(true);
     expect(webviewToHostSchema.safeParse({ bridgeVersion: BRIDGE_VERSION, type: "loadHistory", sessionId: "session-1" }).success).toBe(true);
+    expect(webviewToHostSchema.safeParse({ bridgeVersion: BRIDGE_VERSION, type: "cancelFork", sessionId: "session-1" }).success).toBe(true);
     expect(webviewToHostSchema.safeParse({
       bridgeVersion: BRIDGE_VERSION,
       type: "forkMessage",

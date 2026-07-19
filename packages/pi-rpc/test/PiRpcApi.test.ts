@@ -8,7 +8,7 @@ describe("PiRpcApi", () => {
     const api = new PiRpcApi({ request } as never);
 
     await expect(api.fork("entry-123")).resolves.toEqual({ text: "retry this", cancelled: false });
-    expect(request).toHaveBeenCalledWith({ type: "fork", entryId: "entry-123" });
+    expect(request).toHaveBeenCalledWith({ type: "fork", entryId: "entry-123" }, null);
   });
 
   it("preserves streaming behavior and image content in prompt commands", async () => {

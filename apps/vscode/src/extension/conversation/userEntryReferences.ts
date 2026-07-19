@@ -3,7 +3,6 @@ import type { RpcSessionEntry } from "@frostime/pi-rpc";
 export interface UserEntryReference {
   entryId: string;
   timestamp?: number;
-  text: string;
 }
 
 /** Return user-message entries on the active root-to-leaf path. */
@@ -33,22 +32,30 @@ export function userEntryReferences(entries: readonly RpcSessionEntry[]): UserEn
     references.push({
       entryId: entry.id,
       ...(typeof entry.message.timestamp === "number" ? { timestamp: entry.message.timestamp } : {}),
-      text: messageText(entry.message.content),
     });
   }
   return references;
 }
 
-export function userReferenceKey(timestamp: number | undefined, text: string): string {
-  return `${timestamp ?? ""}\u0000${text}`;
-}
+/** Whether an incremental entry batch connects the previous active leaf to the reported leaf. */
+export function activeLeafContinues(
+  previousLeafId: string | null,
+  entries: readonly RpcSessionEntry[],
+  leafId: string | null,
+): boolean {
+  if (leafId === previousLeafId) return true;
+  if (!previousLeafId) return true;
+  if (!leafId) return false;
 
-function messageText(content: unknown): string {
-  if (typeof content === "string") return content;
-  if (!Array.isArray(content)) return "";
-  return content
-    .map((part) => isRecord(part) && part.type === "text" && typeof part.text === "string" ? part.text : "")
-    .join("");
+  const byId = new Map(entries.map((entry) => [entry.id, entry]));
+  const seen = new Set<string>();
+  let current = byId.get(leafId);
+  while (current && !seen.has(current.id)) {
+    if (current.parentId === previousLeafId) return true;
+    seen.add(current.id);
+    current = current.parentId ? byId.get(current.parentId) : undefined;
+  }
+  return false;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

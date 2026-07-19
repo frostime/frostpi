@@ -35,7 +35,7 @@ type ExitListener = (exit: { code: number | null; signal: NodeJS.Signals | null 
 type PendingRequest = {
   resolve: (response: RpcResponse) => void;
   reject: (error: Error) => void;
-  timer: ReturnType<typeof setTimeout>;
+  timer: ReturnType<typeof setTimeout> | null;
 };
 
 const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
@@ -149,7 +149,7 @@ export class PiRpcConnection {
     return () => this.#exitListeners.delete(listener);
   }
 
-  async request<T = unknown>(command: RpcCommand, timeoutMs?: number): Promise<T> {
+  async request<T = unknown>(command: RpcCommand, timeoutMs?: number | null): Promise<T> {
     const child = this.#child;
     const stdin = child?.stdin;
     if (!child || !stdin) throw new PiRpcProcessError("Pi RPC connection is not started");
@@ -159,9 +159,9 @@ export class PiRpcConnection {
     }
 
     const id = `req_${++this.#requestId}`;
-    const deadline = timeoutMs ?? this.#options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
+    const deadline = timeoutMs === null ? null : timeoutMs ?? this.#options.requestTimeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS;
     const response = await new Promise<RpcResponse>((resolve, reject) => {
-      const timer = setTimeout(() => {
+      const timer = deadline === null ? null : setTimeout(() => {
         this.#pendingRequests.delete(id);
         reject(this.#withStderr(new PiRpcCommandError(`Timed out waiting for ${command.type} response after ${deadline}ms`, command.type)));
       }, deadline);
@@ -170,7 +170,7 @@ export class PiRpcConnection {
         const pending = this.#pendingRequests.get(id);
         if (!pending) return;
         this.#pendingRequests.delete(id);
-        clearTimeout(pending.timer);
+        if (pending.timer) clearTimeout(pending.timer);
         pending.reject(asError(error));
       });
     });
@@ -217,7 +217,7 @@ export class PiRpcConnection {
       const pending = this.#pendingRequests.get(value.id);
       if (!pending) return;
       this.#pendingRequests.delete(value.id);
-      clearTimeout(pending.timer);
+      if (pending.timer) clearTimeout(pending.timer);
       pending.resolve(value);
       return;
     }
@@ -267,7 +267,7 @@ export class PiRpcConnection {
 
   #rejectPending(error: Error): void {
     for (const pending of this.#pendingRequests.values()) {
-      clearTimeout(pending.timer);
+      if (pending.timer) clearTimeout(pending.timer);
       pending.reject(error);
     }
     this.#pendingRequests.clear();

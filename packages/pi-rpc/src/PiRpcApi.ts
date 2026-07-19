@@ -55,7 +55,7 @@ export class PiRpcApi {
   }
 
   fork(entryId: string): Promise<RpcForkResult> {
-    return this.connection.request({ type: "fork", entryId });
+    return this.connection.request({ type: "fork", entryId }, null);
   }
 
   newSession(parentSession?: string): Promise<{ cancelled: boolean }> {

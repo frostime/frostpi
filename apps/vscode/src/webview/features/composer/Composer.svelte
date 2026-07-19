@@ -116,7 +116,11 @@
       </div>
       <div class="composer-toolbar-right">
         <span class="send-hint">Ctrl ↵</span>
-        {#if session.isStreaming}
+        {#if session.isForking}
+          <button class="send-button stop-button" type="button" aria-label="Cancel Fork" title="Cancel Fork and restore the original session" onclick={() => postToHost({ type: "cancelFork", sessionId: session.id })}>
+            <span class="codicon codicon-debug-stop"></span>
+          </button>
+        {:else if session.isStreaming}
           <button class="send-button stop-button" type="button" aria-label="Stop Pi" title="Stop current run" onclick={() => postToHost({ type: "abort", sessionId: session.id })}>
             <span class="codicon codicon-debug-stop"></span>
           </button>

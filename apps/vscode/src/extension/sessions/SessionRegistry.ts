@@ -22,6 +22,15 @@ export interface RegistryToast {
   message: string;
 }
 
+interface ForkOperation {
+  phase: "waiting-for-pi" | "reconciling";
+  sourceId: string;
+  forkId: string;
+  runtime: SessionRuntime;
+  cancelRequested: boolean;
+  stopPromise?: Promise<void>;
+}
+
 export class SessionRegistry implements vscode.Disposable {
   readonly #runtimes = new Map<string, SessionRuntime>();
   readonly #records = new Map<string, PersistedSessionRecord>();
@@ -39,6 +48,7 @@ export class SessionRegistry implements vscode.Disposable {
   readonly #historyJobs = new Map<string, Promise<void>>();
 
   #activeSessionId: string | null = null;
+  #forkOperation: ForkOperation | null = null;
   #startQueue: Promise<void> = Promise.resolve();
   #historyQueue: Promise<void> = Promise.resolve();
   #persistenceQueue: Promise<void> = Promise.resolve();
@@ -109,6 +119,7 @@ export class SessionRegistry implements vscode.Disposable {
   }
 
   async createSession(cwd = activeWorkspaceFolder()?.uri.fsPath): Promise<string> {
+    this.#assertNoForkOperation();
     if (!cwd) throw new Error("Open a workspace folder before creating a Pi session.");
     await this.#discardActiveTemporarySession();
     const id = randomUUID();
@@ -131,6 +142,7 @@ export class SessionRegistry implements vscode.Disposable {
 
 
   async resumeSession(): Promise<string | undefined> {
+    this.#assertNoForkOperation();
     const cwd = activeWorkspaceFolder()?.uri.fsPath;
     if (!cwd) throw new Error("Open a workspace folder before resuming a Pi session.");
     const configuration = readConfiguration(workspaceUriForPath(cwd));
@@ -140,6 +152,7 @@ export class SessionRegistry implements vscode.Disposable {
   }
 
   async openSession(entry: PiSessionCatalogEntry): Promise<string> {
+    this.#assertNoForkOperation();
     const existing = [...this.#records.values()].find((record) => record.sessionFile && samePath(record.sessionFile, entry.path));
     if (existing) {
       if (existing.id !== this.#activeSessionId) await this.#discardActiveTemporarySession();
@@ -167,6 +180,7 @@ export class SessionRegistry implements vscode.Disposable {
   }
 
   async activateSession(sessionId: string): Promise<void> {
+    this.#assertNoForkOperation();
     const runtime = this.#requireRuntime(sessionId);
     if (sessionId !== this.#activeSessionId) await this.#discardActiveTemporarySession();
     this.#activeSessionId = sessionId;
@@ -182,6 +196,7 @@ export class SessionRegistry implements vscode.Disposable {
   }
 
   async closeSession(sessionId: string): Promise<void> {
+    this.#assertSessionOutsideFork(sessionId);
     const runtime = this.#requireRuntime(sessionId);
     if (!await confirmClose(runtime)) return;
     await runtime.dispose();
@@ -195,12 +210,15 @@ export class SessionRegistry implements vscode.Disposable {
   }
 
   async retrySession(sessionId?: string): Promise<void> {
-    const runtime = this.#requireRuntime(sessionId ?? this.#requireActiveId());
+    const targetId = sessionId ?? this.#requireActiveId();
+    this.#assertSessionOutsideFork(targetId);
+    const runtime = this.#requireRuntime(targetId);
     if (!await confirmRestart([runtime])) return;
     await this.#restartRuntime(runtime);
   }
 
   async restartAllSessions(): Promise<void> {
+    this.#assertNoForkOperation();
     const runtimes = [...this.#runtimes.values()];
     if (!await confirmRestart(runtimes)) return;
     for (const runtime of runtimes) await this.#restartRuntime(runtime);
@@ -211,6 +229,7 @@ export class SessionRegistry implements vscode.Disposable {
   }
 
   async sendPrompt(sessionId: string, text: string, images: WebviewImageInput[]): Promise<void> {
+    this.#assertSessionOutsideFork(sessionId);
     if (!text.trim() && images.length === 0) return;
     const runtime = this.#requireRuntime(sessionId);
     await this.#ensureRunning(runtime);
@@ -222,17 +241,27 @@ export class SessionRegistry implements vscode.Disposable {
     if (compactInstructions !== null && images.length > 0) throw new Error("/compact does not support image attachments.");
     if (compactInstructions !== null) await runtime.compact(compactInstructions || undefined);
     else await runtime.sendPrompt(text, images);
-    if (this.#temporarySessionIds.delete(sessionId)) await this.#persist();
+    runtime.clearComposerSeed();
+    if (compactInstructions === null && this.#temporarySessionIds.delete(sessionId)) await this.#persist();
   }
 
   async abort(sessionId = this.#requireActiveId()): Promise<void> {
+    this.#assertSessionOutsideFork(sessionId);
     await this.#requireRuntime(sessionId).abort();
   }
 
-  async forkMessage(
-    sessionId: string,
-    entryId: string,
-  ): Promise<{ cancelled: boolean; text?: string; forkSessionId?: string; originalSessionId?: string }> {
+  async cancelFork(sessionId: string): Promise<void> {
+    const operation = this.#forkOperation;
+    if (!operation || (sessionId !== operation.sourceId && sessionId !== operation.forkId)) {
+      throw new Error("No Fork operation is active for this session.");
+    }
+    operation.cancelRequested = true;
+    operation.stopPromise ??= operation.runtime.stop();
+    await operation.stopPromise;
+  }
+
+  async forkMessage(sessionId: string, entryId: string): Promise<{ cancelled: boolean; forkSessionId?: string }> {
+    this.#assertNoForkOperation();
     if (sessionId !== this.#activeSessionId) throw new Error("Activate the session before forking one of its messages.");
     const runtime = this.#requireRuntime(sessionId);
     const original = this.#records.get(sessionId);
@@ -240,54 +269,67 @@ export class SessionRegistry implements vscode.Disposable {
     await access(original.sessionFile).catch(() => {
       throw new Error("Wait for Pi to finish saving this session before forking.");
     });
-
-    const originalRecord = { ...original };
-    const originalSessionId = randomUUID();
-    const retainedOriginal: PersistedSessionRecord = { ...originalRecord, id: originalSessionId };
-    // Persist the retained original before Pi replaces the live runtime. Runtime metadata
-    // notifications during the replacement cannot otherwise overwrite the only durable record.
-    this.#records.set(originalSessionId, retainedOriginal);
-    this.#temporarySessionIds.add(sessionId);
-    await this.#persist();
-
+    const operation: ForkOperation = {
+      phase: "waiting-for-pi",
+      sourceId: sessionId,
+      forkId: randomUUID(),
+      runtime,
+      cancelRequested: false,
+    };
+    this.#forkOperation = operation;
     const forkName = forkSessionName(runtime.view.title);
-    let result: Awaited<ReturnType<SessionRuntime["fork"]>>;
+
+    let result: Awaited<ReturnType<SessionRuntime["executeFork"]>>;
     try {
-      result = await runtime.fork(entryId, forkName);
+      result = await runtime.executeFork(entryId);
     } catch (error) {
-      this.#records.delete(originalSessionId);
-      this.#temporarySessionIds.delete(sessionId);
-      await this.#persist();
+      await this.#restoreOriginalAfterFork(operation);
+      if (operation.cancelRequested) return { cancelled: true };
       throw error;
     }
+    if (operation.cancelRequested) {
+      await this.#restoreOriginalAfterFork(operation);
+      return { cancelled: true };
+    }
     if (result.cancelled) {
-      this.#records.delete(originalSessionId);
-      this.#temporarySessionIds.delete(sessionId);
-      await this.#persist();
+      this.#finishForkOperation(operation);
+      this.#emitChange();
       return { cancelled: true };
     }
 
-    this.#runtimes.set(originalSessionId, this.#createRuntime(retainedOriginal));
+    try {
+      if (this.#startJobs.has(operation.sourceId) || this.#historyJobs.has(operation.sourceId)) {
+        throw new Error("Session lifecycle work was still pending when Pi committed the Fork.");
+      }
+      operation.phase = "reconciling";
+      this.#replaceRuntimeWithFork(operation, original, forkName);
+      await runtime.reconcileFork(forkName, {
+        id: operation.forkId,
+        text: result.text,
+        images: result.images,
+      });
+    } catch (error) {
+      await this.#restoreOriginalAfterFork(operation);
+      if (operation.cancelRequested) return { cancelled: true };
+      throw error;
+    }
 
     const forkFile = runtime.view.sessionFile;
-    this.#records.set(sessionId, {
-      id: sessionId,
+    this.#records.set(operation.forkId, {
+      id: operation.forkId,
       title: forkName,
       cwd: runtime.cwd,
       ...(forkFile ? { sessionFile: forkFile } : {}),
       updatedAt: runtime.view.updatedAt,
     });
-    await this.#persist();
+    this.#finishForkOperation(operation);
+    await Promise.resolve(this.#persist()).catch((error: unknown) => this.#logger.error("Failed to persist session collection after Fork", error));
     this.#emitChange();
-    return {
-      cancelled: false,
-      text: result.text,
-      forkSessionId: sessionId,
-      originalSessionId,
-    };
+    return { cancelled: false, forkSessionId: operation.forkId };
   }
 
   async rename(sessionId: string, name: string): Promise<void> {
+    this.#assertSessionOutsideFork(sessionId);
     const runtime = this.#requireRuntime(sessionId);
     await this.#ensureRunning(runtime);
     await runtime.rename(name);
@@ -295,30 +337,35 @@ export class SessionRegistry implements vscode.Disposable {
   }
 
   async setModel(sessionId: string, provider: string, modelId: string): Promise<void> {
+    this.#assertSessionOutsideFork(sessionId);
     const runtime = this.#requireRuntime(sessionId);
     await this.#ensureRunning(runtime);
     await runtime.setModel(provider, modelId);
   }
 
   async setThinkingLevel(sessionId: string, level: ThinkingLevel): Promise<void> {
+    this.#assertSessionOutsideFork(sessionId);
     const runtime = this.#requireRuntime(sessionId);
     await this.#ensureRunning(runtime);
     await runtime.setThinkingLevel(level);
   }
 
   async refreshModels(sessionId: string): Promise<void> {
+    this.#assertSessionOutsideFork(sessionId);
     const runtime = this.#requireRuntime(sessionId);
     await this.#ensureRunning(runtime);
     await runtime.refreshModels();
   }
 
   async refreshCommands(sessionId: string): Promise<void> {
+    this.#assertSessionOutsideFork(sessionId);
     const runtime = this.#requireRuntime(sessionId);
     await this.#ensureRunning(runtime);
     await runtime.refreshCommands();
   }
 
   async loadHistory(sessionId: string): Promise<void> {
+    this.#assertSessionOutsideFork(sessionId);
     const runtime = this.#requireRuntime(sessionId);
     await this.#ensureRunning(runtime);
     await this.#queueHistory(runtime, true);
@@ -330,9 +377,11 @@ export class SessionRegistry implements vscode.Disposable {
 
   diagnosticsSummary(): string {
     const sessions = [...this.#runtimes.values()];
+    const operation = this.#forkOperation;
     return [
       `Registry active session: ${this.#activeSessionId ?? "<none>"}`,
       `Registry session count: ${sessions.length}`,
+      `Fork operation: ${operation ? `${operation.phase} source=${operation.sourceId} target=${operation.forkId}` : "<none>"}`,
       "",
       ...sessions.flatMap((runtime) => [runtime.diagnosticsSummary(), ""]),
     ].join("\n");
@@ -409,6 +458,75 @@ export class SessionRegistry implements vscode.Disposable {
       await job;
     } finally {
       if (this.#startJobs.get(runtime.id) === job) this.#startJobs.delete(runtime.id);
+    }
+  }
+
+  #replaceRuntimeWithFork(
+    operation: ForkOperation,
+    original: PersistedSessionRecord,
+    forkName: string,
+  ): void {
+    const originalRuntime = this.#createRuntime(original);
+    const previousStatus = this.#lastStatuses.get(operation.sourceId) ?? operation.runtime.view.status;
+    const pendingUiCount = operation.runtime.view.pendingExtensionUi.length;
+    operation.runtime.rebindSessionId(operation.forkId);
+
+    this.#runtimes.delete(operation.sourceId);
+    this.#lastStatuses.delete(operation.sourceId);
+    this.#lastPendingUiCounts.delete(operation.sourceId);
+
+    this.#runtimes.set(operation.forkId, operation.runtime);
+    this.#lastStatuses.set(operation.forkId, previousStatus);
+    this.#lastPendingUiCounts.set(operation.forkId, pendingUiCount);
+    this.#records.set(operation.forkId, {
+      id: operation.forkId,
+      title: forkName,
+      cwd: original.cwd,
+      updatedAt: operation.runtime.view.updatedAt,
+    });
+    this.#temporarySessionIds.add(operation.forkId);
+
+    this.#runtimes.set(operation.sourceId, originalRuntime);
+    this.#lastStatuses.set(operation.sourceId, "stopped");
+    this.#lastPendingUiCounts.set(operation.sourceId, 0);
+    this.#activeSessionId = operation.forkId;
+  }
+
+  async #restoreOriginalAfterFork(operation: ForkOperation): Promise<void> {
+    operation.stopPromise ??= operation.runtime.stop();
+    await operation.stopPromise.catch(() => undefined);
+
+    if (operation.phase === "reconciling") {
+      await operation.runtime.dispose().catch(() => undefined);
+      this.#removeSession(operation.forkId);
+    }
+    this.#activeSessionId = operation.sourceId;
+
+    const originalRuntime = this.#requireRuntime(operation.sourceId);
+    let restartError: unknown;
+    try {
+      await this.#startRuntime(originalRuntime);
+    } catch (error) {
+      restartError = error;
+    }
+    await Promise.resolve(this.#persist()).catch((error: unknown) => this.#logger.error("Failed to persist session collection after Fork recovery", error));
+    this.#finishForkOperation(operation);
+    this.#emitChange();
+    if (restartError) throw restartError instanceof Error ? restartError : new Error("Unable to restart the original session after Fork recovery.", { cause: restartError });
+  }
+
+  #finishForkOperation(operation: ForkOperation): void {
+    if (this.#forkOperation === operation) this.#forkOperation = null;
+  }
+
+  #assertNoForkOperation(): void {
+    if (this.#forkOperation) throw new Error("Wait for the current session Fork to finish or cancel it first.");
+  }
+
+  #assertSessionOutsideFork(sessionId: string): void {
+    const operation = this.#forkOperation;
+    if (operation && (sessionId === operation.sourceId || sessionId === operation.forkId)) {
+      throw new Error("Wait for the current session Fork to finish or cancel it first.");
     }
   }
 
@@ -513,6 +631,8 @@ export class SessionRegistry implements vscode.Disposable {
     this.#pendingEditorText.delete(sessionId);
     this.#lastStatuses.delete(sessionId);
     this.#lastPendingUiCounts.delete(sessionId);
+    this.#startJobs.delete(sessionId);
+    this.#historyJobs.delete(sessionId);
   }
 
   #requireRuntime(sessionId: string): SessionRuntime {

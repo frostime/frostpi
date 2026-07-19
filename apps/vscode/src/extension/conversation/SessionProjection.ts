@@ -47,6 +47,11 @@ export class SessionProjection {
     return this.#view;
   }
 
+  rebindSessionId(id: string): void {
+    this.#view.id = id;
+    this.#touch();
+  }
+
   snapshot(): SessionViewModel {
     return structuredClone(this.#view);
   }
@@ -85,6 +90,17 @@ export class SessionProjection {
 
   setForking(isForking: boolean): void {
     this.#view.isForking = isForking;
+    this.#touch();
+  }
+
+  setComposerSeed(seed: NonNullable<SessionViewModel["composerSeed"]>): void {
+    this.#view.composerSeed = seed;
+    this.#touch();
+  }
+
+  clearComposerSeed(): void {
+    if (!this.#view.composerSeed) return;
+    delete this.#view.composerSeed;
     this.#touch();
   }
 
