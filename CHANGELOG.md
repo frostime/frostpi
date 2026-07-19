@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Copy the original Markdown text from user messages and individual assistant responses.
 - Fork a conversation from any completed user message using its exact Pi session entry. FrostPi keeps the original session and Composer draft, opens a temporary named fork, and restores the selected text and images for editing before submission.
 
+### Fixed
+
+- Keep ModelPicker and Thinking Level menus compact and anchored within narrow VS Code sidebars, and keep the current model visible when opening ModelPicker.
+- Keep the composer within the available Webview width when multiple images are pasted; compact attachment cards now keep filenames, sizes, and remove actions visible.
+
 ## [0.4.2] - 2026-07-19
 
 ### Fixed

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { tick } from "svelte";
   import type { RpcModel } from "@frostime/pi-rpc";
 
   import { postToHost } from "../../bridge/vscodeBridge";
@@ -10,31 +11,6 @@
   let searchInput = $state<HTMLInputElement | null>(null);
   let scrollContainer = $state<HTMLDivElement | null>(null);
   let expandedProviders = $state<Set<string>>(new Set());
-  let didInitialScroll = $state(false);
-
-  $effect(() => {
-    if (!open) {
-      didInitialScroll = false;
-      return;
-    }
-    if (model?.provider && !expandedProviders.has(model.provider)) {
-      expandedProviders = new Set(expandedProviders).add(model.provider);
-      return;
-    }
-    if (didInitialScroll) return;
-
-    didInitialScroll = true;
-    const frame = requestAnimationFrame(() => {
-      searchInput?.focus();
-      const selected = scrollContainer?.querySelector<HTMLButtonElement>(".model-option.selected");
-      if (!selected || !scrollContainer) return;
-
-      const selectedBounds = selected.getBoundingClientRect();
-      const containerBounds = scrollContainer.getBoundingClientRect();
-      scrollContainer.scrollTop += selectedBounds.top + selectedBounds.height / 2 - (containerBounds.top + containerBounds.height / 2);
-    });
-    return () => cancelAnimationFrame(frame);
-  });
 
   const groups = $derived.by(() => {
     const normalized = query.trim().toLowerCase();
@@ -54,6 +30,31 @@
     postToHost({ type: "setModel", sessionId, provider: next.provider, modelId: next.id });
   }
 
+  async function togglePicker(): Promise<void> {
+    if (open) {
+      open = false;
+      return;
+    }
+
+    query = "";
+    if (model?.provider && !expandedProviders.has(model.provider)) {
+      expandedProviders = new Set(expandedProviders).add(model.provider);
+    }
+    open = true;
+
+    await tick();
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    if (!open) return;
+
+    searchInput?.focus();
+    const selected = scrollContainer?.querySelector<HTMLButtonElement>(".model-option.selected");
+    if (!selected || !scrollContainer) return;
+
+    const selectedBounds = selected.getBoundingClientRect();
+    const containerBounds = scrollContainer.getBoundingClientRect();
+    scrollContainer.scrollTop += selectedBounds.top + selectedBounds.height / 2 - (containerBounds.top + containerBounds.height / 2);
+  }
+
   function toggleProvider(provider: string): void {
     const next = new Set(expandedProviders);
     if (next.has(provider)) next.delete(provider);
@@ -67,7 +68,7 @@
 </script>
 
 <div class="model-picker">
-  <button class="composer-chip model-picker-trigger" type="button" {disabled} onclick={() => open = !open} title={model ? `${model.provider}/${model.id}` : "Choose model"}>
+  <button class="composer-chip model-picker-trigger" type="button" {disabled} onclick={togglePicker} title={model ? `${model.provider}/${model.id}` : "Choose model"}>
     <span class="codicon codicon-sparkle"></span>
     <span class="chip-text">{model?.name ?? model?.id ?? "Model"}</span>
     <span class={`codicon codicon-chevron-${open ? "down" : "up"}`}></span>
