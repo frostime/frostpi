@@ -1,11 +1,30 @@
-import { resolve } from "node:path";
+import { cpSync, mkdirSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, resolve } from "node:path";
 
 import { svelte } from "@sveltejs/vite-plugin-svelte";
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
+
+const require = createRequire(import.meta.url);
+
+/** Copy Mermaid's self-contained IIFE next to webview.js for script-tag loading. */
+function copyMermaidVendor(): Plugin {
+  return {
+    name: "frostpi-copy-mermaid-vendor",
+    writeBundle(outputOptions) {
+      const outDir = outputOptions.dir ?? resolve(import.meta.dirname, "dist/webview");
+      const vendorDir = resolve(outDir, "vendor");
+      mkdirSync(vendorDir, { recursive: true });
+      const mermaidEntry = require.resolve("mermaid/package.json");
+      const mermaidMin = resolve(dirname(mermaidEntry), "dist/mermaid.min.js");
+      cpSync(mermaidMin, resolve(vendorDir, "mermaid.min.js"));
+    },
+  };
+}
 
 export default defineConfig({
   base: "./",
-  plugins: [svelte()],
+  plugins: [svelte(), copyMermaidVendor()],
   resolve: {
     alias: {
       $shared: resolve(import.meta.dirname, "src/shared"),
