@@ -85,6 +85,7 @@ process.stdin.on("data", chunk => {
       }, 1_000);
       continue;
     }
+    else if (command.type === "get_entries") response.data = { entries: [], leafId: null };
     else if (command.type === "get_available_models") response.data = { models: [] };
     else if (command.type === "get_commands") response.data = { commands: [] };
     else if (command.type === "get_session_stats") response.data = { sessionFile, sessionId: "resume", userMessages: 0, assistantMessages: 0, toolCalls: 0, toolResults: 0, totalMessages: 0, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, cost: 0 };
@@ -102,6 +103,131 @@ process.on("SIGTERM", () => process.exit(0));
     expect(registry.snapshot().activeSession?.sessionFile).toBe(sessionFile);
     expect(["queued", "loading"]).toContain(registry.snapshot().activeSession?.historyStatus);
     await expect(registry.sendPrompt(sessionId, "Too early", [])).rejects.toThrow("Wait for conversation history");
+  });
+
+  it("keeps the original identity across cancellation, recovery, and a successful temporary Fork", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "frostpi-registry-fork-"));
+    const sessionFile = join(dir, "source.jsonl");
+    await writeFile(sessionFile, `${JSON.stringify({ type: "session", version: 3, id: "source", cwd: dir })}\n`);
+    const fakePi = join(dir, "fake-pi.cjs");
+    await writeFile(fakePi, String.raw`#!/usr/bin/env node
+const fs = require("node:fs");
+const path = require("node:path");
+const sourceFile = process.argv[process.argv.indexOf("--session") + 1];
+let sessionFile = sourceFile;
+let sessionId = "source";
+let sessionName = "Source";
+let failReconcile = false;
+let pendingForkRequestId;
+let messages = [
+  { role: "user", content: [{ type: "text", text: "Retry this" }, { type: "image", id: "image", fileName: "shot.png", mimeType: "image/png", data: "AA==", size: 1 }], timestamp: 1 },
+  { role: "user", content: "Cancel this", timestamp: 2 },
+  { role: "user", content: "Fail refresh", timestamp: 3 },
+  { role: "user", content: "Wait", timestamp: 4 },
+];
+let entries = [
+  { type: "message", id: "user-entry", parentId: null, message: { role: "user", content: "Retry this", timestamp: 1 } },
+  { type: "message", id: "cancel-entry", parentId: "user-entry", message: { role: "user", content: "Cancel this", timestamp: 2 } },
+  { type: "message", id: "fail-entry", parentId: "cancel-entry", message: { role: "user", content: "Fail refresh", timestamp: 3 } },
+  { type: "message", id: "wait-entry", parentId: "fail-entry", message: { role: "user", content: "Wait", timestamp: 4 } },
+];
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => {
+  input += chunk;
+  while (input.includes("\n")) {
+    const index = input.indexOf("\n");
+    const command = JSON.parse(input.slice(0, index));
+    input = input.slice(index + 1);
+    const response = { type: "response", id: command.id, success: true };
+    if (command.type === "get_state") response.data = { model: null, thinkingLevel: "off", isStreaming: false, isCompacting: false, sessionFile, sessionId, sessionName };
+    else if (command.type === "get_messages") response.data = { messages };
+    else if (command.type === "get_entries") response.data = { entries, leafId: entries.at(-1)?.id ?? null };
+    else if (command.type === "get_available_models") response.data = { models: [] };
+    else if (command.type === "get_commands") response.data = { commands: [] };
+    else if (command.type === "get_session_stats") response.data = { sessionFile, sessionId, userMessages: messages.filter(x => x.role === "user").length, assistantMessages: 0, toolCalls: 0, toolResults: 0, totalMessages: messages.length, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, cost: 0 };
+    else if (command.type === "fork") {
+      if (command.entryId === "cancel-entry") {
+        response.data = { text: "Cancel this", cancelled: true };
+      } else if (command.entryId === "wait-entry") {
+        pendingForkRequestId = command.id;
+        process.stdout.write(JSON.stringify({ type: "extension_ui_request", id: "fork-confirm", method: "confirm", message: "Fork?" }) + "\n");
+        continue;
+      } else {
+        sessionFile = path.join(path.dirname(sourceFile), "fork.jsonl");
+        fs.writeFileSync(sessionFile, JSON.stringify({ type: "session", version: 3, id: "fork", cwd: path.dirname(sourceFile), parentSession: sourceFile }) + "\n");
+        sessionId = "fork";
+        messages = [];
+        entries = [];
+        failReconcile = command.entryId === "fail-entry";
+        response.data = { text: command.entryId === "fail-entry" ? "Fail refresh" : "Retry this", cancelled: false };
+      }
+    } else if (command.type === "set_session_name") {
+      if (failReconcile) {
+        response.success = false;
+        response.error = "set_session_name failed after Fork";
+        failReconcile = false;
+      } else sessionName = command.name;
+    } else if (command.type === "extension_ui_response" && pendingForkRequestId) {
+      process.stdout.write(JSON.stringify({ type: "response", id: pendingForkRequestId, success: true, data: { text: "Wait", cancelled: true } }) + "\n");
+      pendingForkRequestId = undefined;
+      continue;
+    }
+    process.stdout.write(JSON.stringify(response) + "\n");
+  }
+});
+process.on("SIGTERM", () => process.exit(0));
+`);
+    testEnvironment.cwd = dir;
+    testEnvironment.piExecutable = fakePi;
+    let persisted: { sessions: Array<{ id: string; sessionFile?: string }> } | undefined;
+    const context = createContext();
+    context.workspaceState.update = (_key, value) => {
+      persisted = structuredClone(value) as typeof persisted;
+      return Promise.resolve();
+    };
+    const registry = new SessionRegistry(context as never, { error: vi.fn(), info: vi.fn() } as never);
+    registries.push(registry);
+
+    const activeId = await registry.openSession({ path: sessionFile, cwd: dir, title: "Source", updatedAt: Date.now() });
+    await waitForForkableHistory(registry, "wait-entry");
+
+    await expect(registry.forkMessage(activeId, "fail-entry")).rejects.toThrow("set_session_name failed after Fork");
+    await waitForForkableHistory(registry, "wait-entry");
+    expect(registry.snapshot().sessions).toEqual([expect.objectContaining({ id: activeId, status: "ready" })]);
+
+    const pendingFork = registry.forkMessage(activeId, "wait-entry");
+    await waitFor(() => registry.snapshot().activeSession?.isForking === true && registry.snapshot().activeSession?.pendingExtensionUi.length === 1);
+    await expect(registry.createSession(dir)).rejects.toThrow("cancel it first");
+    await registry.cancelFork(activeId);
+    await expect(pendingFork).resolves.toEqual({ cancelled: true });
+    await waitForForkableHistory(registry, "wait-entry");
+
+    await expect(registry.forkMessage(activeId, "cancel-entry")).resolves.toEqual({ cancelled: true });
+    expect(registry.snapshot().sessions).toHaveLength(1);
+    expect(registry.snapshot().activeSession).toMatchObject({ id: activeId, title: "Source", sessionId: "source" });
+
+    const result = await registry.forkMessage(activeId, "user-entry");
+
+    expect(result.cancelled).toBe(false);
+    expect(typeof result.forkSessionId).toBe("string");
+    expect(result.forkSessionId).not.toBe(activeId);
+    expect(registry.snapshot().activeSession).toMatchObject({
+      id: result.forkSessionId,
+      title: "Fork: Source",
+      sessionId: "fork",
+      turns: [],
+      composerSeed: {
+        id: result.forkSessionId,
+        text: "Retry this",
+        images: [{ id: "image", name: "shot.png", mimeType: "image/png", dataUrl: "data:image/png;base64,AA==", size: 1 }],
+      },
+    });
+    const original = registry.snapshot().sessions.find((session) => session.id === activeId);
+    expect(original).toMatchObject({ title: "Source", status: "stopped" });
+    expect(persisted?.sessions).toEqual([
+      expect.objectContaining({ id: activeId, sessionFile }),
+    ]);
   });
 
   it("replaces an unused new session but retains one after Pi accepts a prompt", async () => {
@@ -156,6 +282,23 @@ process.on("SIGTERM", () => process.exit(0));
     expect((persisted as { sessions: Array<{ id: string }> }).sessions.map((session) => session.id)).toEqual([second]);
   });
 });
+
+async function waitForForkableHistory(registry: InstanceType<typeof SessionRegistry>, lastEntryId: string): Promise<void> {
+  await waitFor(() => {
+    const active = registry.snapshot().activeSession;
+    return active?.status === "ready"
+      && active.historyStatus === "loaded"
+      && active.turns.at(-1)?.userMessage?.sourceEntryId === lastEntryId;
+  });
+}
+
+async function waitFor(predicate: () => boolean, timeoutMs = 1_000): Promise<void> {
+  const started = Date.now();
+  while (!predicate()) {
+    if (Date.now() - started > timeoutMs) throw new Error("Timed out waiting for condition");
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+}
 
 function createContext(): {
   workspaceState: { get(): unknown; update(key: string, value: unknown): Promise<void> };

@@ -3,7 +3,7 @@ title: UI Design Specification
 description: Visual language, density, theming, and interaction rules for FrostPi.
 scope:
   - /apps/vscode/src/webview/**
-updated: 2026-07-18
+updated: 2026-07-19
 ---
 
 # UI Design Specification
@@ -26,6 +26,7 @@ FrostPi should feel like a first-party desktop coding surface: compact, low-nois
 - Disclosure state is user-owned; live updates must not reopen a manually collapsed activity.
 - While context is compacting, the conversation shows a non-timeline status row. A successful compaction inserts a distinct, collapsed boundary showing the pre-compaction token count. Expanding it reveals Pi's Markdown summary; prior visible turns remain scrollable.
 - User scrolling away pauses follow mode. New activity preserves the viewport and exposes a floating jump-to-latest control.
+- User messages and individual assistant responses expose a compact action row on hover or keyboard focus. Copy writes only the original text blocks in protocol order, preserving raw Markdown and excluding images, reasoning, tools, notices, and rendered formatting. Fork remains user-message-only: it targets that exact Pi entry, preserves the original session, and restores the selected text and images into the fork's Composer; unavailable actions remain disabled rather than guessing by message text.
 
 ## Composer and pickers
 

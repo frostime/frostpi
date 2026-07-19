@@ -1,7 +1,7 @@
 import type { RpcCommandDescriptor, RpcModel, RpcSessionStats, ThinkingLevel } from "@frostime/pi-rpc";
 
 import type { AgentTurnView, SessionNoticeView } from "./agentTurnModel.js";
-import type { CompactionView, QueuedFollowUpView } from "./conversationModel.js";
+import type { CompactionView, ImageAttachmentView, QueuedFollowUpView } from "./conversationModel.js";
 import type { ExtensionStatusView, ExtensionWidgetView, PendingExtensionUiView } from "./extensionUiModel.js";
 
 export type SessionRuntimeStatus = "queued" | "starting" | "ready" | "running" | "stopping" | "stopped" | "failed";
@@ -35,6 +35,12 @@ export interface AttachmentLimitsView {
   maxImages: number;
 }
 
+export interface ComposerSeedView {
+  id: string;
+  text: string;
+  images: ImageAttachmentView[];
+}
+
 export interface SessionViewModel {
   id: string;
   title: string;
@@ -42,6 +48,7 @@ export interface SessionViewModel {
   status: SessionRuntimeStatus;
   isStreaming: boolean;
   isCompacting: boolean;
+  isForking: boolean;
   historyStatus: SessionHistoryStatus;
   sessionFile?: string;
   sessionId?: string;
@@ -59,6 +66,7 @@ export interface SessionViewModel {
   pendingExtensionUi: PendingExtensionUiView[];
   extensionStatuses: ExtensionStatusView[];
   extensionWidgets: ExtensionWidgetView[];
+  composerSeed?: ComposerSeedView;
   stats?: RpcSessionStats;
   error?: string;
   updatedAt: number;

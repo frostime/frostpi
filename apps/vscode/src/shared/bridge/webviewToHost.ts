@@ -21,6 +21,7 @@ const payloadSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("activateSession"), sessionId: z.string().min(1).max(128) }),
   z.object({ type: z.literal("closeSession"), sessionId: z.string().min(1).max(128) }),
   z.object({ type: z.literal("renameSession"), sessionId: z.string().min(1).max(128), name: z.string().max(160) }),
+  z.object({ type: z.literal("copyText"), text: z.string().min(1).max(2_000_000) }),
   z.object({
     type: z.literal("sendPrompt"),
     requestId: z.string().min(1).max(128),
@@ -29,6 +30,13 @@ const payloadSchema = z.discriminatedUnion("type", [
     images: z.array(imageSchema).max(12),
   }),
   z.object({ type: z.literal("abort"), sessionId: z.string().min(1).max(128) }),
+  z.object({ type: z.literal("cancelFork"), sessionId: z.string().min(1).max(128) }),
+  z.object({
+    type: z.literal("forkMessage"),
+    requestId: z.string().min(1).max(128),
+    sessionId: z.string().min(1).max(128),
+    entryId: z.string().min(1).max(128),
+  }),
   z.object({
     type: z.literal("setModel"),
     sessionId: z.string().min(1).max(128),

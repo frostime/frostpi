@@ -19,6 +19,7 @@ import type {
 } from "../../shared/model/conversationModel.js";
 import type { ToolCallView } from "../../shared/model/toolCallModel.js";
 import { createToolView, extractText, isRecord, recordValue, stringValue } from "./messageAssembler.js";
+import type { UserEntryReference } from "./userEntryReferences.js";
 
 export interface TurnProjectionSnapshot {
   turns: AgentTurnView[];
@@ -52,7 +53,7 @@ export class TurnProjection {
     };
   }
 
-  hydrate(rawMessages: unknown[]): void {
+  hydrate(rawMessages: unknown[], userEntries: readonly UserEntryReference[] = []): void {
     this.#turns = [];
     this.#notices = [];
     this.#compactions = [];
@@ -61,6 +62,8 @@ export class TurnProjection {
     this.#streamingMessageId = null;
     this.#messageActivities.clear();
     this.#toolActivities.clear();
+
+    const entryQueues = userEntryQueues(userEntries);
 
     let currentTurnId: string | null = null;
     let fallbackTimestamp = Date.now();
@@ -74,7 +77,8 @@ export class TurnProjection {
       }
 
       if (raw.role === "user") {
-        const message = createUserMessage(raw, timestamp, `history-user-${++this.#sequence}`);
+        const entry = entryQueues.get(timestamp)?.shift();
+        const message = createUserMessage(raw, timestamp, `history-user-${++this.#sequence}`, entry?.entryId);
         const turn: AgentTurnView = {
           id: `turn-${message.id}`,
           userMessage: message,
@@ -119,6 +123,23 @@ export class TurnProjection {
         this.appendNotice(`Ran \`${command}\`${output ? `\n\n${output}` : ""}`, Number(raw.exitCode ?? 0) === 0 ? "info" : "error", timestamp);
       }
     }
+  }
+
+  attachUserEntryReferences(userEntries: readonly UserEntryReference[]): boolean {
+    const assigned = new Set(this.#turns.flatMap((turn) => turn.userMessage?.sourceEntryId ? [turn.userMessage.sourceEntryId] : []));
+    const entryQueues = userEntryQueues(userEntries.filter((entry) => !assigned.has(entry.entryId)));
+    if (!entryQueues.size) return false;
+
+    let changed = false;
+    this.#turns = this.#turns.map((turn) => {
+      const message = turn.userMessage;
+      if (!message || message.sourceEntryId) return turn;
+      const entry = entryQueues.get(message.timestamp)?.shift();
+      if (!entry) return turn;
+      changed = true;
+      return { ...turn, userMessage: { ...message, sourceEntryId: entry.entryId } };
+    });
+    return changed;
   }
 
   appendUserPrompt(text: string, images: WebviewImageInput[], timestamp = Date.now()): string {
@@ -214,6 +235,7 @@ export class TurnProjection {
         // Pi drains follow-ups inside the same agent run (before agent_end), emitting
         // message_start(role=user) without a fresh agent_start. Promote on that signal.
         if (this.#tryPromoteQueuedUserMessage(event)) break;
+        if (this.#alignActiveUserTimestamp(event)) break;
         this.#applyMessageEvent(event);
         break;
       }
@@ -418,13 +440,8 @@ export class TurnProjection {
     const raw = event.message;
     if (!isRecord(raw) || raw.role !== "user") return false;
 
-    const text = userMessageText(raw);
-    const matchIndex = text
-      ? this.#queuedFollowUps.findIndex((item) => item.text === text)
-      : 0;
-    const index = matchIndex >= 0 ? matchIndex : 0;
     const remaining = [...this.#queuedFollowUps];
-    const [promoted] = remaining.splice(index, 1);
+    const [promoted] = remaining.splice(0, 1);
     if (!promoted) return false;
     this.#queuedFollowUps = remaining;
 
@@ -438,6 +455,19 @@ export class TurnProjection {
     const turn = this.#createUserTurn(promoted.text, promoted.images, typeof raw.timestamp === "number" ? raw.timestamp : promoted.timestamp);
     this.#turns = [...this.#turns, turn];
     this.#activeTurnId = turn.id;
+    return true;
+  }
+
+  #alignActiveUserTimestamp(event: RpcEvent): boolean {
+    const raw = event.message;
+    if (!isRecord(raw) || raw.role !== "user" || typeof raw.timestamp !== "number") return false;
+    const turn = this.#activeTurn();
+    if (!turn?.userMessage || turn.userMessage.sourceEntryId) return true;
+    this.#replaceTurn({
+      ...turn,
+      startedAt: raw.timestamp,
+      userMessage: { ...turn.userMessage, timestamp: raw.timestamp },
+    });
     return true;
   }
 
@@ -490,13 +520,13 @@ export class TurnProjection {
   }
 }
 
-function userMessageText(raw: Record<string, unknown>): string {
-  if (typeof raw.content === "string") return raw.content;
-  const parts: string[] = [];
-  for (const part of Array.isArray(raw.content) ? raw.content : []) {
-    if (isRecord(part) && part.type === "text" && typeof part.text === "string") parts.push(part.text);
+function userEntryQueues(userEntries: readonly UserEntryReference[]): Map<number, UserEntryReference[]> {
+  const queues = new Map<number, UserEntryReference[]>();
+  for (const entry of userEntries) {
+    if (entry.timestamp === undefined) continue;
+    queues.set(entry.timestamp, [...(queues.get(entry.timestamp) ?? []), entry]);
   }
-  return parts.join("");
+  return queues;
 }
 
 function toImageViews(images: Array<WebviewImageInput | ImageAttachmentView>): ImageAttachmentView[] {
@@ -512,9 +542,15 @@ function toImageViews(images: Array<WebviewImageInput | ImageAttachmentView>): I
   });
 }
 
-function createUserMessage(raw: Record<string, unknown>, timestamp: number, fallbackId: string): ConversationMessageView {
+function createUserMessage(
+  raw: Record<string, unknown>,
+  timestamp: number,
+  fallbackId: string,
+  sourceEntryId?: string,
+): ConversationMessageView {
   return {
     id: rawMessageId(raw, fallbackId),
+    ...(sourceEntryId ? { sourceEntryId } : {}),
     role: "user",
     blocks: userBlocks(raw.content, raw.attachments),
     status: "complete",

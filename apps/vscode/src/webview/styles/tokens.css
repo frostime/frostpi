@@ -111,7 +111,13 @@ button.session-heading:hover, button.session-heading.active { background: var(--
 
 .message { margin: 0 0 18px; }
 .message-user { display: flex; justify-content: flex-end; padding-left: min(18%, 110px); }
+.user-message-stack { max-width: 100%; display: flex; flex-direction: column; align-items: flex-end; }
 .user-bubble { max-width: 100%; padding: 9px 12px; background: color-mix(in srgb, var(--frost-surface) 82%, var(--frost-active)); border: 1px solid var(--frost-border-soft); border-radius: 12px 12px 4px 12px; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+.message-actions { min-height: 23px; display: flex; justify-content: flex-end; padding-top: 3px; opacity: 0; transition: opacity var(--motion-fast) ease; }
+.message-user:hover .message-actions, .message-user:focus-within .message-actions, .response-activity:hover > .response-actions, .response-activity:focus-within > .response-actions { opacity: 1; }
+.message-actions button { min-height: 20px; display: inline-flex; align-items: center; gap: 4px; padding: 1px 5px; color: var(--frost-muted); background: transparent; border-radius: 4px; cursor: pointer; font-size: 10.5px; }
+.message-actions button:hover:not(:disabled) { color: var(--frost-text); background: var(--frost-hover); }
+.message-actions button:disabled { opacity: .5; cursor: default; }
 .message-assistant { display: grid; grid-template-columns: 24px minmax(0,1fr); gap: 8px; }
 .assistant-gutter { padding-top: 2px; color: var(--frost-muted); }
 .assistant-mark { width: 20px; height: 20px; display: grid; place-items: center; border-radius: 6px; background: color-mix(in srgb, var(--frost-surface) 75%, transparent); font-family: Georgia, serif; font-size: 13px; }
@@ -354,6 +360,7 @@ button.session-heading:hover, button.session-heading.active { background: var(--
 .turn-activities { display: grid; gap: 2px; min-width: 0; }
 .response-activity { min-width: 0; padding: 4px 2px 7px; }
 .response-activity + .response-activity { padding-top: 0; }
+.response-actions { justify-content: flex-start; }
 .response-error { color: var(--frost-error); }
 .response-streaming { display: inline-flex; margin: 3px 0 0 2px; vertical-align: middle; }
 .response-streaming .spinner { width: 12px; height: 12px; border-width: 1.5px; }

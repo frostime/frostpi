@@ -12,11 +12,13 @@ import {
 import * as vscode from "vscode";
 
 import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
-import type { SessionViewModel } from "../../shared/model/sessionViewModel.js";
-import { normalizeImageAttachments } from "../attachments/normalizeImageAttachment.js";
+import type { ImageAttachmentView } from "../../shared/model/conversationModel.js";
+import type { ComposerSeedView, SessionViewModel } from "../../shared/model/sessionViewModel.js";
+import { normalizeImageAttachments, validateProjectedImageAttachments } from "../attachments/normalizeImageAttachment.js";
 import type { FrostPiConfiguration } from "../configuration/configurationTypes.js";
 import { workspaceUriForPath } from "../configuration/workspaceScope.js";
 import { SessionProjection } from "../conversation/SessionProjection.js";
+import { activeLeafContinues, activeUserEntryReferences, userEntryReferences } from "../conversation/userEntryReferences.js";
 import { redactDiagnosticText, type DiagnosticLogger } from "../diagnostics/DiagnosticLogger.js";
 import { ExtensionUiCoordinator } from "../extension-ui/ExtensionUiCoordinator.js";
 import { commandName, normalizePiSlashPrompt } from "./normalizePiSlashPrompt.js";
@@ -29,6 +31,10 @@ export interface SessionRuntimeHooks {
   onEditorText(runtime: SessionRuntime, text: string): void;
 }
 
+export type ForkExecutionResult =
+  | { cancelled: true }
+  | { cancelled: false; text: string; images: ImageAttachmentView[] };
+
 export class SessionRuntime {
   readonly #projection: SessionProjection;
   readonly #configurationProvider: () => FrostPiConfiguration;
@@ -36,19 +42,23 @@ export class SessionRuntime {
   readonly #logger: DiagnosticLogger;
   readonly #hooks: SessionRuntimeHooks;
 
+  #id: string;
   #connection: PiRpcConnection | null = null;
   #api: PiRpcApi | null = null;
   #extensionUi: ExtensionUiCoordinator | null = null;
   #starting: Promise<void> | null = null;
   #historyLoading: Promise<void> | null = null;
   #historyEventBuffer: RpcEvent[] | null = null;
+  #entriesCursor: string | null = null;
+  #entriesLeafId: string | null = null;
+  #entryTrackingReady = false;
   #disposed = false;
   #lifecycleVersion = 0;
   #appliedProxyFingerprint: string | null = null;
   #proxyRestartForced = false;
 
   constructor(
-    readonly id: string,
+    id: string,
     readonly cwd: string,
     title: string,
     updatedAt: number,
@@ -57,6 +67,7 @@ export class SessionRuntime {
     logger: DiagnosticLogger,
     hooks: SessionRuntimeHooks,
   ) {
+    this.#id = id;
     const initialConfiguration = configurationProvider();
     this.#projection = new SessionProjection(id, cwd, title, {
       maxImageBytes: initialConfiguration.maxImageBytes,
@@ -66,6 +77,10 @@ export class SessionRuntime {
     this.#proxySecrets = proxySecrets;
     this.#logger = logger;
     this.#hooks = hooks;
+  }
+
+  get id(): string {
+    return this.#id;
   }
 
   get view(): Readonly<SessionViewModel> {
@@ -93,6 +108,7 @@ export class SessionRuntime {
 
     const lifecycleVersion = ++this.#lifecycleVersion;
     this.#projection.setHistoryStatus(sessionFile ? "queued" : "loaded");
+    this.#entryTrackingReady = !sessionFile;
     this.#starting = this.#startInternal(sessionFile, lifecycleVersion).finally(() => {
       this.#starting = null;
     });
@@ -109,10 +125,14 @@ export class SessionRuntime {
     this.#api = null;
     this.#extensionUi = null;
     this.#historyEventBuffer = null;
+    this.#entriesCursor = null;
+    this.#entriesLeafId = null;
+    this.#entryTrackingReady = false;
     this.#appliedProxyFingerprint = null;
     this.#proxyRestartForced = false;
     // Local follow-up bubbles are ephemeral; a dead process cannot promote them.
     this.#projection.clearQueuedFollowUps();
+    this.#projection.setForking(false);
     this.#projection.setStatus("stopped");
     this.refreshConfigurationState(false);
   }
@@ -123,6 +143,7 @@ export class SessionRuntime {
   }
 
   async sendPrompt(text: string, images: WebviewImageInput[]): Promise<void> {
+    if (this.view.isForking) throw new Error("Wait for the session fork to finish before sending a prompt.");
     const api = this.#requireApi();
     const configuration = this.#configurationProvider();
     const normalizedImages = normalizeImageAttachments(images, configuration.maxImageBytes);
@@ -169,7 +190,7 @@ export class SessionRuntime {
     } catch (error) {
       const messageText = errorMessage(error);
       this.#projection.appendNotice(messageText, "error");
-      if (extensionCommand && !this.view.isStreaming) this.#projection.completeTurn(turnId, "error");
+      if (!this.view.isStreaming) this.#projection.completeTurn(turnId, "error");
       this.#notifyChange();
       throw error;
     }
@@ -183,6 +204,77 @@ export class SessionRuntime {
     await this.#requireApi().abort();
     // Abort cancels the active run; pending local follow-up UI is no longer trustworthy.
     this.#projection.clearQueuedFollowUps();
+    this.#notifyChange();
+  }
+
+  async executeFork(entryId: string): Promise<ForkExecutionResult> {
+    if (this.view.status !== "ready" || this.view.isStreaming || this.view.isCompacting) {
+      throw new Error("Wait for the current Pi operation to finish before forking.");
+    }
+    if (this.view.historyStatus !== "loaded") throw new Error("Load conversation history before forking a message.");
+    if (this.view.pendingExtensionUi.length > 0) throw new Error("Answer the pending Pi request before forking.");
+    if (this.view.queuedFollowUps.length > 0) throw new Error("Wait for queued follow-ups to settle before forking.");
+    const selectedMessage = this.view.turns.find((turn) => turn.userMessage?.sourceEntryId === entryId)?.userMessage;
+    if (!selectedMessage) throw new Error("The selected message is no longer available for forking.");
+    const projectedImages = selectedMessage.blocks.flatMap((block) => block.type === "images" ? block.images : []);
+    const images = validateProjectedImageAttachments(
+      projectedImages,
+      this.view.attachmentLimits.maxImages,
+      this.#configurationProvider().maxImageBytes,
+    );
+
+    const previousExtensionUi = this.#extensionUi?.snapshot();
+    this.#extensionUi?.clearSessionDecorations();
+    this.#projection.setForking(true);
+    this.#notifyChange();
+    try {
+      const result = await this.#requireApi().fork(entryId);
+      if (result.cancelled) {
+        if (previousExtensionUi) this.#restoreForkDecorations(previousExtensionUi);
+        this.#projection.setForking(false);
+        this.#notifyChange();
+        return { cancelled: true };
+      }
+      return { cancelled: false, text: result.text, images };
+    } catch (error) {
+      if (previousExtensionUi) this.#restoreForkDecorations(previousExtensionUi);
+      this.#projection.setForking(false);
+      this.#notifyChange();
+      throw error;
+    }
+  }
+
+  async reconcileFork(name: string, composerSeed: ComposerSeedView): Promise<void> {
+    const api = this.#requireApi();
+    await api.setSessionName(name);
+    const state = await api.getState();
+    const [messages, entryData, stats, commands] = await Promise.all([
+      api.getMessages(),
+      api.getEntries(),
+      api.getSessionStats().catch(() => undefined),
+      api.getCommands().catch(() => undefined),
+    ]);
+    this.#projection.applyState(state);
+    this.#entriesCursor = lastEntryId(entryData.entries);
+    this.#entriesLeafId = entryData.leafId;
+    this.#entryTrackingReady = true;
+    this.#projection.hydrateMessages(messages, activeUserEntryReferences(entryData.entries, entryData.leafId));
+    if (stats) this.#projection.setStats(stats);
+    if (commands) this.#projection.setCommands(commands);
+    this.#projection.setComposerSeed(composerSeed);
+    this.#projection.setForking(false);
+    this.#notifyChange();
+  }
+
+  rebindSessionId(id: string): void {
+    if (this.#starting || this.#historyLoading) throw new Error("Cannot replace a session identity while lifecycle work is pending.");
+    // Registry rekeys its maps around this call; emitting midway would expose mismatched identities.
+    this.#id = id;
+    this.#projection.rebindSessionId(id);
+  }
+
+  clearComposerSeed(): void {
+    this.#projection.clearComposerSeed();
     this.#notifyChange();
   }
 
@@ -414,10 +506,16 @@ export class SessionRuntime {
       this.#projection.setHistoryStatus("loading");
       this.#historyEventBuffer = [];
       this.#notifyChange();
-      const messages = await api.getMessages();
+      const [messages, entryData] = await Promise.all([api.getMessages(), api.getEntries()]);
       const bufferedEvents = this.#takeHistoryEvents();
       if (this.#disposed || api !== this.#api) return;
-      this.#projection.hydrateMessages(messages);
+      this.#entriesCursor = lastEntryId(entryData.entries);
+      this.#entriesLeafId = entryData.leafId;
+      this.#entryTrackingReady = true;
+      this.#projection.hydrateMessages(
+        messages,
+        activeUserEntryReferences(entryData.entries, entryData.leafId),
+      );
       for (const event of bufferedEvents) this.#applyConnectionEvent(event);
       this.#notifyChange();
     } catch (error) {
@@ -457,15 +555,42 @@ export class SessionRuntime {
   async #refreshAfterSettled(): Promise<void> {
     const api = this.#api;
     if (!api) return;
-    const [state, stats, commands] = await Promise.all([
+    const [state, stats, commands, entryData] = await Promise.all([
       api.getState().catch(() => undefined),
       api.getSessionStats().catch(() => undefined),
       api.getCommands().catch(() => undefined),
+      this.#entryTrackingReady
+        ? api.getEntries(this.#entriesCursor ?? undefined).catch(() => undefined)
+        : Promise.resolve(undefined),
     ]);
     if (state) this.#projection.applyState(state);
     if (stats) this.#projection.setStats(stats);
     if (commands) this.#projection.setCommands(commands);
+    if (entryData) {
+      await this.#reconcileIncrementalEntries(api, entryData.entries, entryData.leafId).catch((error) => {
+        this.#logger.error("Failed to reconcile Pi session entries", error);
+      });
+    }
     this.#notifyChange();
+  }
+
+  async #reconcileIncrementalEntries(
+    api: PiRpcApi,
+    entries: Awaited<ReturnType<PiRpcApi["getEntries"]>>["entries"],
+    leafId: string | null,
+  ): Promise<void> {
+    if (activeLeafContinues(this.#entriesLeafId, entries, leafId)) {
+      this.#entriesCursor = lastEntryId(entries) ?? this.#entriesCursor;
+      this.#entriesLeafId = leafId;
+      this.#projection.attachUserEntryReferences(userEntryReferences(entries));
+      return;
+    }
+
+    const [messages, entryData] = await Promise.all([api.getMessages(), api.getEntries()]);
+    if (this.#disposed || api !== this.#api) return;
+    this.#entriesCursor = lastEntryId(entryData.entries);
+    this.#entriesLeafId = entryData.leafId;
+    this.#projection.hydrateMessages(messages, activeUserEntryReferences(entryData.entries, entryData.leafId));
   }
 
   async #resolveImmediateExtensionCommand(message: string): Promise<string | undefined> {
@@ -547,6 +672,14 @@ export class SessionRuntime {
     this.#projection.setExtensionUi(snapshot.pending, snapshot.statuses, snapshot.widgets);
   }
 
+  #restoreForkDecorations(snapshot: ReturnType<ExtensionUiCoordinator["snapshot"]>): void {
+    if (this.#extensionUi) {
+      this.#extensionUi.restoreSessionDecorations(snapshot.statuses, snapshot.widgets);
+      return;
+    }
+    this.#projection.setExtensionUi([], snapshot.statuses, snapshot.widgets);
+  }
+
   #notifyChange(): void {
     this.#hooks.onChange(this);
   }
@@ -567,6 +700,10 @@ function errorMessage(error: unknown): string {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function lastEntryId(entries: readonly { id: string }[]): string | null {
+  return entries.at(-1)?.id ?? null;
 }
 
 function readVsCodeProxy(cwd: string): string | undefined {

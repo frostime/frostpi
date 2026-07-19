@@ -55,6 +55,10 @@ process.stdin.on("data", chunk => {
       process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\n");
       continue;
     }
+    else if (command.type === "get_entries") base.data = {
+      entries: [{ type: "message", id: "history-user-entry", parentId: null, message: { role: "user", content: "Earlier request", timestamp: 1 } }],
+      leafId: "history-user-entry",
+    };
     else if (command.type === "get_available_models") base.data = { models: [] };
     else if (command.type === "get_commands") base.data = { commands: [] };
     else if (command.type === "get_session_stats") base.data = { sessionFile, sessionId: "history-test", userMessages: 1, assistantMessages: 0, toolCalls: 0, toolResults: 0, totalMessages: 1, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, cost: 0 };
@@ -297,6 +301,9 @@ process.stdin.on("data", chunk => {
       if (!streaming) {
         streaming = true;
         process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\n");
+      } else {
+        streaming = false;
+        process.stdout.write(JSON.stringify({ type: "agent_settled" }) + "\n");
       }
       continue;
     } else if (command.type === "abort") {
@@ -336,8 +343,10 @@ process.on("SIGTERM", () => process.exit(0));
     expect(runtime.view.turns).toHaveLength(1);
 
     await runtime.sendPrompt("queued later", []);
+    await waitFor(() => runtime.view.status === "ready");
     expect(runtime.view.turns).toHaveLength(1);
     expect(runtime.view.queuedFollowUps.map((item) => item.text)).toEqual(["queued later"]);
+    await expect(runtime.executeFork("any-entry")).rejects.toThrow("Wait for queued follow-ups to settle");
 
     await runtime.abort();
     expect(runtime.view.queuedFollowUps).toEqual([]);

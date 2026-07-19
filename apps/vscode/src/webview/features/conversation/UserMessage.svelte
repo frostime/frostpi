@@ -1,18 +1,51 @@
 <script lang="ts">
   import type { ConversationMessageView } from "$shared/model/conversationModel";
+  import type { SessionViewModel } from "$shared/model/sessionViewModel";
 
   import ImageGallery from "./ImageGallery.svelte";
   import MarkdownContent from "./MarkdownContent.svelte";
+  import { copyMessageText, rawMessageText } from "./copyMessageClient";
+  import { pendingForkEntryId, requestMessageFork } from "./forkMessageClient";
 
-  let { message }: { message: ConversationMessageView } = $props();
+  let { message, session }: { message: ConversationMessageView; session: SessionViewModel } = $props();
+  const unavailable = $derived(
+    session.status !== "ready" || session.isStreaming || session.isCompacting || session.isForking
+    || session.historyStatus !== "loaded" || session.pendingExtensionUi.length > 0 || session.queuedFollowUps.length > 0,
+  );
+  const pending = $derived($pendingForkEntryId === message.sourceEntryId);
+  const copyText = $derived(rawMessageText(message.blocks));
 </script>
 
-<article class="message message-user">
-  <div class="user-bubble">
-    {#each message.blocks as block, index (index)}
-      {#if block.type === "text"}<MarkdownContent content={block.text} />{/if}
-      {#if block.type === "images"}<ImageGallery images={block.images} />{/if}
-      {#if block.type === "error"}<div class="inline-error">{block.text}</div>{/if}
-    {/each}
+<article class="message message-user" data-pi-entry-id={message.sourceEntryId}>
+  <div class="user-message-stack">
+    <div class="user-bubble">
+      {#each message.blocks as block, index (index)}
+        {#if block.type === "text"}<MarkdownContent content={block.text} />{/if}
+        {#if block.type === "images"}<ImageGallery images={block.images} />{/if}
+        {#if block.type === "error"}<div class="inline-error">{block.text}</div>{/if}
+      {/each}
+    </div>
+    {#if copyText || message.sourceEntryId}
+      <div class="message-actions">
+        {#if copyText}
+          <button type="button" aria-label="Copy user message" title="Copy raw message text" onclick={() => copyMessageText(message.blocks)}>
+            <span class="codicon codicon-copy" aria-hidden="true"></span>
+            <span>Copy</span>
+          </button>
+        {/if}
+        {#if message.sourceEntryId}
+          <button
+            type="button"
+            aria-label="Fork session from this message"
+            title="Fork session from this message"
+            disabled={unavailable || $pendingForkEntryId !== null}
+            onclick={() => requestMessageFork(session, message)}
+          >
+            <span class="codicon codicon-git-branch" aria-hidden="true"></span>
+            <span>{pending ? "Forking…" : "Fork"}</span>
+          </button>
+        {/if}
+      </div>
+    {/if}
   </div>
 </article>

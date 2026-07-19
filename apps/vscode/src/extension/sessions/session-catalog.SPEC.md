@@ -38,6 +38,6 @@ A manually browsed session whose `cwd` differs from the active workspace is not 
 
 ## Non-goals
 
-- Reimplement Pi's tree navigator, delete, fork, clone, or import flows.
+- Reimplement Pi's tree navigator, delete, clone, or import flows. Message-level Fork is owned by the session lifecycle and uses Pi RPC rather than catalog parsing.
 - Parse the entire session graph in FrostPi.
 - Modify Pi session JSONL files.

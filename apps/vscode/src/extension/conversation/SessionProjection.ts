@@ -4,6 +4,7 @@ import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
 import type { AgentTurnStatus, SessionNoticeLevel } from "../../shared/model/agentTurnModel.js";
 import type { AttachmentLimitsView, SessionRuntimeStatus, SessionViewModel } from "../../shared/model/sessionViewModel.js";
 import { TurnProjection } from "./TurnProjection.js";
+import type { UserEntryReference } from "./userEntryReferences.js";
 
 export class SessionProjection {
   readonly #view: SessionViewModel;
@@ -23,6 +24,7 @@ export class SessionProjection {
       status: "stopped",
       isStreaming: false,
       isCompacting: false,
+      isForking: false,
       historyStatus: "loaded",
       model: null,
       thinkingLevel: "off",
@@ -43,6 +45,11 @@ export class SessionProjection {
 
   read(): Readonly<SessionViewModel> {
     return this.#view;
+  }
+
+  rebindSessionId(id: string): void {
+    this.#view.id = id;
+    this.#touch();
   }
 
   snapshot(): SessionViewModel {
@@ -68,10 +75,32 @@ export class SessionProjection {
     this.#touch();
   }
 
-  hydrateMessages(rawMessages: unknown[]): void {
-    this.#conversation.hydrate(rawMessages);
+  hydrateMessages(rawMessages: unknown[], userEntries: readonly UserEntryReference[] = []): void {
+    this.#conversation.hydrate(rawMessages, userEntries);
     this.#syncConversation();
     this.#view.historyStatus = "loaded";
+    this.#touch();
+  }
+
+  attachUserEntryReferences(userEntries: readonly UserEntryReference[]): void {
+    if (!this.#conversation.attachUserEntryReferences(userEntries)) return;
+    this.#syncConversation();
+    this.#touch();
+  }
+
+  setForking(isForking: boolean): void {
+    this.#view.isForking = isForking;
+    this.#touch();
+  }
+
+  setComposerSeed(seed: NonNullable<SessionViewModel["composerSeed"]>): void {
+    this.#view.composerSeed = seed;
+    this.#touch();
+  }
+
+  clearComposerSeed(): void {
+    if (!this.#view.composerSeed) return;
+    delete this.#view.composerSeed;
     this.#touch();
   }
 

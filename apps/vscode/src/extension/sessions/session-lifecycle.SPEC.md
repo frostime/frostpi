@@ -5,7 +5,7 @@ scope:
   - /apps/vscode/src/extension/sessions/**
   - /apps/vscode/src/extension/conversation/**
   - /apps/vscode/src/extension/extension-ui/**
-updated: 2026-07-18
+updated: 2026-07-19
 ---
 
 # Pi Session Lifecycle
@@ -29,6 +29,16 @@ Extension activation restores persisted session metadata only. It does not creat
 A locally created session remains temporary until Pi accepts its first non-empty prompt or the user renames it. Temporary sessions appear in the live session list but are excluded from workspace persistence. Selecting, creating, or resuming another session closes the currently selected temporary session without confirmation.
 
 Resumed sessions are never temporary. Closing a temporary session stops its Pi process but does not delete any file Pi may have created.
+
+## Message Fork
+
+A completed, projected user message may be forked only while its session is selected, idle, fully loaded, free of pending extension UI, and has no locally queued follow-up awaiting promotion. Pi entry ids—not message text—identify the target. The original FrostPi id remains attached to the original session and its Composer draft. After Pi commits the replacement, a new local id adopts the live runtime and becomes the selected temporary fork; the original id receives a stopped runtime. Old extension statuses/widgets are cleared before replacement; a cancelled fork restores them, while the new extension instance may publish its own decorations during rebind.
+
+The selected user message is excluded from the copied Pi path. Pi's returned text and FrostPi's projected images become a host-projected Composer seed for the fork. The seed is replayable after Webview reload, applied once per mount, never persisted, and cleared after the first successful Composer submission. Before asking Pi to fork, FrostPi validates every projected image with the same Base64, decoded-size, metadata, MIME, count, and configured-size checks used by prompt submission.
+
+Fork waits for `session_before_fork` interaction without the ordinary RPC request timeout. The Composer exposes explicit Cancel Fork; cancellation stops the child and restarts the original session so a late Pi commit cannot change the recovered process. Preflight failure or Pi cancellation changes no logical session or draft. If Pi commits but naming/state/history reconciliation fails, FrostPi stops the fork process, removes the unfinished temporary fork, and restarts the original. FrostPi leaves any Pi JSONL already created on disk.
+
+Forks are named `Fork: <source title>` (`Fork session` when no title exists) and remain temporary until their first accepted prompt or an explicit user rename. The automatic fork name and `/compact` do not commit the temporary session.
 
 ## Persistence
 
@@ -57,7 +67,7 @@ It does not persist message bodies, reasoning, tool output, images, provider cre
 
 ## Follow-up prompts while streaming
 
-When `frostpi.composer.streamingBehavior` is `followUp` (default), a normal prompt accepted while Pi is streaming is projected as a session-level queued follow-up, not as a durable turn. The host also parks subsequent normal prompts while that local queue is non-empty. Pi typically drains follow-ups before `agent_end` and emits `message_start` (`role: user`) without a new `agent_start`; promotion keys off that user message event (text match, else FIFO). `agent_start` is only a fallback after settle. Extension slash commands are not parked. Abort, process stop, and process failure clear the local queue.
+When `frostpi.composer.streamingBehavior` is `followUp` (default), a normal prompt accepted while Pi is streaming is projected as a session-level queued follow-up, not as a durable turn. The host also parks subsequent normal prompts while that local queue is non-empty. Pi typically drains follow-ups before `agent_end` and emits `message_start` (`role: user`) without a new `agent_start`; promotion follows protocol FIFO order. `agent_start` is only a fallback after settle. Extension slash commands are not parked. Abort, process stop, and process failure clear the local queue.
 
 ## Slash commands
 

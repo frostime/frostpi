@@ -3,6 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 import { PiRpcApi } from "../src/PiRpcApi.js";
 
 describe("PiRpcApi", () => {
+  it("sends a fork request with the exact Pi entry id", async () => {
+    const request = vi.fn().mockResolvedValue({ text: "retry this", cancelled: false });
+    const api = new PiRpcApi({ request } as never);
+
+    await expect(api.fork("entry-123")).resolves.toEqual({ text: "retry this", cancelled: false });
+    expect(request).toHaveBeenCalledWith({ type: "fork", entryId: "entry-123" }, null);
+  });
+
   it("preserves streaming behavior and image content in prompt commands", async () => {
     const request = vi.fn().mockResolvedValue(undefined);
     const api = new PiRpcApi({ request } as never);

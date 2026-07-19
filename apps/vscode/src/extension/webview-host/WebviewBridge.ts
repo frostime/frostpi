@@ -170,6 +170,10 @@ export class WebviewBridge implements vscode.Disposable {
       case "renameSession":
         await this.#registry.rename(message.sessionId, message.name);
         break;
+      case "copyText":
+        await vscode.env.clipboard.writeText(message.text);
+        this.post({ type: "toast", level: "info", message: "Copied to clipboard." });
+        break;
       case "sendPrompt":
         try {
           await this.#registry.sendPrompt(message.sessionId, message.text, message.images);
@@ -181,6 +185,18 @@ export class WebviewBridge implements vscode.Disposable {
         break;
       case "abort":
         await this.#registry.abort(message.sessionId);
+        break;
+      case "cancelFork":
+        await this.#registry.cancelFork(message.sessionId);
+        break;
+      case "forkMessage":
+        try {
+          const result = await this.#registry.forkMessage(message.sessionId, message.entryId);
+          this.post({ type: "forkResult", requestId: message.requestId, ok: true, ...result });
+        } catch (error) {
+          const errorText = error instanceof Error ? error.message : String(error);
+          this.post({ type: "forkResult", requestId: message.requestId, ok: false, error: errorText });
+        }
         break;
       case "setModel":
         await this.#registry.setModel(message.sessionId, message.provider, message.modelId);

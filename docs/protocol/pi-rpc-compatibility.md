@@ -4,7 +4,7 @@ description: Supported Pi RPC commands/events, executable resolution, and compat
 scope:
   - /packages/pi-rpc/**
   - /apps/vscode/src/extension/pi-runtime/**
-updated: 2026-07-18
+updated: 2026-07-19
 ---
 
 # Pi RPC Compatibility
@@ -13,7 +13,9 @@ FrostPi targets the documented RPC mode of the current `@earendil-works/pi-codin
 
 ## Required surface
 
-Startup requires `get_state`. The product additionally uses prompt/abort, manual compact, messages, commands, available models, model selection, thinking level, session naming, session stats, and extension UI responses. Unknown asynchronous events are ignored unless their absence violates an existing projection invariant.
+Startup requires `get_state`. The product additionally uses prompt/abort, manual compact, messages, session entries, fork, commands, available models, model selection, thinking level, session naming, session stats, and extension UI responses. Unknown asynchronous events are ignored unless their absence violates an existing projection invariant.
+
+Message-level Fork uses `get_entries` to bind the displayed user message to its stable Pi entry id, then calls `fork(entryId)` without the ordinary request timeout because `session_before_fork` may wait for Extension UI. Pi replaces the active runtime with a new session and returns the selected text for editing; FrostPi rebuilds the active projection and restores projected image attachments itself because the fork response contains text only. Explicit cancellation stops the child and restarts the original session, preventing a late response from changing the recovered runtime.
 
 Pi built-in interactive commands are not returned by `get_commands` and do not execute through RPC `prompt`. FrostPi therefore translates text-only `/compact` and `/compact <instructions>` submissions to the documented `compact` request. Successful `compaction_end` events append a visible compaction boundary without removing already projected turns; resumed `compactionSummary` messages restore the same boundary.
 

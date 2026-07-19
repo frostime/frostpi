@@ -125,6 +125,20 @@ describe("PiRpcConnection", () => {
     }
   });
 
+  it("waits without a deadline when the caller explicitly disables the timeout", async () => {
+    const connection = createConnection();
+    await connection.start();
+    const request = connection.request({ type: "never" }, null);
+    let settled = false;
+    void request.finally(() => { settled = true; }).catch(() => undefined);
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(settled).toBe(false);
+
+    await connection.stop();
+    await expect(request).rejects.toThrow(/stopped/);
+  });
+
   it("rejects pending commands when the child exits", async () => {
     const connection = createConnection();
     try {

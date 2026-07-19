@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { normalizeImageAttachments } from "../../src/extension/attachments/normalizeImageAttachment.js";
+import { normalizeImageAttachments, validateProjectedImageAttachments } from "../../src/extension/attachments/normalizeImageAttachment.js";
 
 const png = { id: "1", name: "shot.png", mimeType: "image/png" as const, data: "aGVsbG8=", size: 5 };
 
@@ -17,5 +17,13 @@ describe("image prompt normalization", () => {
   it("rejects malformed Base64 and inconsistent size metadata", () => {
     expect(() => normalizeImageAttachments([{ ...png, data: "not base64!" }], 1024)).toThrow(/invalid Base64/);
     expect(() => normalizeImageAttachments([{ ...png, size: 5000 }], 10_000)).toThrow(/inconsistent image size metadata/);
+  });
+
+  it("applies the prompt submission checks to projected Fork images", () => {
+    const image = { id: "1", name: "shot.png", mimeType: "image/png", dataUrl: "data:image/png;base64,aGVsbG8=", size: 5 };
+    expect(validateProjectedImageAttachments([image], 12, 1024)).toEqual([image]);
+    expect(() => validateProjectedImageAttachments([{ ...image, dataUrl: "data:image/png;base64,not base64!" }], 12, 1024)).toThrow(/invalid Base64/);
+    expect(() => validateProjectedImageAttachments([{ ...image, size: 5000 }], 12, 10_000)).toThrow(/inconsistent image size metadata/);
+    expect(() => validateProjectedImageAttachments(Array.from({ length: 13 }, (_, index) => ({ ...image, id: String(index) })), 12, 1024)).toThrow(/more than 12 images/);
   });
 });

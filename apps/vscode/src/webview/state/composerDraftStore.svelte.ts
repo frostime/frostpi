@@ -25,6 +25,10 @@ export function updateDraft(sessionId: string, update: (draft: SessionDraft) => 
   drafts.update((all) => ({ ...all, [sessionId]: update(all[sessionId] ?? { text: "", images: [] }) }));
 }
 
+export function setDraft(sessionId: string, draft: SessionDraft): void {
+  drafts.update((all) => ({ ...all, [sessionId]: draft }));
+}
+
 export function clearDraft(sessionId: string): void {
   drafts.update((all) => ({ ...all, [sessionId]: { text: "", images: [] } }));
 }
