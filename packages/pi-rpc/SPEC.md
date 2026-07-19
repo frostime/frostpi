@@ -3,7 +3,7 @@ title: Pi RPC Transport Contract
 description: Stable process, framing, request-correlation, and failure semantics for the Pi subprocess client.
 scope:
   - /packages/pi-rpc/**
-updated: 2026-07-16
+updated: 2026-07-19
 ---
 
 # Pi RPC Transport Contract
@@ -29,6 +29,7 @@ Do not replace `/src/protocol/JsonlDecoder.ts` with `node:readline`; it does not
 - unknown/late response ids are ignored; they cannot resolve a newer request.
 - `success: true` means the command was accepted. Agent completion remains event-driven.
 - request timeout removes the pending entry before rejecting.
+- typed API helpers expose Pi's documented `get_entries` and `fork(entryId)` envelopes unchanged; session collection and replacement policy remain outside this package.
 
 ## Process lifecycle
 

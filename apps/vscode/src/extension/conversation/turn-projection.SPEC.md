@@ -12,4 +12,5 @@ FrostPi presents one user prompt and all subsequent Pi activity as a turn. Pi RP
 - A host-side completion path may close a specific still-running local turn by id when that turn never received agent events (Pi extension slash commands).
 - Historical messages and live events use the same activity model.
 - View objects are replaced, not mutated, so incremental bridge updates remain observable.
+- Hydrated and settled user turns may carry the stable Pi session entry id required for message-level operations. Entry ids are reconciled from `get_entries`; duplicate prompt text is never used as identity.
 - Disclosure state is Webview-only and never stored in the Pi session.

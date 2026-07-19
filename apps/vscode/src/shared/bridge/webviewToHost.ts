@@ -30,6 +30,12 @@ const payloadSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("abort"), sessionId: z.string().min(1).max(128) }),
   z.object({
+    type: z.literal("forkMessage"),
+    requestId: z.string().min(1).max(128),
+    sessionId: z.string().min(1).max(128),
+    entryId: z.string().min(1).max(128),
+  }),
+  z.object({
     type: z.literal("setModel"),
     sessionId: z.string().min(1).max(128),
     provider: z.string().min(1).max(256),

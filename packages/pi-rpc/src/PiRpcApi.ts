@@ -2,8 +2,10 @@ import type { PiRpcConnection } from "./PiRpcConnection.js";
 import type {
   RpcCommandDescriptor,
   RpcExtensionUiResponse,
+  RpcForkResult,
   RpcImageContent,
   RpcModel,
+  RpcSessionEntry,
   RpcSessionState,
   RpcSessionStats,
   StreamingBehavior,
@@ -48,8 +50,12 @@ export class PiRpcApi {
     return data.messages;
   }
 
-  async getEntries(since?: string): Promise<{ entries: unknown[]; leafId: string | null }> {
+  async getEntries(since?: string): Promise<{ entries: RpcSessionEntry[]; leafId: string | null }> {
     return this.connection.request({ type: "get_entries", ...(since ? { since } : {}) });
+  }
+
+  fork(entryId: string): Promise<RpcForkResult> {
+    return this.connection.request({ type: "fork", entryId });
   }
 
   newSession(parentSession?: string): Promise<{ cancelled: boolean }> {

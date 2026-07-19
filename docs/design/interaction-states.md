@@ -3,7 +3,7 @@ title: Interaction States
 description: User-visible behavior for running, recovery, scrolling, proxy, and completion states.
 scope:
   - /apps/vscode/src/webview/**
-updated: 2026-07-18
+updated: 2026-07-19
 ---
 
 # Interaction States
@@ -16,6 +16,7 @@ updated: 2026-07-18
 - **Conversation history:** a resumed Pi process reaches ready before prior messages finish loading, but submission remains disabled until an automatic load completes. Large histories are deferred, remain usable, and expose an explicit load action; failure is retryable without failing the Pi process.
 - **Compaction:** manual `/compact` delegates to Pi and may abort an active run, matching Pi CLI semantics. While Pi compacts, submission is disabled and the conversation shows an ephemeral "Compacting context" status that is not stored in the timeline. Success preserves visible prior turns and inserts a collapsed summary boundary; failure preserves the conversation and reports Pi's error.
 - **Temporary new session:** replacing it closes it without confirmation until a prompt is accepted or the session is renamed.
+- **Message fork:** available only for a user message with a resolved Pi entry id while the selected session is idle and history is loaded. During replacement the Composer is disabled. Success retains the original session as stopped and focuses the selected message draft in the temporary fork; cancellation leaves both sessions and drafts unchanged.
 - **Proxy changed:** running sessions show restart-required. Saving settings never silently interrupts work.
 - **File mention:** `@` opens mention completion with `@Selection` / `@CurrentFile` above bounded workspace paths; selection inserts path/line references only, never file bodies.
 - **Model/thinking:** compact anchored menus stay within the Webview viewport and remain keyboard navigable.

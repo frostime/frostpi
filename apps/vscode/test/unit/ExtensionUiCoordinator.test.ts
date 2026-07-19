@@ -45,6 +45,21 @@ describe("Pi extension UI coordination", () => {
     expect(onNotify).toHaveBeenCalledWith("warning", "line 1\nline 2");
   });
 
+  it("clears old-session decorations and can restore them after a cancelled replacement", () => {
+    const coordinator = new ExtensionUiCoordinator(
+      { sendExtensionUiResponse: vi.fn() } as never,
+      { onChange: vi.fn(), onNotify: vi.fn(), onTitle: vi.fn(), onEditorText: vi.fn() },
+    );
+    coordinator.handle({ type: "extension_ui_request", id: "s1", method: "setStatus", statusKey: "mode", statusText: "plan" });
+    coordinator.handle({ type: "extension_ui_request", id: "w1", method: "setWidget", widgetKey: "todo", widgetLines: ["one"] });
+    const previous = coordinator.snapshot();
+
+    coordinator.clearSessionDecorations();
+    expect(coordinator.snapshot()).toMatchObject({ statuses: [], widgets: [] });
+    coordinator.restoreSessionDecorations(previous.statuses, previous.widgets);
+    expect(coordinator.snapshot()).toMatchObject({ statuses: previous.statuses, widgets: previous.widgets });
+  });
+
   it("returns a user response exactly once", async () => {
     const sendExtensionUiResponse = vi.fn().mockResolvedValue(undefined);
     const coordinator = new ExtensionUiCoordinator(

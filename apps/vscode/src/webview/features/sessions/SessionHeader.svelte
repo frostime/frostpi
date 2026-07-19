@@ -75,6 +75,7 @@
 
   function statusLabel(): string {
     if (active.pendingExtensionUi.length > 0) return "action required";
+    if (active.isForking) return "forking session";
     if (active.isCompacting) return "compacting context";
     if (active.status === "queued") return "waiting to start";
     if (active.historyStatus === "queued") return "waiting for history";

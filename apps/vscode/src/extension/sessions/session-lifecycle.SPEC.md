@@ -5,7 +5,7 @@ scope:
   - /apps/vscode/src/extension/sessions/**
   - /apps/vscode/src/extension/conversation/**
   - /apps/vscode/src/extension/extension-ui/**
-updated: 2026-07-18
+updated: 2026-07-19
 ---
 
 # Pi Session Lifecycle
@@ -29,6 +29,14 @@ Extension activation restores persisted session metadata only. It does not creat
 A locally created session remains temporary until Pi accepts its first non-empty prompt or the user renames it. Temporary sessions appear in the live session list but are excluded from workspace persistence. Selecting, creating, or resuming another session closes the currently selected temporary session without confirmation.
 
 Resumed sessions are never temporary. Closing a temporary session stops its Pi process but does not delete any file Pi may have created.
+
+## Message Fork
+
+A completed, projected user message may be forked only while its session is selected, idle, fully loaded, and free of pending extension UI. Pi entry ids—not message text—identify the target. Fork keeps the existing process attached to the new Pi session, retains the original session as a stopped FrostPi session, and selects the fork. Old extension statuses/widgets are cleared before replacement; a cancelled fork restores them, while the new extension instance may publish its own decorations during rebind.
+
+The selected user message is excluded from the copied Pi path. Its text and projected images become the new session's Composer draft; the previous Composer draft moves to the retained original session. FrostPi validates that every projected image still satisfies current attachment limits before asking Pi to fork. A cancelled or preflight-failed fork changes neither session collection nor drafts.
+
+Forks are named `Fork: <source title>` (`Fork session` when no title exists) and remain temporary until their first accepted prompt or an explicit user rename. The automatic fork name does not commit the temporary session. The retained original record is persisted before Pi replaces the runtime, preventing runtime metadata notifications from overwriting its only durable identity.
 
 ## Persistence
 

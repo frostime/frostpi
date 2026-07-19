@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { access } from "node:fs/promises";
 import { normalize, resolve } from "node:path";
 
 import type { RpcExtensionUiResponse, ThinkingLevel } from "@frostime/pi-rpc";
@@ -226,6 +227,64 @@ export class SessionRegistry implements vscode.Disposable {
 
   async abort(sessionId = this.#requireActiveId()): Promise<void> {
     await this.#requireRuntime(sessionId).abort();
+  }
+
+  async forkMessage(
+    sessionId: string,
+    entryId: string,
+  ): Promise<{ cancelled: boolean; text?: string; forkSessionId?: string; originalSessionId?: string }> {
+    if (sessionId !== this.#activeSessionId) throw new Error("Activate the session before forking one of its messages.");
+    const runtime = this.#requireRuntime(sessionId);
+    const original = this.#records.get(sessionId);
+    if (!original?.sessionFile) throw new Error("Wait for Pi to save this session before forking.");
+    await access(original.sessionFile).catch(() => {
+      throw new Error("Wait for Pi to finish saving this session before forking.");
+    });
+
+    const originalRecord = { ...original };
+    const originalSessionId = randomUUID();
+    const retainedOriginal: PersistedSessionRecord = { ...originalRecord, id: originalSessionId };
+    // Persist the retained original before Pi replaces the live runtime. Runtime metadata
+    // notifications during the replacement cannot otherwise overwrite the only durable record.
+    this.#records.set(originalSessionId, retainedOriginal);
+    this.#temporarySessionIds.add(sessionId);
+    await this.#persist();
+
+    const forkName = forkSessionName(runtime.view.title);
+    let result: Awaited<ReturnType<SessionRuntime["fork"]>>;
+    try {
+      result = await runtime.fork(entryId, forkName);
+    } catch (error) {
+      this.#records.delete(originalSessionId);
+      this.#temporarySessionIds.delete(sessionId);
+      await this.#persist();
+      throw error;
+    }
+    if (result.cancelled) {
+      this.#records.delete(originalSessionId);
+      this.#temporarySessionIds.delete(sessionId);
+      await this.#persist();
+      return { cancelled: true };
+    }
+
+    this.#runtimes.set(originalSessionId, this.#createRuntime(retainedOriginal));
+
+    const forkFile = runtime.view.sessionFile;
+    this.#records.set(sessionId, {
+      id: sessionId,
+      title: forkName,
+      cwd: runtime.cwd,
+      ...(forkFile ? { sessionFile: forkFile } : {}),
+      updatedAt: runtime.view.updatedAt,
+    });
+    await this.#persist();
+    this.#emitChange();
+    return {
+      cancelled: false,
+      text: result.text,
+      forkSessionId: sessionId,
+      originalSessionId,
+    };
   }
 
   async rename(sessionId: string, name: string): Promise<void> {
@@ -466,6 +525,11 @@ export class SessionRegistry implements vscode.Disposable {
     if (!this.#activeSessionId) throw new Error("No active FrostPi session");
     return this.#activeSessionId;
   }
+}
+
+function forkSessionName(title: string): string {
+  const source = title.trim();
+  return (source ? `Fork: ${source}` : "Fork session").slice(0, 160);
 }
 
 function compactCommandInstructions(text: string): string | null {

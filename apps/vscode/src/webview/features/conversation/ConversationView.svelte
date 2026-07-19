@@ -95,7 +95,7 @@
       {:else}
         {#each timeline as item (`${item.kind}-${item.value.id}`)}
           {#if item.kind === "turn"}
-            <AgentTurn turn={item.value} />
+            <AgentTurn turn={item.value} {session} />
           {:else if item.kind === "compaction"}
             <CompactionBlock compaction={item.value} />
           {:else}

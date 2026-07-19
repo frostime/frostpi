@@ -182,6 +182,15 @@ export class WebviewBridge implements vscode.Disposable {
       case "abort":
         await this.#registry.abort(message.sessionId);
         break;
+      case "forkMessage":
+        try {
+          const result = await this.#registry.forkMessage(message.sessionId, message.entryId);
+          this.post({ type: "forkResult", requestId: message.requestId, ok: true, ...result });
+        } catch (error) {
+          const errorText = error instanceof Error ? error.message : String(error);
+          this.post({ type: "forkResult", requestId: message.requestId, ok: false, error: errorText });
+        }
+        break;
       case "setModel":
         await this.#registry.setModel(message.sessionId, message.provider, message.modelId);
         break;

@@ -22,7 +22,7 @@
   const commands = $derived(withFrostPiCommands(session.commands));
   const unavailable = $derived(
     session.status === "queued" || session.status === "starting" || session.status === "stopping" || session.status === "failed"
-    || session.historyStatus === "queued" || session.historyStatus === "loading" || session.isCompacting,
+    || session.historyStatus === "queued" || session.historyStatus === "loading" || session.isCompacting || session.isForking,
   );
   const canSend = $derived((draft.text.trim().length > 0 || draft.images.length > 0) && !unavailable && !pendingRequestId);
   const supportsImages = $derived(modelSupportsImages(session.model));

@@ -32,6 +32,8 @@ export interface QueuedFollowUpView {
 
 export interface ConversationMessageView {
   id: string;
+  /** Stable Pi session entry backing an operation such as Fork. */
+  sourceEntryId?: string;
   role: MessageRole;
   blocks: MessageBlockView[];
   status: MessageStatus;

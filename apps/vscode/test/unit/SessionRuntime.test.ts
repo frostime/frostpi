@@ -55,6 +55,10 @@ process.stdin.on("data", chunk => {
       process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\n");
       continue;
     }
+    else if (command.type === "get_entries") base.data = {
+      entries: [{ type: "message", id: "history-user-entry", parentId: null, message: { role: "user", content: "Earlier request", timestamp: 1 } }],
+      leafId: "history-user-entry",
+    };
     else if (command.type === "get_available_models") base.data = { models: [] };
     else if (command.type === "get_commands") base.data = { commands: [] };
     else if (command.type === "get_session_stats") base.data = { sessionFile, sessionId: "history-test", userMessages: 1, assistantMessages: 0, toolCalls: 0, toolResults: 0, totalMessages: 1, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, cost: 0 };

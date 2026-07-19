@@ -12,11 +12,13 @@ import {
 import * as vscode from "vscode";
 
 import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
+import type { ConversationMessageView } from "../../shared/model/conversationModel.js";
 import type { SessionViewModel } from "../../shared/model/sessionViewModel.js";
 import { normalizeImageAttachments } from "../attachments/normalizeImageAttachment.js";
 import type { FrostPiConfiguration } from "../configuration/configurationTypes.js";
 import { workspaceUriForPath } from "../configuration/workspaceScope.js";
 import { SessionProjection } from "../conversation/SessionProjection.js";
+import { activeUserEntryReferences, userEntryReferences } from "../conversation/userEntryReferences.js";
 import { redactDiagnosticText, type DiagnosticLogger } from "../diagnostics/DiagnosticLogger.js";
 import { ExtensionUiCoordinator } from "../extension-ui/ExtensionUiCoordinator.js";
 import { commandName, normalizePiSlashPrompt } from "./normalizePiSlashPrompt.js";
@@ -42,6 +44,8 @@ export class SessionRuntime {
   #starting: Promise<void> | null = null;
   #historyLoading: Promise<void> | null = null;
   #historyEventBuffer: RpcEvent[] | null = null;
+  #entriesCursor: string | null = null;
+  #entryTrackingReady = false;
   #disposed = false;
   #lifecycleVersion = 0;
   #appliedProxyFingerprint: string | null = null;
@@ -93,6 +97,7 @@ export class SessionRuntime {
 
     const lifecycleVersion = ++this.#lifecycleVersion;
     this.#projection.setHistoryStatus(sessionFile ? "queued" : "loaded");
+    this.#entryTrackingReady = !sessionFile;
     this.#starting = this.#startInternal(sessionFile, lifecycleVersion).finally(() => {
       this.#starting = null;
     });
@@ -109,6 +114,8 @@ export class SessionRuntime {
     this.#api = null;
     this.#extensionUi = null;
     this.#historyEventBuffer = null;
+    this.#entriesCursor = null;
+    this.#entryTrackingReady = false;
     this.#appliedProxyFingerprint = null;
     this.#proxyRestartForced = false;
     // Local follow-up bubbles are ephemeral; a dead process cannot promote them.
@@ -123,6 +130,7 @@ export class SessionRuntime {
   }
 
   async sendPrompt(text: string, images: WebviewImageInput[]): Promise<void> {
+    if (this.view.isForking) throw new Error("Wait for the session fork to finish before sending a prompt.");
     const api = this.#requireApi();
     const configuration = this.#configurationProvider();
     const normalizedImages = normalizeImageAttachments(images, configuration.maxImageBytes);
@@ -184,6 +192,60 @@ export class SessionRuntime {
     // Abort cancels the active run; pending local follow-up UI is no longer trustworthy.
     this.#projection.clearQueuedFollowUps();
     this.#notifyChange();
+  }
+
+  async fork(entryId: string, name: string): Promise<{ text: string; cancelled: boolean }> {
+    if (this.view.status !== "ready" || this.view.isStreaming || this.view.isCompacting) {
+      throw new Error("Wait for the current Pi operation to finish before forking.");
+    }
+    if (this.view.historyStatus !== "loaded") throw new Error("Load conversation history before forking a message.");
+    if (this.view.pendingExtensionUi.length > 0) throw new Error("Answer the pending Pi request before forking.");
+    const selectedMessage = this.view.turns.find((turn) => turn.userMessage?.sourceEntryId === entryId)?.userMessage;
+    if (!selectedMessage) throw new Error("The selected message is no longer available for forking.");
+    validateForkAttachments(selectedMessage, this.#configurationProvider().maxImageBytes);
+
+    const api = this.#requireApi();
+    const previousExtensionUi = this.#extensionUi?.snapshot();
+    this.#extensionUi?.clearSessionDecorations();
+    this.#projection.setForking(true);
+    this.#notifyChange();
+    try {
+      const result = await api.fork(entryId);
+      if (result.cancelled) {
+        if (previousExtensionUi) {
+          this.#extensionUi?.restoreSessionDecorations(previousExtensionUi.statuses, previousExtensionUi.widgets);
+        }
+        return result;
+      }
+
+      await api.setSessionName(name);
+      const state = await api.getState();
+      this.#projection.applyState(state);
+      const [messages, entryData, stats, commands] = await Promise.all([
+        api.getMessages(),
+        api.getEntries(),
+        api.getSessionStats().catch(() => undefined),
+        api.getCommands().catch(() => undefined),
+      ]);
+      this.#entriesCursor = lastEntryId(entryData.entries);
+      this.#entryTrackingReady = true;
+      this.#projection.hydrateMessages(
+        messages,
+        activeUserEntryReferences(entryData.entries, entryData.leafId),
+      );
+      if (stats) this.#projection.setStats(stats);
+      if (commands) this.#projection.setCommands(commands);
+      this.#notifyChange();
+      return result;
+    } catch (error) {
+      if (previousExtensionUi) {
+        this.#extensionUi?.restoreSessionDecorations(previousExtensionUi.statuses, previousExtensionUi.widgets);
+      }
+      throw error;
+    } finally {
+      this.#projection.setForking(false);
+      this.#notifyChange();
+    }
   }
 
   setDisplayTitle(title: string): void {
@@ -414,10 +476,15 @@ export class SessionRuntime {
       this.#projection.setHistoryStatus("loading");
       this.#historyEventBuffer = [];
       this.#notifyChange();
-      const messages = await api.getMessages();
+      const [messages, entryData] = await Promise.all([api.getMessages(), api.getEntries()]);
       const bufferedEvents = this.#takeHistoryEvents();
       if (this.#disposed || api !== this.#api) return;
-      this.#projection.hydrateMessages(messages);
+      this.#entriesCursor = lastEntryId(entryData.entries);
+      this.#entryTrackingReady = true;
+      this.#projection.hydrateMessages(
+        messages,
+        activeUserEntryReferences(entryData.entries, entryData.leafId),
+      );
       for (const event of bufferedEvents) this.#applyConnectionEvent(event);
       this.#notifyChange();
     } catch (error) {
@@ -457,14 +524,21 @@ export class SessionRuntime {
   async #refreshAfterSettled(): Promise<void> {
     const api = this.#api;
     if (!api) return;
-    const [state, stats, commands] = await Promise.all([
+    const [state, stats, commands, entryData] = await Promise.all([
       api.getState().catch(() => undefined),
       api.getSessionStats().catch(() => undefined),
       api.getCommands().catch(() => undefined),
+      this.#entryTrackingReady
+        ? api.getEntries(this.#entriesCursor ?? undefined).catch(() => undefined)
+        : Promise.resolve(undefined),
     ]);
     if (state) this.#projection.applyState(state);
     if (stats) this.#projection.setStats(stats);
     if (commands) this.#projection.setCommands(commands);
+    if (entryData) {
+      this.#entriesCursor = lastEntryId(entryData.entries) ?? this.#entriesCursor;
+      this.#projection.attachUserEntryReferences(userEntryReferences(entryData.entries));
+    }
     this.#notifyChange();
   }
 
@@ -567,6 +641,22 @@ function errorMessage(error: unknown): string {
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function validateForkAttachments(message: ConversationMessageView, maxImageBytes: number): void {
+  const images = message.blocks.flatMap((block) => block.type === "images" ? block.images : []);
+  if (images.length > 12) throw new Error("This message has more than 12 images and cannot be restored exactly.");
+  for (const image of images) {
+    if (!SUPPORTED_FORK_IMAGE_TYPES.has(image.mimeType)) throw new Error(`Unsupported image type: ${image.mimeType}`);
+    if (image.size > maxImageBytes) throw new Error(`${image.name} exceeds the current image size limit.`);
+    if (!image.dataUrl.startsWith(`data:${image.mimeType};base64,`)) throw new Error(`${image.name} has invalid image data.`);
+  }
+}
+
+const SUPPORTED_FORK_IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+
+function lastEntryId(entries: readonly { id: string }[]): string | null {
+  return entries.at(-1)?.id ?? null;
 }
 
 function readVsCodeProxy(cwd: string): string | undefined {

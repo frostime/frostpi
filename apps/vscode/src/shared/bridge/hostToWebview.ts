@@ -29,6 +29,16 @@ export type HostToWebviewPayload =
   | { type: "insertPromptText"; text: string }
   | { type: "focusComposer" }
   | { type: "promptResult"; requestId: string; ok: boolean; error?: string }
+  | {
+      type: "forkResult";
+      requestId: string;
+      ok: boolean;
+      cancelled?: boolean;
+      text?: string;
+      forkSessionId?: string;
+      originalSessionId?: string;
+      error?: string;
+    }
   | { type: "workspaceFileSuggestions"; requestId: string; items: WorkspaceFileCandidateView[]; specials?: EditorMentionSpecialView[]; error?: string }
   | { type: "toast"; level: "info" | "warning" | "error"; message: string };
 

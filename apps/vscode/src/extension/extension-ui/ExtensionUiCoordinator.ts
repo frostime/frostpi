@@ -96,6 +96,23 @@ export class ExtensionUiCoordinator {
     }
   }
 
+  clearSessionDecorations(): void {
+    this.#statuses.clear();
+    this.#widgets.clear();
+    this.#effects.onChange();
+  }
+
+  restoreSessionDecorations(
+    statuses: readonly ExtensionStatusView[],
+    widgets: readonly ExtensionWidgetView[],
+  ): void {
+    this.#statuses.clear();
+    this.#widgets.clear();
+    for (const status of statuses) this.#statuses.set(status.key, status);
+    for (const widget of widgets) this.#widgets.set(widget.key, widget);
+    this.#effects.onChange();
+  }
+
   async respond(requestId: string, response: RpcExtensionUiResponse): Promise<void> {
     if (!this.#pending.has(requestId)) throw new Error("The extension UI request is no longer pending.");
     this.#pending.delete(requestId);

@@ -19,6 +19,7 @@ import type {
 } from "../../shared/model/conversationModel.js";
 import type { ToolCallView } from "../../shared/model/toolCallModel.js";
 import { createToolView, extractText, isRecord, recordValue, stringValue } from "./messageAssembler.js";
+import { userReferenceKey, type UserEntryReference } from "./userEntryReferences.js";
 
 export interface TurnProjectionSnapshot {
   turns: AgentTurnView[];
@@ -52,7 +53,7 @@ export class TurnProjection {
     };
   }
 
-  hydrate(rawMessages: unknown[]): void {
+  hydrate(rawMessages: unknown[], userEntries: readonly UserEntryReference[] = []): void {
     this.#turns = [];
     this.#notices = [];
     this.#compactions = [];
@@ -61,6 +62,12 @@ export class TurnProjection {
     this.#streamingMessageId = null;
     this.#messageActivities.clear();
     this.#toolActivities.clear();
+
+    const entryQueues = new Map<string, UserEntryReference[]>();
+    for (const entry of userEntries) {
+      const key = userReferenceKey(entry.timestamp, entry.text);
+      entryQueues.set(key, [...(entryQueues.get(key) ?? []), entry]);
+    }
 
     let currentTurnId: string | null = null;
     let fallbackTimestamp = Date.now();
@@ -74,7 +81,8 @@ export class TurnProjection {
       }
 
       if (raw.role === "user") {
-        const message = createUserMessage(raw, timestamp, `history-user-${++this.#sequence}`);
+        const entry = entryQueues.get(userReferenceKey(timestamp, userMessageText(raw)))?.shift();
+        const message = createUserMessage(raw, timestamp, `history-user-${++this.#sequence}`, entry?.entryId);
         const turn: AgentTurnView = {
           id: `turn-${message.id}`,
           userMessage: message,
@@ -119,6 +127,28 @@ export class TurnProjection {
         this.appendNotice(`Ran \`${command}\`${output ? `\n\n${output}` : ""}`, Number(raw.exitCode ?? 0) === 0 ? "info" : "error", timestamp);
       }
     }
+  }
+
+  attachUserEntryReferences(userEntries: readonly UserEntryReference[]): boolean {
+    const remaining = userEntries.filter((entry) => !this.#turns.some((turn) => turn.userMessage?.sourceEntryId === entry.entryId));
+    if (!remaining.length) return false;
+
+    let changed = false;
+    this.#turns = this.#turns.map((turn) => {
+      const message = turn.userMessage;
+      if (!message || message.sourceEntryId) return turn;
+      const text = message.blocks
+        .map((block) => block.type === "text" ? block.text : "")
+        .join("");
+      let index = remaining.findIndex((entry) => entry.timestamp === message.timestamp && entry.text === text);
+      if (index < 0) index = remaining.findIndex((entry) => entry.text === text);
+      if (index < 0) return turn;
+      const [entry] = remaining.splice(index, 1);
+      if (!entry) return turn;
+      changed = true;
+      return { ...turn, userMessage: { ...message, sourceEntryId: entry.entryId } };
+    });
+    return changed;
   }
 
   appendUserPrompt(text: string, images: WebviewImageInput[], timestamp = Date.now()): string {
@@ -512,9 +542,15 @@ function toImageViews(images: Array<WebviewImageInput | ImageAttachmentView>): I
   });
 }
 
-function createUserMessage(raw: Record<string, unknown>, timestamp: number, fallbackId: string): ConversationMessageView {
+function createUserMessage(
+  raw: Record<string, unknown>,
+  timestamp: number,
+  fallbackId: string,
+  sourceEntryId?: string,
+): ConversationMessageView {
   return {
     id: rawMessageId(raw, fallbackId),
+    ...(sourceEntryId ? { sourceEntryId } : {}),
     role: "user",
     blocks: userBlocks(raw.content, raw.attachments),
     status: "complete",

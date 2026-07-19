@@ -42,6 +42,7 @@ export interface SessionViewModel {
   status: SessionRuntimeStatus;
   isStreaming: boolean;
   isCompacting: boolean;
+  isForking: boolean;
   historyStatus: SessionHistoryStatus;
   sessionFile?: string;
   sessionId?: string;

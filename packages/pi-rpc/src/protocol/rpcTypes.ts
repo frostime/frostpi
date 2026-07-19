@@ -61,6 +61,18 @@ export interface RpcCommandDescriptor {
   [key: string]: unknown;
 }
 
+export interface RpcForkResult {
+  text: string;
+  cancelled: boolean;
+}
+
+export interface RpcSessionEntry {
+  type: string;
+  id: string;
+  parentId: string | null;
+  [key: string]: unknown;
+}
+
 export interface RpcSessionStats {
   sessionFile?: string;
   sessionId?: string;

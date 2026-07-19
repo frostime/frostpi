@@ -15,4 +15,5 @@ The composer is a plain-text CodeMirror 6 editor. FrostPi sends exactly the visi
 - File mentions are presentation and completion aids only: FrostPi does not read or inject file content. The composer has no separate Add Context (+) menu; mentions cover path/line references.
 - Request identifiers must not depend exclusively on `crypto.randomUUID`.
 - Pasted PNG/JPEG/WebP files remain explicit image attachments and obey configured limits.
+- Message Fork moves the current draft to the retained original session, then replaces the fork draft with the selected message's text and projected PNG/JPEG/WebP attachments. Attachment validation happens before the host mutates the Pi session.
 - IME composition, selection, undo/redo, clipboard text, and multi-line editing must remain native editor behavior.

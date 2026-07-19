@@ -3,6 +3,32 @@ import { describe, expect, it } from "vitest";
 import { TurnProjection } from "../../src/extension/conversation/TurnProjection.js";
 
 describe("TurnProjection", () => {
+  it("binds stable Pi entry ids to duplicate user prompts without guessing by text", () => {
+    const projection = new TurnProjection();
+    projection.hydrate([
+      { role: "user", timestamp: 10, content: "repeat" },
+      { role: "assistant", timestamp: 11, stopReason: "stop", content: [] },
+      { role: "user", timestamp: 20, content: "repeat" },
+    ], [
+      { entryId: "entry-1", timestamp: 10, text: "repeat" },
+      { entryId: "entry-2", timestamp: 20, text: "repeat" },
+    ]);
+
+    expect(projection.snapshot().turns.map((turn) => turn.userMessage?.sourceEntryId)).toEqual(["entry-1", "entry-2"]);
+  });
+
+  it("attaches newly persisted entry ids to optimistic user turns", () => {
+    const projection = new TurnProjection();
+    projection.appendUserPrompt("repeat", [], 10);
+    projection.appendUserPrompt("repeat", [], 20);
+
+    expect(projection.attachUserEntryReferences([
+      { entryId: "entry-1", timestamp: 11, text: "repeat" },
+      { entryId: "entry-2", timestamp: 21, text: "repeat" },
+    ])).toBe(true);
+    expect(projection.snapshot().turns.map((turn) => turn.userMessage?.sourceEntryId)).toEqual(["entry-1", "entry-2"]);
+  });
+
   it("keeps reasoning, tools, and response segments in protocol order", () => {
     const projection = new TurnProjection();
     projection.hydrate([

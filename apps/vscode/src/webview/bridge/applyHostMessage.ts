@@ -5,6 +5,7 @@ import { insertDraftText } from "../state/composerDraftStore.svelte";
 import { composerFocusTick, showToast, workspaceStore } from "../state/sessionViewStore.svelte";
 import { promptSubmissionResult } from "../state/promptSubmissionStore.svelte";
 import { deliverWorkspaceFileSuggestions } from "../features/composer/fileSuggestionClient";
+import { resolveForkResult } from "../features/conversation/forkMessageClient";
 
 export function applyHostMessage(message: HostToWebviewMessage): void {
   if (message.bridgeVersion !== BRIDGE_VERSION) {
@@ -50,6 +51,9 @@ export function applyHostMessage(message: HostToWebviewMessage): void {
     case "promptResult":
       promptSubmissionResult.set(message);
       if (!message.ok && message.error) showToast("error", message.error);
+      break;
+    case "forkResult":
+      resolveForkResult(message);
       break;
     case "workspaceFileSuggestions":
       deliverWorkspaceFileSuggestions(message.requestId, message.items, message.error, message.specials);
