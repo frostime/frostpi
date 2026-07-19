@@ -4,8 +4,10 @@
   import Spinner from "../../primitives/Spinner.svelte";
   import ImageGallery from "./ImageGallery.svelte";
   import MarkdownContent from "./MarkdownContent.svelte";
+  import { copyMessageText, rawMessageText } from "./copyMessageClient";
 
   let { activity }: { activity: ResponseActivityView } = $props();
+  const copyText = $derived(rawMessageText(activity.blocks));
 </script>
 
 <div class="response-activity" class:response-error={activity.status === "error"}>
@@ -16,4 +18,12 @@
   {/each}
   {#if activity.status === "streaming"}<span class="response-streaming"><Spinner /></span>{/if}
   {#if activity.status === "aborted"}<div class="message-footnote">Stopped by user</div>{/if}
+  {#if copyText && activity.status !== "streaming"}
+    <div class="message-actions response-actions">
+      <button type="button" aria-label="Copy assistant response" title="Copy raw response text" onclick={() => copyMessageText(activity.blocks)}>
+        <span class="codicon codicon-copy" aria-hidden="true"></span>
+        <span>Copy</span>
+      </button>
+    </div>
+  {/if}
 </div>

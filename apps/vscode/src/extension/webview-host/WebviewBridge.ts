@@ -170,6 +170,10 @@ export class WebviewBridge implements vscode.Disposable {
       case "renameSession":
         await this.#registry.rename(message.sessionId, message.name);
         break;
+      case "copyText":
+        await vscode.env.clipboard.writeText(message.text);
+        this.post({ type: "toast", level: "info", message: "Copied to clipboard." });
+        break;
       case "sendPrompt":
         try {
           await this.#registry.sendPrompt(message.sessionId, message.text, message.images);
