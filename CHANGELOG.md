@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Move Extension UI dismiss from a bottom Cancel button to a top-right close control on `select`, `input`, and `editor` cards.
+
 ### Fixed
 
 - Honor Pi extension `set_editor_text` by replacing the session composer draft instead of appending through the selection-insert path.

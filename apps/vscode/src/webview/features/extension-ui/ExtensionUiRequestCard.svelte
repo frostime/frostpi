@@ -1,10 +1,12 @@
 <script lang="ts">
   import type { PendingExtensionUiView } from "$shared/model/extensionUiModel";
   import { postToHost } from "../../bridge/vscodeBridge";
+  import IconButton from "../../primitives/IconButton.svelte";
 
   let { sessionId, request }: { sessionId: string; request: PendingExtensionUiView } = $props();
   let value = $state("");
   let initializedRequestId = $state("");
+  const canCancel = $derived(request.method !== "confirm");
 
   $effect(() => {
     if (initializedRequestId === request.id) return;
@@ -24,10 +26,13 @@
 <section class="extension-ui-card" aria-labelledby={`extension-ui-${request.id}`}>
   <div class="extension-ui-heading">
     <span class="codicon codicon-question"></span>
-    <div>
+    <div class="extension-ui-copy">
       <strong id={`extension-ui-${request.id}`}>{request.title}</strong>
       {#if request.message}<p>{request.message}</p>{/if}
     </div>
+    {#if canCancel}
+      <IconButton icon="close" label="Cancel" onclick={cancel} />
+    {/if}
   </div>
 
   {#if request.method === "select"}
@@ -36,7 +41,6 @@
         <button type="button" onclick={() => postToHost({ type: "respondExtensionUi", sessionId, requestId: request.id, response: { value: option } })}>{option}</button>
       {/each}
     </div>
-    <div class="extension-ui-actions"><button class="secondary" type="button" onclick={cancel}>Cancel</button></div>
   {:else if request.method === "confirm"}
     <div class="extension-ui-actions">
       <button class="secondary" type="button" onclick={() => postToHost({ type: "respondExtensionUi", sessionId, requestId: request.id, response: { confirmed: false } })}>No</button>
@@ -45,7 +49,6 @@
   {:else if request.method === "editor"}
     <textarea class="extension-editor" bind:value rows="7" aria-label={request.title}></textarea>
     <div class="extension-ui-actions">
-      <button class="secondary" type="button" onclick={cancel}>Cancel</button>
       <button class="primary" type="button" onclick={submitValue}>Submit</button>
     </div>
   {:else}
@@ -57,7 +60,6 @@
       onkeydown={(event) => event.key === "Enter" && submitValue()}
     />
     <div class="extension-ui-actions">
-      <button class="secondary" type="button" onclick={cancel}>Cancel</button>
       <button class="primary" type="button" onclick={submitValue}>Submit</button>
     </div>
   {/if}
@@ -73,8 +75,10 @@
 }
 .extension-ui-heading { display: flex; gap: 8px; align-items: flex-start; }
 .extension-ui-heading > :global(.codicon) { margin-top: 2px; color: var(--frost-link); }
+.extension-ui-copy { flex: 1; min-width: 0; }
 .extension-ui-heading :global(strong) { font-size: 11px; }
 .extension-ui-heading :global(p) { margin: 2px 0 0; color: var(--frost-muted); font-size: 10.5px; white-space: pre-wrap; }
+.extension-ui-heading :global(.icon-button) { flex-shrink: 0; margin: -4px -4px 0 0; }
 .extension-ui-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 9px; }
 .extension-ui-actions :global(button) {
   padding: 5px 10px;
