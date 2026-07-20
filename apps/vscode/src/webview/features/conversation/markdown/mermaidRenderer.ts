@@ -1,6 +1,6 @@
 import type { MermaidConfig } from "mermaid";
 
-import { sanitizeSvg } from "./renderMarkdown";
+import { sanitizeMermaidSvg } from "./renderMarkdown";
 
 type MermaidApi = {
   initialize(config: MermaidConfig): void;
@@ -125,9 +125,9 @@ export async function renderMermaidSvg(source: string): Promise<string> {
 
     const mermaid = await loadMermaid();
     const { svg } = await mermaid.render(nextDiagramId(), source);
-    const cleaned = sanitizeSvg(svg);
-    const finalSvg = cleaned.includes("<svg") ? cleaned : svg;
-    cacheSvg(source, finalSvg);
-    return finalSvg;
+    const cleaned = sanitizeMermaidSvg(svg);
+    if (!cleaned) throw new Error("Diagram SVG failed sanitization");
+    cacheSvg(source, cleaned);
+    return cleaned;
   });
 }

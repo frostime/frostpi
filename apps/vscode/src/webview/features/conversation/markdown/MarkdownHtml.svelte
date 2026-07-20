@@ -1,8 +1,22 @@
 <script lang="ts">
   import { postToHost } from "../../../bridge/vscodeBridge";
-  import { renderMarkdownHtml } from "./renderMarkdown";
+  import { ensureKatex, isKatexReady, renderMarkdownHtml } from "./renderMarkdown";
 
   let { content }: { content: string } = $props();
+
+  // Bumps after KaTeX chunk loads so math placeholders re-render.
+  let katexGeneration = $state(isKatexReady() ? 1 : 0);
+
+  $effect(() => {
+    if (isKatexReady()) return;
+    let cancelled = false;
+    void ensureKatex().then(() => {
+      if (!cancelled) katexGeneration += 1;
+    });
+    return () => {
+      cancelled = true;
+    };
+  });
 
   function handleClick(event: MouseEvent): void {
     const target = event.target instanceof Element ? event.target.closest("a") : null;
@@ -17,7 +31,10 @@
     return { destroy: () => node.removeEventListener("click", handleClick) };
   }
 
-  const html = $derived(renderMarkdownHtml(content));
+  const html = $derived.by(() => {
+    void katexGeneration;
+    return renderMarkdownHtml(content);
+  });
 </script>
 
 <div class="markdown-body" use:externalLinks>{@html html}</div>

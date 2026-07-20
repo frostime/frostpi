@@ -1,12 +1,37 @@
 import DOMPurify from "dompurify";
 import hljs from "highlight.js/lib/common";
-import Katex from "katex";
 import MarkdownIt from "markdown-it";
 import type StateBlock from "markdown-it/lib/rules_block/state_block.mjs";
 import type StateInline from "markdown-it/lib/rules_inline/state_inline.mjs";
 
 const katexCache = new Map<string, string>();
 const KATEX_CACHE_LIMIT = 256;
+
+type KatexRender = (source: string, options: {
+  displayMode: boolean;
+  throwOnError: boolean;
+  output: "html";
+  strict: "ignore";
+}) => string;
+
+let katexRender: KatexRender | null = null;
+let katexLoad: Promise<void> | null = null;
+
+/** Lazy-load KaTeX so it stays out of the webview entry chunk. */
+export function ensureKatex(): Promise<void> {
+  if (katexRender) return Promise.resolve();
+  katexLoad ??= Promise.all([
+    import("katex"),
+    import("katex/dist/katex.min.css"),
+  ]).then(([mod]) => {
+    katexRender = mod.default.renderToString.bind(mod.default) as KatexRender;
+  });
+  return katexLoad;
+}
+
+export function isKatexReady(): boolean {
+  return katexRender !== null;
+}
 
 function escapeHtml(value: string): string {
   return value
@@ -22,22 +47,30 @@ function renderKatex(source: string, displayMode: boolean): string {
   if (cached !== undefined) return cached;
 
   let html: string;
-  try {
-    html = Katex.renderToString(source, {
-      displayMode,
-      throwOnError: false,
-      output: "html",
-      strict: "ignore",
-    });
-  } catch {
+  if (!katexRender) {
+    // Placeholder until ensureKatex() finishes; MarkdownHtml re-renders after load.
     html = `<code class="math-fallback">${escapeHtml(source)}</code>`;
+  } else {
+    try {
+      html = katexRender(source, {
+        displayMode,
+        throwOnError: false,
+        output: "html",
+        strict: "ignore",
+      });
+    } catch {
+      html = `<code class="math-fallback">${escapeHtml(source)}</code>`;
+    }
   }
 
-  if (katexCache.size >= KATEX_CACHE_LIMIT) {
-    const first = katexCache.keys().next().value;
-    if (first !== undefined) katexCache.delete(first);
+  // Only cache successful KaTeX output; placeholders must refresh after load.
+  if (katexRender) {
+    if (katexCache.size >= KATEX_CACHE_LIMIT) {
+      const first = katexCache.keys().next().value;
+      if (first !== undefined) katexCache.delete(first);
+    }
+    katexCache.set(key, html);
   }
-  katexCache.set(key, html);
   return html;
 }
 
@@ -254,4 +287,10 @@ export function sanitizeSvg(svg: string): string {
       "opacity",
     ],
   });
+}
+
+/** Fail closed: never return unsanitized Mermaid output. */
+export function sanitizeMermaidSvg(svg: string): string | null {
+  const cleaned = sanitizeSvg(svg);
+  return cleaned.includes("<svg") ? cleaned : null;
 }
