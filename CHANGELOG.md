@@ -6,11 +6,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-20
+
 ### Added
 
 - Add a local `/editor` command that opens the composer draft in a temporary markdown tab and writes the saved buffer back when the tab closes.
 - Add a composer expand control that fills the FrostPi panel for long drafts; Escape or the same control restores the normal layout.
 - Collapse completed-turn tool, reasoning, and interim replies into one "Worked" summary above the final reply, with a labeled Reply break (`frostpi.conversation.collapseTurnTrace`, default on).
+
+### Changed
+
+- Move single-owner Webview styles into component-scoped Svelte stylesheets, and split remaining global CSS into `tokens`, `sessions`, `composer`, and `pickers` sheets for clearer ownership.
 
 ## [0.5.0] - 2026-07-20
 
@@ -151,7 +157,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add editor context capture, file navigation, Git-base diffs, diagnostics export, CSP, and trusted-workspace constraints.
 - Add production builds, tests, VSIX verification, release scripts, and maintenance documentation.
 
-[Unreleased]: https://github.com/frostime/frostpi/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/frostime/frostpi/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/frostime/frostpi/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/frostime/frostpi/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/frostime/frostpi/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/frostime/frostpi/compare/v0.4.0...v0.4.1

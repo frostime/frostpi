@@ -24,7 +24,7 @@ export function ensureKatex(): Promise<void> {
     import("katex"),
     import("katex/dist/katex.min.css"),
   ]).then(([mod]) => {
-    katexRender = mod.default.renderToString.bind(mod.default) as KatexRender;
+    katexRender = mod.default.renderToString.bind(mod.default);
   });
   return katexLoad;
 }

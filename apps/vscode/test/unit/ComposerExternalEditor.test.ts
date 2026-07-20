@@ -55,7 +55,7 @@ const vscodeMock = vi.hoisted(() => {
       }),
     },
     window: {
-      showTextDocument: vi.fn(async () => undefined),
+      showTextDocument: vi.fn(() => Promise.resolve(undefined)),
       tabGroups: {
         onDidChangeTabs: changeTabsEmitter.event.bind(changeTabsEmitter),
       },
