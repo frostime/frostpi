@@ -1,49 +1,37 @@
-<script lang="ts">
-  import DOMPurify from "dompurify";
-  import hljs from "highlight.js/lib/common";
-  import MarkdownIt from "markdown-it";
+<script lang="ts" module>
+  import type { MarkdownSegment } from "./markdown/parseMessageBlocks";
 
-  import { postToHost } from "../../bridge/vscodeBridge";
+  function segmentKey(segment: MarkdownSegment, index: number): string {
+    // Content-stable keys keep completed mermaid mounts alive across streaming updates.
+    return `${index}:${segment.type}:${segment.text.length}:${simpleHash(segment.text)}`;
+  }
+
+  function simpleHash(value: string): string {
+    let hash = 2166136261;
+    for (let i = 0; i < value.length; i += 1) {
+      hash ^= value.charCodeAt(i);
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(36);
+  }
+</script>
+
+<script lang="ts">
+  import MarkdownHtml from "./markdown/MarkdownHtml.svelte";
+  import MermaidBlock from "./markdown/MermaidBlock.svelte";
+  import { parseMessageBlocks } from "./markdown/parseMessageBlocks";
 
   let { content }: { content: string } = $props();
 
-  function escapeHtml(value: string): string {
-    return value
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;");
-  }
-
-  const markdown: MarkdownIt = new MarkdownIt({
-    html: false,
-    linkify: true,
-    breaks: false,
-    highlight(code: string, language: string): string {
-      if (language && hljs.getLanguage(language)) {
-        return `<pre class="hljs"><code>${hljs.highlight(code, { language }).value}</code></pre>`;
-      }
-      return `<pre class="hljs"><code>${escapeHtml(code)}</code></pre>`;
-    },
-  });
-
-  function handleClick(event: MouseEvent): void {
-    const target = event.target instanceof Element ? event.target.closest("a") : null;
-    const href = target?.getAttribute("href");
-    if (!href || (!href.startsWith("https://") && !href.startsWith("http://"))) return;
-    event.preventDefault();
-    postToHost({ type: "openExternal", url: href });
-  }
-
-  function externalLinks(node: HTMLElement): { destroy(): void } {
-    node.addEventListener("click", handleClick);
-    return { destroy: () => node.removeEventListener("click", handleClick) };
-  }
-
-  const html = $derived(DOMPurify.sanitize(markdown.render(content), {
-    USE_PROFILES: { html: true },
-    ADD_ATTR: ["target", "rel"],
-  }));
+  const segments = $derived(parseMessageBlocks(content));
 </script>
 
-<div class="markdown-body" use:externalLinks>{@html html}</div>
+<div class="message-content">
+  {#each segments as segment, index (segmentKey(segment, index))}
+    {#if segment.type === "markdown"}
+      <MarkdownHtml content={segment.text} />
+    {:else}
+      <MermaidBlock source={segment.text} />
+    {/if}
+  {/each}
+</div>

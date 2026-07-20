@@ -29,6 +29,7 @@ Behavioral contracts that must survive refactors live adjacent to code:
 - `apps/vscode/src/extension/workspace-files/file-mentions.SPEC.md`
 - `apps/vscode/src/extension/network/proxy-environment.SPEC.md`
 - `apps/vscode/src/webview/features/composer/composer.SPEC.md`
+- `apps/vscode/src/webview/features/conversation/markdown/markdown.SPEC.md`
 - `apps/vscode/src/webview/features/scrolling/scroll-follow.SPEC.md`
 - `apps/vscode/src/webview/features/models/thinking-levels.SPEC.md`
 - `apps/vscode/src/extension/extension-ui/extension-ui.SPEC.md`

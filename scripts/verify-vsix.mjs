@@ -21,6 +21,7 @@ const required = [
   "extension/dist/webview/webview.js",
   "extension/dist/webview/webview.css",
   "extension/dist/webview/assets/codicon.ttf",
+  "extension/dist/webview/vendor/mermaid.min.js",
   "extension/assets/icon.png",
   "extension/assets/activity-bar.svg",
 ];
