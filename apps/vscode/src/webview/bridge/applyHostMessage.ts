@@ -2,7 +2,7 @@ import { BRIDGE_VERSION } from "$shared/bridge/bridgeVersion";
 import type { CollectionDelta, HostToWebviewMessage } from "$shared/bridge/hostToWebview";
 import type { SessionViewModel } from "$shared/model/sessionViewModel";
 
-import { insertDraftText } from "../state/composerDraftStore.svelte";
+import { insertDraftText, setDraftText } from "../state/composerDraftStore.svelte";
 import { composerFocusTick, showToast, workspaceStore } from "../state/sessionViewStore.svelte";
 import { promptSubmissionResult } from "../state/promptSubmissionStore.svelte";
 import { deliverWorkspaceFileSuggestions } from "../features/composer/fileSuggestionClient";
@@ -49,6 +49,16 @@ export function applyHostMessage(message: HostToWebviewMessage): void {
       });
       if (activeId) insertDraftText(activeId, message.text);
       composerFocusTick.update((value) => value + 1);
+      break;
+    }
+    case "setComposerText": {
+      setDraftText(message.sessionId, message.text);
+      let activeId: string | null = null;
+      workspaceStore.update((workspace) => {
+        activeId = workspace.activeSessionId;
+        return workspace;
+      });
+      if (activeId === message.sessionId) composerFocusTick.update((value) => value + 1);
       break;
     }
     case "focusComposer":

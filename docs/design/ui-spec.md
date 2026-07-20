@@ -30,7 +30,7 @@ FrostPi should feel like a first-party desktop coding surface: compact, low-nois
 
 ## Composer and pickers
 
-- CodeMirror remains a plain-text editor: Enter newline, Ctrl/Cmd+Enter send, native IME/undo/selection. It starts near three lines and is height-bounded with internal scrolling.
+- CodeMirror remains a plain-text editor: Enter newline, Ctrl/Cmd+Enter send, native IME/undo/selection. It starts near three lines and is height-bounded with internal scrolling. A toolbar control may expand it to fill the FrostPi panel (conversation collapses) without leaving the Webview.
 - Known `/command` and `@file` tokens receive subtle semantic decoration; unknown commands receive a warning underline. `@` completion lists built-in selection/current-file mentions above workspace paths. Completion rows use normal VS Code UI font sizing and never open a layout-shifting description panel.
 - Model and thinking selectors are anchored popovers, not full-width dialogs. Only the current provider opens by default; search expands matching groups. Provider state is user-controlled, supports expand/collapse all, and model rows never change height on hover.
 - Thinking options are derived from the active Pi model metadata and use the same typography scale as model controls.

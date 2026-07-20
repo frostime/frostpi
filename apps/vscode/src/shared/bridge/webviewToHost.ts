@@ -18,6 +18,11 @@ const payloadSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("openFolder") }),
   z.object({ type: z.literal("createSession") }),
   z.object({ type: z.literal("resumeSession") }),
+  z.object({
+    type: z.literal("openComposerEditor"),
+    sessionId: z.string().min(1).max(128),
+    text: z.string().max(2_000_000),
+  }),
   z.object({ type: z.literal("activateSession"), sessionId: z.string().min(1).max(128) }),
   z.object({ type: z.literal("closeSession"), sessionId: z.string().min(1).max(128) }),
   z.object({ type: z.literal("renameSession"), sessionId: z.string().min(1).max(128), name: z.string().max(160) }),

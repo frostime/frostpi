@@ -7,6 +7,7 @@
   import { promptSubmissionResult } from "../../state/promptSubmissionStore.svelte";
   import { composerFocusTick, showToast } from "../../state/sessionViewStore.svelte";
   import { createId } from "../../utils/createId";
+  import { composerEditorPrefill } from "./editorCommand";
   import { withFrostPiCommands } from "./frostPiCommands";
   import ModelPicker from "../models/ModelPicker.svelte";
   import ThinkingLevelPicker from "../models/ThinkingLevelPicker.svelte";
@@ -17,6 +18,7 @@
   let { session }: { session: SessionViewModel } = $props();
   let editor: PromptEditor;
   let pendingRequestId = $state<string | null>(null);
+  let expanded = $state(false);
 
   const draft = $derived($composerDrafts[session.id] ?? { text: "", images: [] });
   const commands = $derived(withFrostPiCommands(session.commands));
@@ -28,8 +30,24 @@
   const supportsImages = $derived(modelSupportsImages(session.model));
 
   $effect(() => {
+    session.id;
+    expanded = false;
+  });
+
+  $effect(() => {
     $composerFocusTick;
     requestAnimationFrame(() => editor?.focus());
+  });
+
+  $effect(() => {
+    if (!expanded) return;
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      event.preventDefault();
+      setExpanded(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
   });
 
   $effect(() => {
@@ -43,11 +61,22 @@
     updateDraft(session.id, (current) => ({ ...current, text }));
   }
 
+  function setExpanded(next: boolean): void {
+    expanded = next;
+    requestAnimationFrame(() => editor?.focus());
+  }
+
   function submit(): void {
     if (!canSend) return;
     if (draft.images.length === 0 && draft.text.trim() === "/resume") {
       clearDraft(session.id);
       postToHost({ type: "resumeSession" });
+      return;
+    }
+    const editorPrefill = composerEditorPrefill(draft.text);
+    if (editorPrefill !== null) {
+      setText(editorPrefill);
+      postToHost({ type: "openComposerEditor", sessionId: session.id, text: editorPrefill });
       return;
     }
     const requestId = createId("prompt");
@@ -93,12 +122,22 @@
   }
 </script>
 
-<div class="composer-shell">
+<div class="composer-shell" class:composer-expanded={expanded}>
   <AttachmentStrip images={draft.images} onremove={(id) => updateDraft(session.id, (current) => ({ ...current, images: current.images.filter((image) => image.id !== id) }))} />
   {#if draft.images.length && session.model && !supportsImages}
     <div class="composer-warning"><span class="codicon codicon-warning"></span> The selected model may not accept images.</div>
   {/if}
   <div class="composer-box" class:composer-running={session.isStreaming}>
+    <button
+      class="composer-expand-button"
+      type="button"
+      aria-label={expanded ? "Minimize composer" : "Expand composer"}
+      aria-pressed={expanded}
+      title={expanded ? "Minimize composer (Esc)" : "Expand composer"}
+      onclick={() => setExpanded(!expanded)}
+    >
+      <span class={`codicon codicon-screen-${expanded ? "normal" : "full"}`}></span>
+    </button>
     <PromptEditor
       bind:this={editor}
       sessionId={session.id}

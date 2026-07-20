@@ -3,7 +3,7 @@ title: Interaction States
 description: User-visible behavior for running, recovery, scrolling, proxy, and completion states.
 scope:
   - /apps/vscode/src/webview/**
-updated: 2026-07-19
+updated: 2026-07-20
 ---
 
 # Interaction States
@@ -21,5 +21,7 @@ updated: 2026-07-19
 - **File mention:** `@` opens mention completion with `@Selection` / `@CurrentFile` above bounded workspace paths; selection inserts path/line references only, never file bodies.
 - **Model/thinking:** compact anchored menus stay within the Webview viewport and remain keyboard navigable.
 - **Resume:** available through the session launcher, Command Palette, onboarding, and local `/resume`.
+- **Composer external editor:** local `/editor` opens one temp markdown file prefilled from the draft (command token stripped). Closing the tab reads the file from disk and replaces that session's composer text (Save keeps edits, Don't Save discards them) while keeping image attachments; a second `/editor` while the tab is open focuses the existing tab.
+- **Composer expand:** toolbar chevron expands the composer inside the FrostPi panel (conversation collapses); Escape or the same control restores. State is local and resets on session switch.
 - **Narrow sidebar:** labels may truncate and secondary status may disappear or move to menus, but no committed capability disappears or requires horizontal scrolling.
 - **Hidden session bar:** the conversation uses the released vertical space; a floating restore control remains keyboard accessible and indicates required background input.

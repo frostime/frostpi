@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add a local `/editor` command that opens the composer draft in a temporary markdown tab and writes the saved buffer back when the tab closes.
+- Add a composer expand control that fills the FrostPi panel for long drafts; Escape or the same control restores the normal layout.
+
 ## [0.5.0] - 2026-07-20
 
 ### Added
