@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Keep turn traces visible while Pi continues through tool iterations; collapse them only after the agent run settles, with the full turn duration.
 - Honor Pi extension `set_editor_text` by replacing the session composer draft instead of appending through the selection-insert path.
 - Keep composer text filled by extension commands such as `/input-file` after submit: clear the draft on send, and do not clear it again when `promptResult` succeeds.
 

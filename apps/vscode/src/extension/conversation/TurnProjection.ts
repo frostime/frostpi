@@ -300,7 +300,8 @@ export class TurnProjection {
     const timestamp = typeof raw.timestamp === "number" ? raw.timestamp : Date.now();
     const activities = activitiesFromAssistant(messageId, raw.content, status, timestamp);
     this.#replaceMessageActivities(turn.id, messageId, activities);
-    this.#setTurnStatus(turn.id, statusToTurnStatus(status), event.type === "message_end" ? Date.now() : undefined);
+    if (status === "streaming") this.#setTurnStatus(turn.id, "running");
+    else if (status === "aborted" || status === "error") this.#setTurnStatus(turn.id, statusToTurnStatus(status), Date.now());
     if (event.type === "message_end") this.#streamingMessageId = null;
   }
 

@@ -99,6 +99,34 @@ describe("TurnProjection", () => {
     expect(projection.snapshot().turns[1]?.userMessage).toBeUndefined();
   });
 
+  it("keeps a turn running through an intermediate assistant reply and tool execution", () => {
+    const projection = new TurnProjection();
+    projection.appendUserPrompt("inspect", []);
+    projection.applyEvent({ type: "agent_start" });
+    projection.applyEvent({
+      type: "message_end",
+      message: {
+        id: "tool-request",
+        role: "assistant",
+        timestamp: 1,
+        stopReason: "tool_use",
+        content: [{ type: "toolCall", id: "tool-1", name: "bash", arguments: { command: "git status" } }],
+      },
+    });
+    projection.applyEvent({ type: "tool_execution_start", toolCallId: "tool-1", toolName: "bash", args: { command: "git status" } });
+
+    const runningTurn = projection.snapshot().turns[0];
+    expect(runningTurn?.status).toBe("running");
+    expect(runningTurn?.endedAt).toBeUndefined();
+    expect(runningTurn?.activities[0]).toMatchObject({ type: "tool", tool: { status: "running" } });
+
+    projection.applyEvent({ type: "agent_settled" });
+
+    const settledTurn = projection.snapshot().turns[0];
+    expect(settledTurn?.status).toBe("completed");
+    expect(settledTurn?.endedAt).toEqual(expect.any(Number));
+  });
+
   it("preserves an assistant error when agent_settled follows it", () => {
     const projection = new TurnProjection();
     projection.appendUserPrompt("test", []);
