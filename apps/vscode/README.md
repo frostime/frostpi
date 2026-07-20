@@ -1,15 +1,14 @@
 # FrostPi
 
-<p align="center">
-  <strong>A focused VS Code interface for Pi's coding agent</strong><br>
-  Live sessions, tool activity, model controls, and workspace-aware prompting in the editor you already use.
-</p>
+A VS Code GUI adapter for your existing Pi setup.
+
+FrostPi is designed for users who manage their own Pi configuration, extensions, models, and credentials, but want a graphical interface inside VS Code.
+
+It runs your configured Pi through its native RPC mode. Pi remains responsible for execution, configuration, extensions, and session data; FrostPi provides the GUI and VS Code integration.
 
 <p align="center">
   <img src="https://raw.githubusercontent.com/frostime/frostpi/main/docs/assets/screenshots/preview.png" alt="FrostPi conversation view in VS Code" width="430">
 </p>
-
-FrostPi is a graphical client for Pi's RPC mode. It runs one independent `pi --mode rpc` process per FrostPi session and keeps Pi's execution semantics intact: no file-tool proxy, no patch staging layer, and no hidden prompt-content injection.
 
 ## Highlights
 
@@ -80,7 +79,7 @@ FrostPi contains no telemetry or remote service of its own. Prompts and images a
 
 ## Repository
 
-See the [FrostPi repository](https://github.com/frostime/frostpi) for development commands, architecture, protocol contracts, testing, and release procedures.
+For comparisons, architecture, development instructions, and protocol documentation, see the [FrostPi repository](https://github.com/frostime/frostpi).
 
 ## License
 
