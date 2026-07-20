@@ -4,6 +4,7 @@ The composer is a plain-text CodeMirror 6 editor. FrostPi sends exactly the visi
 
 - `Enter` inserts a newline; `Ctrl+Enter` and `Cmd+Enter` submit.
 - The editor starts at roughly three lines, grows with content, and scrolls internally after its maximum height.
+- A toolbar expand control toggles a panel-local expanded composer: conversation height collapses, the composer fills the remaining FrostPi shell, and Escape or the same control restores the normal layout. Expanded state is Webview-local and resets on session switch.
 - CodeMirror focus must not create a second nested focus border; screen-reader live regions remain off-screen.
 - `/command` completion comes from Pi `get_commands` plus FrostPi-local `/resume`, `/compact`, and `/editor`; descriptions must not open a layout-shifting info panel.
 - `/` and `@` share one completion surface. Lists that exceed the available height scroll inside the CodeMirror option list (`ul`). Keyboard selection must keep the highlighted option in view. Tooltips mount on `document.body` so composer/editor geometry cannot clip long file lists; the outer shell may clip only for rounded corners while the inner list remains the scroll container.
