@@ -14,6 +14,7 @@ export interface FrostPiConfiguration {
   piArguments: string[];
   startSessionOnOpen: boolean;
   streamingBehavior: StreamingBehavior;
+  collapseTurnTrace: boolean;
   maxImageBytes: number;
   diagnosticsLevel: "error" | "info" | "debug";
   proxy: ProxyConfiguration;

@@ -72,7 +72,7 @@ export class SessionRuntime {
     this.#projection = new SessionProjection(id, cwd, title, {
       maxImageBytes: initialConfiguration.maxImageBytes,
       maxImages: 12,
-    }, updatedAt);
+    }, updatedAt, initialConfiguration.collapseTurnTrace);
     this.#configurationProvider = configurationProvider;
     this.#proxySecrets = proxySecrets;
     this.#logger = logger;
@@ -361,6 +361,7 @@ export class SessionRuntime {
     const configuredLabel = proxyModeLabel(configuration.proxy.mode);
     const appliedLabel = running ? this.view.networkProxy.label : configuredLabel;
     this.#projection.setAttachmentLimits({ maxImageBytes: configuration.maxImageBytes, maxImages: 12 });
+    this.#projection.setCollapseTurnTrace(configuration.collapseTurnTrace);
     this.#projection.setNetworkProxy({
       mode: configuration.proxy.mode,
       label: appliedLabel,

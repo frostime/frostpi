@@ -16,6 +16,7 @@ export class SessionProjection {
     title: string,
     attachmentLimits: AttachmentLimitsView = { maxImageBytes: 10 * 1024 * 1024, maxImages: 12 },
     initialUpdatedAt = Date.now(),
+    collapseTurnTrace = true,
   ) {
     this.#view = {
       id,
@@ -31,6 +32,7 @@ export class SessionProjection {
       availableModels: [],
       commands: [],
       attachmentLimits,
+      collapseTurnTrace,
       networkProxy: { mode: "inherit", label: "Inherited", restartRequired: false },
       turns: [],
       notices: [],
@@ -136,6 +138,11 @@ export class SessionProjection {
 
   setAttachmentLimits(attachmentLimits: AttachmentLimitsView): void {
     this.#view.attachmentLimits = attachmentLimits;
+    this.#touch();
+  }
+
+  setCollapseTurnTrace(collapseTurnTrace: boolean): void {
+    this.#view.collapseTurnTrace = collapseTurnTrace;
     this.#touch();
   }
 

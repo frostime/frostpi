@@ -11,6 +11,7 @@ export function readConfiguration(scope?: vscode.Uri): FrostPiConfiguration {
     piArguments: config.get<string[]>("pi.arguments", []),
     startSessionOnOpen: config.get<boolean>("session.startOnOpen", true),
     streamingBehavior: config.get<"steer" | "followUp">("composer.streamingBehavior", "followUp"),
+    collapseTurnTrace: config.get<boolean>("conversation.collapseTurnTrace", true),
     maxImageBytes: config.get<number>("attachments.maxImageBytes", 10 * 1024 * 1024),
     diagnosticsLevel: config.get<"error" | "info" | "debug">("diagnostics.level", "info"),
     proxy: {

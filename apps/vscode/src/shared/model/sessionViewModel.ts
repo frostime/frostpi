@@ -57,6 +57,8 @@ export interface SessionViewModel {
   availableModels: RpcModel[];
   commands: RpcCommandDescriptor[];
   attachmentLimits: AttachmentLimitsView;
+  /** When true, completed turns collapse tool/reasoning/interim replies into one summary above the final response. */
+  collapseTurnTrace: boolean;
   networkProxy: NetworkProxyView;
   turns: AgentTurnView[];
   notices: SessionNoticeView[];
