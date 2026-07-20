@@ -2,6 +2,7 @@ import type { RpcCommandDescriptor } from "@frostime/pi-rpc";
 
 const FROSTPI_COMMANDS: RpcCommandDescriptor[] = [
   { name: "compact", description: "Compact the current Pi context", source: "frostpi" },
+  { name: "editor", description: "Edit the composer draft in a VS Code tab", source: "frostpi" },
   { name: "resume", description: "Open an existing Pi session for this workspace", source: "frostpi" },
 ];
 

@@ -39,3 +39,7 @@ export function insertDraftText(sessionId: string, text: string): void {
     return { ...draft, text: `${draft.text}${separator}${text}` };
   });
 }
+
+export function setDraftText(sessionId: string, text: string): void {
+  updateDraft(sessionId, (draft) => ({ ...draft, text }));
+}

@@ -11,6 +11,7 @@ describe("FrostPi composer commands", () => {
 
     expect(commands).toEqual([
       expect.objectContaining({ name: "compact", source: "frostpi" }),
+      expect.objectContaining({ name: "editor", source: "frostpi" }),
       expect.objectContaining({ name: "resume", source: "frostpi" }),
       expect.objectContaining({ name: "inspect", source: "prompt" }),
     ]);

@@ -7,6 +7,7 @@
   import { promptSubmissionResult } from "../../state/promptSubmissionStore.svelte";
   import { composerFocusTick, showToast } from "../../state/sessionViewStore.svelte";
   import { createId } from "../../utils/createId";
+  import { composerEditorPrefill } from "./editorCommand";
   import { withFrostPiCommands } from "./frostPiCommands";
   import ModelPicker from "../models/ModelPicker.svelte";
   import ThinkingLevelPicker from "../models/ThinkingLevelPicker.svelte";
@@ -48,6 +49,12 @@
     if (draft.images.length === 0 && draft.text.trim() === "/resume") {
       clearDraft(session.id);
       postToHost({ type: "resumeSession" });
+      return;
+    }
+    const editorPrefill = composerEditorPrefill(draft.text);
+    if (editorPrefill !== null) {
+      setText(editorPrefill);
+      postToHost({ type: "openComposerEditor", sessionId: session.id, text: editorPrefill });
       return;
     }
     const requestId = createId("prompt");

@@ -27,6 +27,7 @@ export type HostToWebviewPayload =
   | { type: "snapshot"; workspace: WorkspaceViewModel }
   | { type: "workspaceDelta"; workspace: WorkspaceDeltaView }
   | { type: "insertPromptText"; text: string }
+  | { type: "setComposerText"; sessionId: string; text: string }
   | { type: "focusComposer" }
   | { type: "promptResult"; requestId: string; ok: boolean; error?: string }
   | {

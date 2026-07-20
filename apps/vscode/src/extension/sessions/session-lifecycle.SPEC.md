@@ -71,7 +71,7 @@ When `frostpi.composer.streamingBehavior` is `followUp` (default), a normal prom
 
 ## Slash commands
 
-Composer text is trimmed before RPC submission so leading/trailing whitespace cannot bypass Pi's leading-`/` extension-command match. After trim, a leading `/command` also normalizes any Unicode whitespace between the command token and its args to a single ASCII space, matching Pi's `indexOf(" ")` command split. FrostPi-local `/compact` and `/resume` remain host-handled; every other slash is sent as a normal `prompt`.
+Composer text is trimmed before RPC submission so leading/trailing whitespace cannot bypass Pi's leading-`/` extension-command match. After trim, a leading `/command` also normalizes any Unicode whitespace between the command token and its args to a single ASCII space, matching Pi's `indexOf(" ")` command split. FrostPi-local `/compact`, `/resume`, and `/editor` remain host-handled; every other slash is sent as a normal `prompt`. `/editor` opens a VS Code untitled buffer and never reaches Pi.
 
 Pi extension commands (from `get_commands` with `source: "extension"`) execute inside the `prompt` request and often never emit `agent_start` / `agent_settled`. After such a prompt returns, FrostPi closes the turn opened for that prompt once short idle checks (`get_state`) report no agent work, or falls back to local non-streaming completion if every `get_state` fails. Command classification uses the cached list by exact name: a known non-extension slash is not re-fetched; a name missing from the cache triggers one `get_commands` refresh, then classification. Prompt templates and skills still expand into ordinary agent turns and close only on `agent_settled`.
 

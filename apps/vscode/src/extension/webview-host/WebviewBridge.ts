@@ -9,6 +9,7 @@ import type { SessionViewModel } from "../../shared/model/sessionViewModel.js";
 import { collectionDelta } from "../../shared/bridge/collectionDelta.js";
 import { webviewToHostSchema, type WebviewToHostMessage } from "../../shared/bridge/webviewToHost.js";
 import { captureActiveFileReference } from "../editor-context/captureActiveFile.js";
+import { ComposerExternalEditor } from "../editor-context/ComposerExternalEditor.js";
 import { listEditorMentionSpecials } from "../editor-context/editorMentionSpecials.js";
 import { readConfiguration } from "../configuration/readConfiguration.js";
 import { workspaceUriForPath } from "../configuration/workspaceScope.js";
@@ -30,6 +31,7 @@ export class WebviewBridge implements vscode.Disposable {
   readonly #registry: SessionRegistry;
   readonly #logger: DiagnosticLogger;
   readonly #fileCatalog: WorkspaceFileCatalog;
+  readonly #composerEditor: ComposerExternalEditor;
 
   #webview: vscode.Webview | null = null;
   #webviewMessageDisposable: vscode.Disposable | null = null;
@@ -43,10 +45,18 @@ export class WebviewBridge implements vscode.Disposable {
     this.#registry = registry;
     this.#logger = logger;
     this.#fileCatalog = new WorkspaceFileCatalog({ maxFiles: 50_000 });
+    this.#composerEditor = new ComposerExternalEditor(
+      (result) => {
+        this.post({ type: "setComposerText", sessionId: result.sessionId, text: result.text });
+        void vscode.commands.executeCommand("frostpi.focus");
+      },
+      () => this.post({ type: "toast", level: "info", message: "Finish the open composer editor tab first." }),
+    );
     this.#disposables.push(
       registry.onDidChange(() => this.#postWorkspaceUpdate()),
       registry.onDidToast((toast) => this.post({ type: "toast", ...toast })),
       registry.onDidInsertPromptText((text) => this.post({ type: "insertPromptText", text })),
+      this.#composerEditor,
     );
   }
 
@@ -160,6 +170,9 @@ export class WebviewBridge implements vscode.Disposable {
         break;
       case "resumeSession":
         await this.#registry.resumeSession();
+        break;
+      case "openComposerEditor":
+        await this.#composerEditor.open(message.sessionId, message.text);
         break;
       case "activateSession":
         await this.#registry.activateSession(message.sessionId);
