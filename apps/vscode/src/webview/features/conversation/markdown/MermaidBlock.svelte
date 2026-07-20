@@ -52,3 +52,19 @@
     <div class="mermaid-status">Rendering diagram…</div>
   {/if}
 </div>
+
+<style>
+.mermaid-block {
+  margin: .65em 0 .85em;
+  max-width: 100%;
+  border: 1px solid var(--frost-border-soft);
+  border-radius: 7px;
+  background: var(--frost-code-bg);
+  overflow: auto;
+}
+.mermaid-block.mermaid-error { border-color: var(--frost-danger, var(--frost-border)); }
+.mermaid-host { padding: 10px 11px; min-width: min-content; }
+.mermaid-host :global(svg) { max-width: none; height: auto; }
+.mermaid-status { padding: 8px 11px; color: var(--frost-muted); font-size: 11px; }
+.mermaid-fallback :global(pre) { margin: 0; border: 0; border-radius: 0; background: transparent; }
+</style>

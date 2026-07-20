@@ -13,3 +13,16 @@
     {/each}
   </div>
 {/if}
+
+<style>
+.extension-widgets { width: 100%; max-width: 820px; margin: 0 auto 7px; display: grid; gap: 6px; }
+.extension-widget {
+  display: flex;
+  gap: 7px;
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--frost-surface) 55%, transparent);
+  border-left: 2px solid var(--frost-link);
+  color: var(--frost-muted);
+}
+.extension-widget :global(pre) { white-space: pre-wrap; font: 10.5px/1.45 var(--font-mono); }
+</style>

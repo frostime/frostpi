@@ -19,3 +19,8 @@
     <MarkdownContent content={activity.text} />
   </Collapsible.Content>
 </Collapsible.Root>
+
+<style>
+.reasoning-content { color: var(--frost-muted); font-size: 11.5px; }
+.reasoning-content :global(.markdown-body) { color: inherit; }
+</style>

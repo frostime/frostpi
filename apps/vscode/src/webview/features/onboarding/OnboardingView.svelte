@@ -41,3 +41,67 @@
     </div>
   {/if}
 </div>
+
+<style>
+.onboarding-logo {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--frost-border);
+  border-radius: 16px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--frost-surface) 80%, transparent), color-mix(in srgb, var(--frost-bg-alt) 90%, transparent));
+  box-shadow: inset 0 1px rgba(255,255,255,.05), 0 10px 25px rgba(0,0,0,.12);
+}
+.onboarding-logo :global(span) {
+  font-family: Georgia, serif;
+  font-size: 24px;
+  color: color-mix(in srgb, var(--frost-text) 88%, var(--frost-link));
+}
+.onboarding-actions :global(button) {
+  padding: 5px 10px;
+  border-radius: 5px;
+  background: var(--frost-secondary-bg);
+  cursor: pointer;
+  font-size: 11px;
+}
+.onboarding-view > :global(button) {
+  padding: 5px 10px;
+  border-radius: 5px;
+  background: var(--frost-secondary-bg);
+  cursor: pointer;
+  font-size: 11px;
+}
+.onboarding-actions :global(button:hover) { background: var(--frost-secondary-hover); }
+.onboarding-view > :global(button:hover) { background: var(--frost-secondary-hover); }
+.onboarding-actions :global(.primary) { background: var(--frost-accent); color: var(--frost-accent-text); }
+.onboarding-view > :global(.primary) { background: var(--frost-accent); color: var(--frost-accent-text); }
+.onboarding-actions :global(.primary:hover) { background: var(--frost-accent-hover); }
+.onboarding-view > :global(.primary:hover) { background: var(--frost-accent-hover); }
+.onboarding-view {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+.onboarding-view :global(h1) { margin: 16px 0 5px; font-size: 17px; font-weight: 600; }
+.onboarding-view :global(p) { max-width: 450px; margin: 0 0 14px; color: var(--frost-muted); font-size: 11px; }
+.onboarding-error {
+  max-height: 160px;
+  overflow: auto;
+  padding: 9px 10px;
+  background: color-mix(in srgb, var(--frost-error) 8%, var(--frost-surface));
+  border: 1px solid color-mix(in srgb, var(--frost-error) 35%, var(--frost-border));
+  border-radius: 6px;
+  color: var(--frost-error) !important;
+  text-align: left;
+  white-space: pre-wrap;
+  font-family: var(--font-mono);
+}
+.onboarding-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; margin-bottom: 14px; }
+.onboarding-actions :global(button) { display: inline-flex; align-items: center; gap: 6px; }
+.onboarding-note { opacity: .8; }
+</style>

@@ -27,3 +27,16 @@
     </div>
   {/if}
 </div>
+
+<style>
+.response-activity:hover > .response-actions { opacity: 1; }
+.response-activity:focus-within > .response-actions { opacity: 1; }
+.message-footnote { margin-top: 6px; color: var(--frost-muted); font-size: 11px; font-style: italic; }
+.response-activity { min-width: 0; padding: 4px 2px 7px; }
+/* Sibling chrome crosses component instances; keep unscoped. */
+:global(.response-activity + .response-activity) { padding-top: 0; }
+.response-actions { justify-content: flex-start; }
+.response-error { color: var(--frost-error); }
+.response-streaming { display: inline-flex; margin: 3px 0 0 2px; vertical-align: middle; }
+.response-streaming :global(.spinner) { width: 12px; height: 12px; border-width: 1.5px; }
+</style>
