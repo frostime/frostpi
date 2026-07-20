@@ -133,3 +133,82 @@
   </div>
   {#if followState.mode === "paused"}<NewUpdatesButton count={followState.unseenUpdates} onclick={resumeFollowing} />{/if}
 </div>
+
+<style>
+.conversation-inner { width: 100%; max-width: 820px; min-height: 100%; margin: 0 auto; padding: 18px 14px 28px; }
+.conversation-tail { height: 8px; }
+.conversation-empty {
+  min-height: min(430px, 65vh);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--frost-muted);
+  padding: 30px 12px;
+}
+.conversation-empty :global(h2) { margin: 15px 0 4px; color: var(--frost-text); font-size: 17px; font-weight: 600; }
+.conversation-empty :global(p) { max-width: 360px; margin: 0; font-size: 12px; }
+.empty-orbit {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--frost-border);
+  border-radius: 16px;
+  background: linear-gradient(145deg, color-mix(in srgb, var(--frost-surface) 80%, transparent), color-mix(in srgb, var(--frost-bg-alt) 90%, transparent));
+  box-shadow: inset 0 1px rgba(255,255,255,.05), 0 10px 25px rgba(0,0,0,.12);
+}
+.empty-orbit :global(span) {
+  font-family: Georgia, serif;
+  font-size: 24px;
+  color: color-mix(in srgb, var(--frost-text) 88%, var(--frost-link));
+}
+.conversation-inner { padding-top: 14px; padding-bottom: 34px; }
+.queued-follow-ups { display: grid; gap: 8px; margin: 4px 0 10px; }
+.message-queued { opacity: 0.88; }
+.queued-bubble {
+  position: relative;
+  border-style: dashed;
+  background: color-mix(in srgb, var(--frost-surface) 70%, transparent);
+  box-shadow: none;
+}
+.queued-text { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 12px; line-height: 1.45; }
+.queued-images { margin-top: 4px; color: var(--frost-muted); font-size: 10.5px; }
+.queued-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 6px;
+  color: var(--frost-muted);
+  font-size: 10px;
+  font-weight: 500;
+}
+.session-progress {
+  margin: 5px 0 12px;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 8px;
+  border: 1px solid var(--frost-border-soft);
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--frost-surface) 56%, transparent);
+  color: var(--frost-muted);
+  font-size: 11px;
+}
+.session-progress > :global(.codicon) { color: var(--frost-link); font-size: 13px; }
+.session-progress-label { color: var(--frost-text); font-weight: 600; }
+.session-progress :global(.thinking-pulse) { margin-left: 1px; }
+
+@media (max-width: 330px) {
+  .conversation-inner { padding-left: 8px; padding-right: 8px; }
+}
+
+@media (max-width: 560px) {
+  .conversation-inner { padding-left: 11px; padding-right: 11px; }
+  .conversation-empty { min-height: min(380px, 58vh); padding-left: 8px; padding-right: 8px; }
+  .conversation-empty :global(h2) { max-width: 100%; font-size: 16px; }
+  .conversation-empty :global(p) { max-width: min(330px, 100%); }
+}
+</style>

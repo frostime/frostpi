@@ -20,3 +20,36 @@
     {/if}
   </div>
 {/if}
+
+<style>
+.session-metrics {
+  width: 100%;
+  max-width: 820px;
+  min-height: 17px;
+  margin: 0 auto 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--frost-faint);
+  font-size: 9px;
+}
+.extension-statuses { display: flex; align-items: center; gap: 8px; }
+.metrics-right { display: flex; align-items: center; gap: 8px; }
+.extension-statuses { overflow: hidden; }
+.extension-statuses :global(span) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status-mini-dot {
+  display: inline-block;
+  width: 4px;
+  height: 4px;
+  margin-right: 4px;
+  border-radius: 50%;
+  background: var(--frost-link);
+}
+
+@media (max-width: 430px) {
+  .session-metrics { min-width: 0; }
+  .extension-statuses { flex: 1; }
+  .metrics-right { flex: none; }
+}
+</style>

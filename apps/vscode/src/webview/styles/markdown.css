@@ -1,3 +1,5 @@
+/* Markdown / KaTeX / highlight.js — mermaid block chrome lives in MermaidBlock.svelte */
+
 .markdown-body { min-width: 0; overflow-wrap: anywhere; }
 .markdown-body > :first-child { margin-top: 0 !important; }
 .markdown-body > :last-child { margin-bottom: 0 !important; }
@@ -11,8 +13,26 @@
 .markdown-body blockquote { margin: .7em 0; padding: .1em .85em; border-left: 2px solid var(--frost-border); color: var(--frost-muted); }
 .markdown-body a { color: var(--frost-link); text-decoration: none; }
 .markdown-body a:hover { text-decoration: underline; }
-.markdown-body code:not(pre code) { padding: .12em .35em; border: 1px solid var(--frost-border-soft); border-radius: 4px; background: var(--frost-code-bg); font-family: var(--font-mono); font-size: .91em; }
-.markdown-body pre { position: relative; max-width: 100%; margin: .65em 0 .85em; padding: 10px 11px; overflow: auto; background: var(--frost-code-bg); border: 1px solid var(--frost-border-soft); border-radius: 7px; font: 11px/1.55 var(--font-mono); tab-size: 2; }
+.markdown-body code:not(pre code) {
+  padding: .12em .35em;
+  border: 1px solid var(--frost-border-soft);
+  border-radius: 4px;
+  background: var(--frost-code-bg);
+  font-family: var(--font-mono);
+  font-size: .91em;
+}
+.markdown-body pre {
+  position: relative;
+  max-width: 100%;
+  margin: .65em 0 .85em;
+  padding: 10px 11px;
+  overflow: auto;
+  background: var(--frost-code-bg);
+  border: 1px solid var(--frost-border-soft);
+  border-radius: 7px;
+  font: 11px/1.55 var(--font-mono);
+  tab-size: 2;
+}
 .markdown-body pre.hljs { padding: 10px 11px; }
 .markdown-body pre code { background: transparent; display: block; }
 .markdown-body table { width: 100%; margin: .7em 0; border-collapse: collapse; font-size: .95em; }
@@ -24,12 +44,6 @@
 .markdown-body .math-inline, .markdown-body .katex { font-size: 1.05em; }
 .markdown-body .math-fallback { color: var(--frost-muted); }
 .message-content { min-width: 0; display: flex; flex-direction: column; gap: 0; }
-.mermaid-block { margin: .65em 0 .85em; max-width: 100%; border: 1px solid var(--frost-border-soft); border-radius: 7px; background: var(--frost-code-bg); overflow: auto; }
-.mermaid-block.mermaid-error { border-color: var(--frost-danger, var(--frost-border)); }
-.mermaid-host { padding: 10px 11px; min-width: min-content; }
-.mermaid-host :global(svg) { max-width: none; height: auto; }
-.mermaid-status { padding: 8px 11px; color: var(--frost-muted); font-size: 11px; }
-.mermaid-fallback pre { margin: 0; border: 0; border-radius: 0; background: transparent; }
 .hljs-comment, .hljs-quote { color: var(--vscode-editorLineNumber-foreground, #6a737d); }
 .hljs-keyword, .hljs-selector-tag, .hljs-literal { color: var(--vscode-symbolIcon-keywordForeground, #c586c0); }
 .hljs-string, .hljs-title, .hljs-section { color: var(--vscode-symbolIcon-stringForeground, #ce9178); }

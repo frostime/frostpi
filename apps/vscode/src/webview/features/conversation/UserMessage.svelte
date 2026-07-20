@@ -49,3 +49,7 @@
     {/if}
   </div>
 </article>
+
+<style>
+.user-message-stack { max-width: 100%; display: flex; flex-direction: column; align-items: flex-end; }
+</style>

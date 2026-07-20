@@ -22,3 +22,31 @@
     {/each}
   </div>
 </main>
+
+<style>
+.toast-stack {
+  position: fixed;
+  z-index: 150;
+  right: 10px;
+  bottom: 10px;
+  width: min(360px, calc(100vw - 20px));
+  display: grid;
+  gap: 6px;
+  pointer-events: none;
+}
+.toast {
+  display: grid;
+  grid-template-columns: 17px minmax(0,1fr);
+  gap: 8px;
+  padding: 9px 10px;
+  background: var(--frost-surface-raised);
+  border: 1px solid var(--frost-border);
+  border-radius: 7px;
+  box-shadow: var(--frost-shadow);
+  animation: toast-in var(--motion-normal) ease-out;
+  font-size: 11px;
+}
+.toast-error :global(.codicon) { color: var(--frost-error); }
+.toast-warning :global(.codicon) { color: var(--frost-warning); }
+.toast-info :global(.codicon) { color: var(--frost-link); }
+</style>

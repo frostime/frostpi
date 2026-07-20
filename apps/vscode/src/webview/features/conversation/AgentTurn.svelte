@@ -74,6 +74,7 @@
 {/snippet}
 
 <style>
+
   /* Scoped by default. Shared activity-* primitives remain global classes on the markup. */
   .turn-trace-header {
     min-width: 0;
@@ -117,4 +118,14 @@
     text-transform: uppercase;
     user-select: none;
   }
+
+/* localized from tokens.css */
+.agent-turn { margin: 0 0 22px; }
+.agent-turn:last-of-type { margin-bottom: 8px; }
+.agent-turn :global(.message-user) { margin-bottom: 11px; }
+.turn-activities { display: grid; gap: 2px; min-width: 0; }
+
+@media (max-width: 430px) {
+  .agent-turn { margin-bottom: 18px; }
+}
 </style>

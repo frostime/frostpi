@@ -22,3 +22,63 @@
     <img src={selected.dataUrl} alt={selected.name} />
   </div>
 {/if}
+
+<style>
+.image-gallery { display: flex; flex-wrap: wrap; gap: 7px; margin: 7px 0 2px; }
+.image-thumb {
+  position: relative;
+  width: 112px;
+  height: 78px;
+  padding: 0;
+  overflow: hidden;
+  background: var(--frost-bg-alt);
+  border: 1px solid var(--frost-border);
+  border-radius: 7px;
+  cursor: zoom-in;
+}
+.image-thumb :global(img) { width: 100%; height: 100%; object-fit: cover; }
+.image-thumb :global(span) {
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  bottom: 3px;
+  padding: 2px 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-radius: 3px;
+  background: rgba(0,0,0,.58);
+  color: white;
+  font-size: 9px;
+}
+.image-lightbox {
+  position: fixed;
+  z-index: 100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: rgba(0,0,0,.72);
+  backdrop-filter: blur(4px);
+}
+.image-lightbox :global(img) {
+  max-width: 92vw;
+  max-height: 86vh;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 20px 60px rgba(0,0,0,.5);
+}
+.lightbox-close {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: rgba(20,20,20,.75);
+  color: white;
+  cursor: pointer;
+}
+</style>

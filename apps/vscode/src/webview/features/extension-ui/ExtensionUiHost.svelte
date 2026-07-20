@@ -12,3 +12,7 @@
     {/each}
   </div>
 {/if}
+
+<style>
+.extension-ui-host { width: 100%; max-width: 820px; margin: 0 auto 7px; display: grid; gap: 6px; }
+</style>

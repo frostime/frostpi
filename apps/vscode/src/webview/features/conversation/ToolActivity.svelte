@@ -91,3 +91,90 @@
     return { kind: "block", text: JSON.stringify(value, null, 2) };
   }
 </script>
+
+<style>
+.tool-output::-webkit-scrollbar { width: 9px; height: 9px; }
+.tool-output::-webkit-scrollbar-thumb {
+  background: var(--frost-scrollbar);
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  border-radius: 99px;
+}
+.tool-actions { display: flex; gap: 5px; margin-bottom: 7px; }
+.tool-actions:empty { display: none; }
+.tool-actions :global(button) {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  background: var(--frost-secondary-bg);
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 11px;
+}
+.tool-actions :global(button:hover) { background: var(--frost-secondary-hover); }
+.tool-section-label {
+  margin: 7px 0 4px;
+  color: var(--frost-muted);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+}
+.tool-json {
+  max-height: 240px;
+  overflow: auto;
+  padding: 8px;
+  background: var(--frost-code-bg);
+  border-radius: 5px;
+  color: var(--frost-text);
+  font: 11px/1.48 var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tool-output {
+  max-height: 240px;
+  overflow: auto;
+  padding: 8px;
+  background: var(--frost-code-bg);
+  border-radius: 5px;
+  color: var(--frost-text);
+  font: 11px/1.48 var(--font-mono);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.tool-input { display: flex; flex-direction: column; gap: 2px; }
+.tool-input-row { display: flex; gap: 6px; align-items: baseline; font: 11px/1.48 var(--font-mono); }
+.tool-input-key { flex: none; color: var(--frost-muted); }
+.tool-input-value { min-width: 0; color: var(--frost-text); word-break: break-word; }
+.tool-activity-name {
+  flex: none;
+  color: color-mix(in srgb, var(--frost-text) 88%, var(--frost-muted));
+  font-size: 11px;
+  font-weight: 500;
+}
+.tool-activity-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--frost-muted);
+  font: 10.5px/1.35 var(--font-mono);
+}
+.tool-error-summary {
+  min-width: 0;
+  max-width: 38%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--frost-error);
+  font-size: 10px;
+}
+.tool-activity-content { overflow: hidden; }
+.tool-actions { margin-top: 0; }
+.tool-json { max-height: 280px; }
+.tool-output { max-height: 280px; }
+
+@media (max-width: 430px) {
+  .tool-error-summary { display: none; }
+}
+</style>
