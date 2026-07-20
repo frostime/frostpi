@@ -21,9 +21,12 @@ Open the current composer draft in a VS Code editor tab; when that tab closes, r
 - Bound to the `sessionId` captured at open; inactive sessions still receive their draft update.
 - At most one pending tab; a second `/editor` reveals it and toasts.
 
-## Out of scope (this item)
+## Also delivered
 
-- Panel-internal CodeMirror expand (Zed-style) — separate follow-up on the same branch after `/editor` acceptance.
+- Panel-internal CodeMirror expand (Zed-style): top-right control fills the FrostPi panel; Escape restores. Local Webview state only.
+
+## Out of scope
+
 - Command Palette entry, custom tab title scheme, `$EDITOR` spawn.
 
 ## Implementation anchors
@@ -31,3 +34,4 @@ Open the current composer draft in a VS Code editor tab; when that tab closes, r
 - `apps/vscode/src/webview/features/composer/editorCommand.ts`
 - `apps/vscode/src/extension/editor-context/ComposerExternalEditor.ts`
 - Bridge: `openComposerEditor` / `setComposerText` (`BRIDGE_VERSION` 2.6)
+- Expand: `Composer.svelte` + `.composer-expanded` styles in `tokens.css`
