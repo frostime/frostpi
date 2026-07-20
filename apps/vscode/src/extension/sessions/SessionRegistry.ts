@@ -104,8 +104,7 @@ export class SessionRegistry implements vscode.Disposable {
           requiresUserInput: view.pendingExtensionUi.length > 0,
           updatedAt: view.updatedAt,
         };
-      })
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+      });
     const piError = activeView?.status === "failed" ? activeView.error : undefined;
     return {
       workspaceName: folder?.name ?? "No workspace",
@@ -202,8 +201,8 @@ export class SessionRegistry implements vscode.Disposable {
     await runtime.dispose();
     this.#removeSession(sessionId);
     if (this.#activeSessionId === sessionId) {
-      this.#activeSessionId = [...this.#runtimes.values()]
-        .sort((left, right) => right.view.updatedAt - left.view.updatedAt)[0]?.id ?? null;
+      // Stable open order: prefer the most recently opened remaining session.
+      this.#activeSessionId = [...this.#runtimes.keys()].at(-1) ?? null;
     }
     await this.#persist();
     this.#emitChange();
