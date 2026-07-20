@@ -195,6 +195,12 @@
           "scope": "resource",
           "description": "How a normal prompt is queued when Pi is already streaming. Extension commands execute immediately."
         },
+        "frostpi.conversation.collapseTurnTrace": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "After a turn completes, collapse tools, reasoning, and interim replies into one summary above the final response."
+        },
         "frostpi.attachments.maxImageBytes": {
           "type": "number",
           "minimum": 1048576,
