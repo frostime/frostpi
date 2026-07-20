@@ -1,6 +1,6 @@
 ---
 created: 2026-07-20
-status: in-progress
+status: done
 branch: feat/collapse-turn-trace
 feasibility-study: conducted
 ---

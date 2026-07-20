@@ -29,7 +29,7 @@
       <div class="turn-trace-header">
         <button
           type="button"
-          class="activity-trigger turn-trace-trigger"
+          class="activity-trigger"
           aria-expanded={traceOpen}
           aria-label={`${traceOpen ? "Collapse" : "Expand"} work trace: ${summaryLabel}`}
           onclick={() => traceOpen = !traceOpen}
@@ -45,7 +45,11 @@
           {@render activityRow(activity)}
         {/each}
       {/if}
-      <div class="turn-trace-divider" aria-hidden="true"></div>
+      <div class="turn-trace-break" role="separator" aria-label="Final reply">
+        <span class="turn-trace-break-line" aria-hidden="true"></span>
+        <span class="turn-trace-break-label">Reply</span>
+        <span class="turn-trace-break-line" aria-hidden="true"></span>
+      </div>
       {#each plan.visible as activity (activity.id)}
         {@render activityRow(activity)}
       {/each}
@@ -68,3 +72,49 @@
     <ResponseActivity {activity} />
   {/if}
 {/snippet}
+
+<style>
+  /* Scoped by default. Shared activity-* primitives remain global classes on the markup. */
+  .turn-trace-header {
+    min-width: 0;
+    border-radius: 7px;
+    color: var(--frost-muted);
+  }
+
+  .turn-trace-header:hover {
+    background: color-mix(in srgb, var(--frost-surface) 48%, transparent);
+    color: var(--frost-text);
+  }
+
+  .turn-trace-meta {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--frost-muted);
+    font-size: 10.5px;
+  }
+
+  .turn-trace-break {
+    display: grid;
+    grid-template-columns: minmax(12px, 1fr) auto minmax(12px, 1fr);
+    align-items: center;
+    gap: 8px;
+    margin: 7px 2px 5px;
+    min-width: 0;
+  }
+
+  .turn-trace-break-line {
+    height: 1px;
+    background: var(--frost-border-soft);
+  }
+
+  .turn-trace-break-label {
+    color: var(--frost-faint);
+    font-size: 9.5px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    user-select: none;
+  }
+</style>
