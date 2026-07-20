@@ -1,5 +1,6 @@
 <script lang="ts">
   import {
+    acceptCompletion,
     autocompletion,
     completionKeymap,
     startCompletion,
@@ -88,6 +89,7 @@
         tooltips({ parent: document.body }),
         keymap.of([
           ...completionKeymap,
+          { key: "Tab", run: acceptCompletion },
           ...historyKeymap,
           { key: "Mod-Enter", run: () => { onsubmit(); return true; } },
           ...defaultKeymap,

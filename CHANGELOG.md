@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Let `Tab` accept the highlighted `/` and `@` completion option in the composer.
 - Move Extension UI dismiss from a bottom Cancel button to a top-right close control on `select`, `input`, and `editor` cards.
 
 ### Fixed
