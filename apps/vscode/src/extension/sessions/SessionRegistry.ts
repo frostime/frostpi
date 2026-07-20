@@ -39,7 +39,7 @@ export class SessionRegistry implements vscode.Disposable {
   readonly #proxySecrets: ProxySecretStore;
   readonly #changeEmitter = new vscode.EventEmitter<void>();
   readonly #toastEmitter = new vscode.EventEmitter<RegistryToast>();
-  readonly #insertTextEmitter = new vscode.EventEmitter<string>();
+  readonly #setComposerTextEmitter = new vscode.EventEmitter<{ sessionId: string; text: string }>();
   readonly #pendingEditorText = new Map<string, string>();
   readonly #lastStatuses = new Map<string, SessionRuntimeStatus>();
   readonly #lastPendingUiCounts = new Map<string, number>();
@@ -57,7 +57,7 @@ export class SessionRegistry implements vscode.Disposable {
 
   readonly onDidChange = this.#changeEmitter.event;
   readonly onDidToast = this.#toastEmitter.event;
-  readonly onDidInsertPromptText = this.#insertTextEmitter.event;
+  readonly onDidSetComposerText = this.#setComposerTextEmitter.event;
 
   constructor(context: vscode.ExtensionContext, logger: DiagnosticLogger) {
     this.#persistence = new SessionPersistence(context.workspaceState);
@@ -189,7 +189,7 @@ export class SessionRegistry implements vscode.Disposable {
     if (pendingText !== undefined) {
       this.#pendingEditorText.delete(sessionId);
       this.#lastStatuses.delete(sessionId);
-      this.#insertTextEmitter.fire(pendingText);
+      this.#setComposerTextEmitter.fire({ sessionId, text: pendingText });
     }
     this.#emitChange();
     if (runtime.view.status === "stopped") await this.#startRuntime(runtime);
@@ -394,7 +394,7 @@ export class SessionRegistry implements vscode.Disposable {
     await Promise.allSettled([...this.#runtimes.values()].map((runtime) => runtime.dispose()));
     this.#changeEmitter.dispose();
     this.#toastEmitter.dispose();
-    this.#insertTextEmitter.dispose();
+    this.#setComposerTextEmitter.dispose();
   }
 
   #restoreRecord(record: PersistedSessionRecord): void {
@@ -427,7 +427,7 @@ export class SessionRegistry implements vscode.Disposable {
       {
         onChange: (runtime) => this.#handleRuntimeChange(runtime),
         onEditorText: (runtime, text) => {
-          if (runtime.id === this.#activeSessionId) this.#insertTextEmitter.fire(text);
+          if (runtime.id === this.#activeSessionId) this.#setComposerTextEmitter.fire({ sessionId: runtime.id, text });
           else this.#pendingEditorText.set(runtime.id, text);
         },
       },

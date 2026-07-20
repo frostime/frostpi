@@ -281,6 +281,85 @@ process.on("SIGTERM", () => process.exit(0));
     expect(new Set(registry.snapshot().sessions.map((session) => session.id))).toEqual(new Set([second, third]));
     expect((persisted as { sessions: Array<{ id: string }> }).sessions.map((session) => session.id)).toEqual([second]);
   });
+
+  it("replaces composer text for set_editor_text on the active session and defers inactive sessions", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "frostpi-registry-editor-"));
+    const fakePi = join(dir, "fake-pi.cjs");
+    await writeFile(fakePi, String.raw`#!/usr/bin/env node
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => {
+  input += chunk;
+  while (input.includes("\n")) {
+    const index = input.indexOf("\n");
+    const command = JSON.parse(input.slice(0, index));
+    input = input.slice(index + 1);
+    const response = { type: "response", id: command.id, success: true };
+    if (command.type === "get_state") {
+      response.data = {
+        model: null,
+        thinkingLevel: "off",
+        isStreaming: false,
+        isCompacting: false,
+        sessionFile: process.cwd() + "/session.jsonl",
+        sessionId: "editor",
+        messageCount: 0,
+        pendingMessageCount: 0,
+        autoCompactionEnabled: true,
+        steeringMode: "all",
+        followUpMode: "one-at-a-time",
+      };
+    } else if (command.type === "get_available_models") response.data = { models: [] };
+    else if (command.type === "get_commands") response.data = { commands: [{ name: "input-file", source: "extension" }] };
+    else if (command.type === "get_session_stats") {
+      response.data = {
+        sessionId: "editor",
+        userMessages: 0,
+        assistantMessages: 0,
+        toolCalls: 0,
+        toolResults: 0,
+        totalMessages: 0,
+        tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
+        cost: 0,
+      };
+    } else if (command.type === "prompt") {
+      process.stdout.write(JSON.stringify({
+        type: "extension_ui_request",
+        id: "set-editor-" + Date.now(),
+        method: "set_editor_text",
+        text: "imported from .pi-input.md",
+      }) + "\n");
+    }
+    process.stdout.write(JSON.stringify(response) + "\n");
+  }
+});
+process.on("SIGTERM", () => process.exit(0));
+`);
+    testEnvironment.cwd = dir;
+    testEnvironment.piExecutable = fakePi;
+
+    const registry = new SessionRegistry(createContext() as never, { error: vi.fn(), info: vi.fn() } as never);
+    registries.push(registry);
+
+    const events: Array<{ sessionId: string; text: string }> = [];
+    registry.onDidSetComposerText((event) => events.push(event));
+
+    const background = await registry.createSession(dir);
+    await waitFor(() => registry.snapshot().activeSession?.status === "ready");
+    await registry.sendPrompt(background, "/input-file", []);
+    expect(events).toEqual([{ sessionId: background, text: "imported from .pi-input.md" }]);
+
+    const foreground = await registry.createSession(dir);
+    await waitFor(() => registry.snapshot().activeSessionId === foreground && registry.snapshot().activeSession?.status === "ready");
+    events.length = 0;
+
+    // Background session keeps the latest editor text until activation.
+    await registry.sendPrompt(background, "/input-file", []);
+    expect(events).toEqual([]);
+
+    await registry.activateSession(background);
+    expect(events).toEqual([{ sessionId: background, text: "imported from .pi-input.md" }]);
+  });
 });
 
 async function waitForForkableHistory(registry: InstanceType<typeof SessionRegistry>, lastEntryId: string): Promise<void> {

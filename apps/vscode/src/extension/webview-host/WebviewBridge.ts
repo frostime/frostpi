@@ -59,7 +59,7 @@ export class WebviewBridge implements vscode.Disposable {
     this.#disposables.push(
       registry.onDidChange(() => this.#postWorkspaceUpdate()),
       registry.onDidToast((toast) => this.post({ type: "toast", ...toast })),
-      registry.onDidInsertPromptText((text) => this.post({ type: "insertPromptText", text })),
+      registry.onDidSetComposerText(({ sessionId, text }) => this.post({ type: "setComposerText", sessionId, text })),
       this.#composerEditor,
     );
   }

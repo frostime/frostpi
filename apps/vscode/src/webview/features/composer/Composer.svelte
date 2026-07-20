@@ -3,7 +3,7 @@
   import type { SessionViewModel } from "$shared/model/sessionViewModel";
 
   import { postToHost } from "../../bridge/vscodeBridge";
-  import { clearDraft, composerDrafts, updateDraft, type DraftImage } from "../../state/composerDraftStore.svelte";
+  import { clearDraft, composerDrafts, getDraft, setDraft, updateDraft, type DraftImage, type SessionDraft } from "../../state/composerDraftStore.svelte";
   import { promptSubmissionResult } from "../../state/promptSubmissionStore.svelte";
   import { composerFocusTick, showToast } from "../../state/sessionViewStore.svelte";
   import { createId } from "../../utils/createId";
@@ -18,6 +18,7 @@
   let { session }: { session: SessionViewModel } = $props();
   let editor: PromptEditor;
   let pendingRequestId = $state<string | null>(null);
+  let pendingSubmittedDraft = $state<SessionDraft | null>(null);
   let expanded = $state(false);
 
   const draft = $derived($composerDrafts[session.id] ?? { text: "", images: [] });
@@ -53,8 +54,15 @@
   $effect(() => {
     const result = $promptSubmissionResult;
     if (!result || result.requestId !== pendingRequestId) return;
-    if (result.ok) clearDraft(session.id);
+    const submitted = pendingSubmittedDraft;
     pendingRequestId = null;
+    pendingSubmittedDraft = null;
+    // Success: leave whatever is in the composer (including set_editor_text from extension commands).
+    // Failure: restore the submitted snapshot only if the composer is still empty.
+    if (result.ok || !submitted) return;
+    const current = getDraft(session.id);
+    if (current.text.length > 0 || current.images.length > 0) return;
+    setDraft(session.id, submitted);
   });
 
   function setText(text: string): void {
@@ -81,12 +89,20 @@
     }
     const requestId = createId("prompt");
     pendingRequestId = requestId;
+    pendingSubmittedDraft = {
+      text: draft.text,
+      images: draft.images.map((image) => ({ ...image })),
+    };
+    const text = draft.text;
+    const images = draft.images.map(({ id, name, mimeType, data, size }) => ({ id, name, mimeType, data, size }));
+    // Clear on send. Do not clear again on promptResult(ok): extension commands may fill the draft first.
+    clearDraft(session.id);
     postToHost({
       type: "sendPrompt",
       requestId,
       sessionId: session.id,
-      text: draft.text,
-      images: draft.images.map(({ id, name, mimeType, data, size }) => ({ id, name, mimeType, data, size })),
+      text,
+      images,
     });
   }
 

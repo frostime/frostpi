@@ -71,4 +71,14 @@ describe("Pi extension UI coordination", () => {
     expect(sendExtensionUiResponse).toHaveBeenCalledWith("r1", { value: "answer" });
     await expect(coordinator.respond("r1", { value: "again" })).rejects.toThrow(/no longer pending/);
   });
+
+  it("routes set_editor_text to the host composer effect", () => {
+    const onEditorText = vi.fn();
+    const coordinator = new ExtensionUiCoordinator(
+      { sendExtensionUiResponse: vi.fn() } as never,
+      { onChange: vi.fn(), onNotify: vi.fn(), onTitle: vi.fn(), onEditorText },
+    );
+    coordinator.handle({ type: "extension_ui_request", id: "e1", method: "set_editor_text", text: "draft from extension" });
+    expect(onEditorText).toHaveBeenCalledWith("draft from extension");
+  });
 });

@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Honor Pi extension `set_editor_text` by replacing the session composer draft instead of appending through the selection-insert path.
+- Keep composer text filled by extension commands such as `/input-file` after submit: clear the draft on send, and do not clear it again when `promptResult` succeeds.
+
 ## [0.6.0] - 2026-07-20
 
 ### Added
