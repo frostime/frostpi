@@ -28,6 +28,7 @@ pnpm package:vsix && pnpm verify:vsix
 - One `SessionRuntime` owns one Pi process. Do not add a global concurrency lock.
 - FrostPi never intercepts Pi file writes or injects `@file` contents.
 - Proxy changes apply only after session process restart; never silently interrupt a running turn.
+- Webview CSS: component-private chrome lives in that Svelte component's scoped `<style>`; keep shared primitives, design tokens/variables, cross-tree layout (`:has`, shell), and body-mounted surfaces (e.g. CodeMirror tooltips) in `apps/vscode/src/webview/styles/` (`tokens.css`, `sessions.css`, `composer.css`, `pickers.css`, plus markdown/motion/theme sheets). Do not grow feature-only rules back into the global bags.
 
 ## Change discipline
 
