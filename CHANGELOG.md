@@ -6,8 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-07-20
+
 ### Added
 
+- Render KaTeX math (`$…$`, `$$…$$`, `\(…\)`, `\[…\]`) and complete Mermaid fences in conversation messages. Incomplete Mermaid fences stay as source text while streaming.
 - Copy the original Markdown text from user messages and individual assistant responses.
 - Fork a conversation from any completed user message using its exact Pi session entry. FrostPi keeps the original session and Composer draft, opens a temporary named fork, and restores the selected text and images for editing before submission.
 
@@ -142,7 +145,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add editor context capture, file navigation, Git-base diffs, diagnostics export, CSP, and trusted-workspace constraints.
 - Add production builds, tests, VSIX verification, release scripts, and maintenance documentation.
 
-[Unreleased]: https://github.com/frostime/frostpi/compare/v0.4.2...HEAD
+[Unreleased]: https://github.com/frostime/frostpi/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/frostime/frostpi/compare/v0.4.2...v0.5.0
 [0.4.2]: https://github.com/frostime/frostpi/compare/v0.4.1...v0.4.2
 [0.4.1]: https://github.com/frostime/frostpi/compare/v0.4.0...v0.4.1
 [0.4.0]: https://github.com/frostime/frostpi/compare/v0.3.0...v0.4.0
