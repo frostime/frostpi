@@ -40,6 +40,7 @@ export class WebviewBridge implements vscode.Disposable {
   #turnRefs = new Map<string, AgentTurnView>();
   #noticeOrder: string[] = [];
   #noticeRefs = new Map<string, SessionNoticeView>();
+  readonly #pendingComposerText = new Map<string, string>();
 
   constructor(registry: SessionRegistry, logger: DiagnosticLogger) {
     this.#registry = registry;
@@ -47,8 +48,11 @@ export class WebviewBridge implements vscode.Disposable {
     this.#fileCatalog = new WorkspaceFileCatalog({ maxFiles: 50_000 });
     this.#composerEditor = new ComposerExternalEditor(
       (result) => {
-        this.post({ type: "setComposerText", sessionId: result.sessionId, text: result.text });
-        void vscode.commands.executeCommand("frostpi.focus");
+        this.#pendingComposerText.set(result.sessionId, result.text);
+        void this.#deliverComposerText(result.sessionId).catch((error) => {
+          this.#logger.error("Failed to apply composer editor draft", error);
+          this.post({ type: "toast", level: "error", message: error instanceof Error ? error.message : String(error) });
+        });
       },
       () => this.post({ type: "toast", level: "info", message: "Finish the open composer editor tab first." }),
     );
@@ -67,6 +71,7 @@ export class WebviewBridge implements vscode.Disposable {
     this.#webviewMessageDisposable = webview.onDidReceiveMessage((raw: unknown) => {
       void this.#receive(raw);
     });
+    // A remounted Webview may not have sent ready yet; keep pending until then.
   }
 
   detach(webview: vscode.Webview): void {
@@ -88,6 +93,26 @@ export class WebviewBridge implements vscode.Disposable {
   post(message: HostToWebviewPayload): void {
     if (!this.#webview) return;
     void this.#webview.postMessage({ ...message, bridgeVersion: BRIDGE_VERSION });
+  }
+
+  async #deliverComposerText(sessionId: string): Promise<void> {
+    const text = this.#pendingComposerText.get(sessionId);
+    if (text === undefined) return;
+    // Focus the sidebar first so a hidden Webview is alive before draft replacement arrives.
+    await vscode.commands.executeCommand("frostpi.focus");
+    if (!this.#webview) return;
+    this.#pendingComposerText.delete(sessionId);
+    this.post({ type: "setComposerText", sessionId, text });
+    this.focusComposer();
+    this.#logger.info(`Applied composer editor draft for session ${sessionId} (${text.length} chars)`);
+  }
+
+  #flushPendingComposerText(): void {
+    for (const sessionId of [...this.#pendingComposerText.keys()]) {
+      void this.#deliverComposerText(sessionId).catch((error) => {
+        this.#logger.error("Failed to flush composer editor draft", error);
+      });
+    }
   }
 
   dispose(): void {
@@ -161,6 +186,7 @@ export class WebviewBridge implements vscode.Disposable {
     switch (message.type) {
       case "ready":
         this.#postSnapshot();
+        this.#flushPendingComposerText();
         break;
       case "openFolder":
         await vscode.commands.executeCommand("vscode.openFolder");

@@ -13,20 +13,34 @@ export interface ComposerEditorResult {
 
 /**
  * One-at-a-time temp markdown file for long-form Composer drafts (Pi external-editor shape).
- * Closing the tab reads the file from disk: Save keeps edits, Don't Save discards them.
+ * Tab close applies on-disk contents: Save keeps edits, Don't Save keeps last saved/prefill text.
  */
 export class ComposerExternalEditor implements vscode.Disposable {
   #pending: { sessionId: string; fsPath: string } | null = null;
+  #applying = false;
   readonly #onApply: (result: ComposerEditorResult) => void;
   readonly #onAlreadyOpen: () => void;
-  readonly #closeSubscription: vscode.Disposable;
+  readonly #subscriptions: vscode.Disposable[] = [];
 
   constructor(onApply: (result: ComposerEditorResult) => void, onAlreadyOpen: () => void) {
     this.#onApply = onApply;
     this.#onAlreadyOpen = onAlreadyOpen;
-    this.#closeSubscription = vscode.workspace.onDidCloseTextDocument((document) => {
-      void this.#applyClosedDocument(document);
-    });
+    this.#subscriptions.push(
+      vscode.window.tabGroups.onDidChangeTabs((event) => {
+        if (!this.#pending) return;
+        for (const tab of event.closed) {
+          const input = tab.input;
+          if (input instanceof vscode.TabInputText && samePath(input.uri.fsPath, this.#pending.fsPath)) {
+            void this.#applyPending();
+            return;
+          }
+        }
+      }),
+      vscode.workspace.onDidCloseTextDocument((document) => {
+        if (!this.#pending || !samePath(document.uri.fsPath, this.#pending.fsPath)) return;
+        void this.#applyPending();
+      }),
+    );
   }
 
   async open(sessionId: string, text: string): Promise<void> {
@@ -50,7 +64,7 @@ export class ComposerExternalEditor implements vscode.Disposable {
   }
 
   dispose(): void {
-    this.#closeSubscription.dispose();
+    for (const subscription of this.#subscriptions) subscription.dispose();
     const pending = this.#pending;
     this.#pending = null;
     if (pending) {
@@ -62,14 +76,18 @@ export class ComposerExternalEditor implements vscode.Disposable {
     }
   }
 
-  async #applyClosedDocument(document: vscode.TextDocument): Promise<void> {
+  async #applyPending(): Promise<void> {
     const pending = this.#pending;
-    if (!pending || !samePath(document.uri.fsPath, pending.fsPath)) return;
+    if (!pending || this.#applying) return;
+    this.#applying = true;
     this.#pending = null;
     try {
-      const text = (await fs.readFile(pending.fsPath, "utf8")).replace(/\n$/, "");
+      // Yield so an in-flight Save can finish writing before we read disk.
+      await sleep(0);
+      const text = await readFileWithRetry(pending.fsPath);
       this.#onApply({ sessionId: pending.sessionId, text });
     } finally {
+      this.#applying = false;
       await this.#deleteQuietly(pending.fsPath);
     }
   }
@@ -85,4 +103,21 @@ function samePath(left: string, right: string): boolean {
   return process.platform === "win32"
     ? normalizedLeft.toLowerCase() === normalizedRight.toLowerCase()
     : normalizedLeft === normalizedRight;
+}
+
+async function readFileWithRetry(fsPath: string): Promise<string> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    try {
+      return (await fs.readFile(fsPath, "utf8")).replace(/\n$/, "");
+    } catch (error) {
+      lastError = error;
+      await sleep(15 * (attempt + 1));
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error(`Unable to read composer editor file: ${fsPath}`);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolveDone) => setTimeout(resolveDone, ms));
 }

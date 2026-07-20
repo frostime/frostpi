@@ -17,22 +17,30 @@ const vscodeMock = vi.hoisted(() => {
     }
   }
 
+  class TabInputText {
+    constructor(readonly uri: { fsPath: string }) {}
+  }
+
   type MockDocument = { uri: { fsPath: string }; getText(): string };
-  const closeEmitter = new EventEmitter<MockDocument>();
+  const closeDocumentEmitter = new EventEmitter<MockDocument>();
+  const changeTabsEmitter = new EventEmitter<{ closed: Array<{ input: unknown }> }>();
   const documents: MockDocument[] = [];
 
   return {
-    closeEmitter,
+    TabInputText,
+    closeDocumentEmitter,
+    changeTabsEmitter,
     documents,
     reset() {
       documents.length = 0;
-      closeEmitter.dispose();
+      closeDocumentEmitter.dispose();
+      changeTabsEmitter.dispose();
     },
     Uri: {
       file: (fsPath: string) => ({ fsPath, scheme: "file", toString: () => `file:${fsPath}` }),
     },
     workspace: {
-      onDidCloseTextDocument: closeEmitter.event.bind(closeEmitter),
+      onDidCloseTextDocument: closeDocumentEmitter.event.bind(closeDocumentEmitter),
       get textDocuments() {
         return documents;
       },
@@ -48,11 +56,15 @@ const vscodeMock = vi.hoisted(() => {
     },
     window: {
       showTextDocument: vi.fn(async () => undefined),
+      tabGroups: {
+        onDidChangeTabs: changeTabsEmitter.event.bind(changeTabsEmitter),
+      },
     },
   };
 });
 
 vi.mock("vscode", () => ({
+  TabInputText: vscodeMock.TabInputText,
   Uri: vscodeMock.Uri,
   workspace: vscodeMock.workspace,
   window: vscodeMock.window,
@@ -77,10 +89,29 @@ describe("ComposerExternalEditor", () => {
 
     const document = vscodeMock.documents[0]!;
     await writeFile(document.uri.fsPath, "edited body\n", "utf8");
-    vscodeMock.closeEmitter.fire(document);
+    vscodeMock.changeTabsEmitter.fire({
+      closed: [{ input: new vscodeMock.TabInputText({ fsPath: document.uri.fsPath }) }],
+    });
     await vi.waitFor(() => expect(applied).toEqual([{ sessionId: "session-1", text: "edited body" }]));
 
     await expect(access(document.uri.fsPath)).rejects.toThrow();
+    editor.dispose();
+  });
+
+  it("applies only once when both tab-close and document-close fire", async () => {
+    const applied: Array<{ sessionId: string; text: string }> = [];
+    const editor = new ComposerExternalEditor((result) => applied.push(result), vi.fn());
+
+    await editor.open("session-1", "draft");
+    const document = vscodeMock.documents[0]!;
+    await writeFile(document.uri.fsPath, "once\n", "utf8");
+
+    vscodeMock.changeTabsEmitter.fire({
+      closed: [{ input: new vscodeMock.TabInputText({ fsPath: document.uri.fsPath }) }],
+    });
+    vscodeMock.closeDocumentEmitter.fire(document);
+
+    await vi.waitFor(() => expect(applied).toEqual([{ sessionId: "session-1", text: "once" }]));
     editor.dispose();
   });
 
