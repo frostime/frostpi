@@ -55,7 +55,8 @@ Resume discovers Pi sessions for every allowed Session working directory.
 
 - Session roots are resolved separately for each directory because `.pi/settings.json` and relative `sessionDir` values may differ by worktree.
 - Resolved roots are deduplicated before scanning.
-- The existing global scan bound remains 2,000 JSONL files across all roots.
+- Roots exclusive to linked worktrees are scanned before roots exclusive to the current workspace; roots shared by multiple working directories are scanned last.
+- The existing global scan bound remains 2,000 JSONL files across all roots; discovery does not enumerate every candidate merely to sort by `mtime`.
 - Results are grouped by worktree: current workspace first, then other worktrees by display name; each group is ordered by most recent update.
 - Each Session item includes its worktree label in a searchable `label`, `description`, or `detail`, in addition to title, prompt preview, time, and path.
 - Native `QuickPick` search matches `label`, `description`, and `detail` across all groups.

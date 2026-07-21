@@ -85,12 +85,31 @@ export async function discoverPiSessions(
   resolveRoots: SessionRootResolver = resolveSessionRoots,
 ): Promise<PiSessionCatalogEntry[]> {
   const rootsByDirectory = await Promise.all(directories.map((directory) => resolveRoots(directory.cwd, piArguments)));
-  const roots = rootsByDirectory.flat().filter((root, index, all) => all.findIndex((candidate) => samePath(candidate, root)) === index);
+  const roots = prioritizeSessionRoots(directories, rootsByDirectory);
   const paths = await findJsonlFiles(roots, MAX_FILES);
   const entries = await mapConcurrent(paths, 12, readPiSessionMetadata);
   return entries
     .filter((entry): entry is PiSessionCatalogEntry => Boolean(entry && findSessionWorkingDirectory(directories, entry.cwd)))
     .sort((a, b) => b.updatedAt - a.updatedAt);
+}
+
+export function prioritizeSessionRoots(
+  directories: readonly SessionWorkingDirectory[],
+  rootsByDirectory: readonly (readonly string[])[],
+): string[] {
+  const roots: Array<{ path: string; owners: Set<number>; ownerIsCurrent: boolean }> = [];
+  for (const [directoryIndex, directoryRoots] of rootsByDirectory.entries()) {
+    for (const path of directoryRoots) {
+      const existing = roots.find((root) => samePath(root.path, path));
+      if (existing) existing.owners.add(directoryIndex);
+      else roots.push({ path, owners: new Set([directoryIndex]), ownerIsCurrent: directories[directoryIndex]?.isCurrent === true });
+    }
+  }
+
+  const linkedExclusive = roots.filter((root) => root.owners.size === 1 && !root.ownerIsCurrent);
+  const currentExclusive = roots.filter((root) => root.owners.size === 1 && root.ownerIsCurrent);
+  const shared = roots.filter((root) => root.owners.size > 1);
+  return [...linkedExclusive, ...currentExclusive, ...shared].map((root) => root.path);
 }
 
 export async function readPiSessionMetadata(path: string): Promise<PiSessionCatalogEntry | undefined> {

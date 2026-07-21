@@ -12,7 +12,7 @@ vi.mock("vscode", () => ({
   commands: { executeCommand: vi.fn() },
 }));
 
-import { buildSessionQuickPickItems, discoverPiSessions, readPiSessionMetadata, resolveSessionRoots } from "../../src/extension/sessions/SessionCatalog.js";
+import { buildSessionQuickPickItems, discoverPiSessions, prioritizeSessionRoots, readPiSessionMetadata, resolveSessionRoots } from "../../src/extension/sessions/SessionCatalog.js";
 import type { SessionWorkingDirectory } from "../../src/extension/sessions/SessionWorkingDirectories.js";
 
 describe("Pi session metadata", () => {
@@ -86,6 +86,31 @@ describe("Pi session metadata", () => {
 });
 
 describe("session discovery across worktrees", () => {
+  it("prioritizes linked-worktree roots before current and shared roots", () => {
+    const main = resolve("/repo");
+    const linkedA = resolve("/worktrees/a");
+    const linkedB = resolve("/worktrees/b");
+    const directories: SessionWorkingDirectory[] = [
+      { cwd: main, workspaceFolderCwd: main, worktreeRoot: main, directoryName: "main", isCurrent: true },
+      { cwd: linkedA, workspaceFolderCwd: main, worktreeRoot: linkedA, directoryName: "a", isCurrent: false },
+      { cwd: linkedB, workspaceFolderCwd: main, worktreeRoot: linkedB, directoryName: "b", isCurrent: false },
+    ];
+    const shared = resolve("/sessions/shared");
+    const linkedShared = resolve("/sessions/linked-shared");
+
+    expect(prioritizeSessionRoots(directories, [
+      [resolve("/sessions/main"), shared],
+      [resolve("/sessions/a"), shared, linkedShared],
+      [resolve("/sessions/b"), shared, linkedShared],
+    ])).toEqual([
+      resolve("/sessions/a"),
+      resolve("/sessions/b"),
+      resolve("/sessions/main"),
+      shared,
+      linkedShared,
+    ]);
+  });
+
   it("resolves project session roots for every allowed working directory", async () => {
     const main = await mkdtemp(join(tmpdir(), "frostpi-main-worktree-"));
     const linked = await mkdtemp(join(tmpdir(), "frostpi-linked-worktree-"));
