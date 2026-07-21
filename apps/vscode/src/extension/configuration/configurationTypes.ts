@@ -18,6 +18,7 @@ export interface FrostPiConfiguration {
   maxImageBytes: number;
   diagnosticsLevel: "error" | "info" | "debug";
   proxy: ProxyConfiguration;
-  fileMentionMaxFiles: number;
   fileMentionRespectSearchExclude: boolean;
+  fileMentionRespectIgnoreFiles: boolean;
+  fileMentionFollowSymlinks: boolean;
 }

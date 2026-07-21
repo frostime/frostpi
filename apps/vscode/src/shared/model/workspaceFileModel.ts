@@ -3,6 +3,7 @@ export interface WorkspaceFileCandidateView {
   name: string;
   directory: string;
   score: number;
+  isDirectory: boolean;
 }
 
 /** Built-in @ completion row (path/line reference only; no file body). */

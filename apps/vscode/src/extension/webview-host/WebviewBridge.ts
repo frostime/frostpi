@@ -19,7 +19,7 @@ import { exportDiagnostics } from "../diagnostics/exportDiagnostics.js";
 import type { DiagnosticLogger } from "../diagnostics/DiagnosticLogger.js";
 import { openFileDiff } from "../file-changes/GitBaseContentProvider.js";
 import type { SessionRegistry } from "../sessions/SessionRegistry.js";
-import { WorkspaceFileCatalog } from "../workspace-files/WorkspaceFileCatalog.js";
+import { WorkspaceFileSearch, type WorkspaceFileExcludeRule } from "../workspace-files/WorkspaceFileSearch.js";
 
 interface Identified {
   id: string;
@@ -30,7 +30,7 @@ export class WebviewBridge implements vscode.Disposable {
   readonly #disposables: vscode.Disposable[] = [];
   readonly #registry: SessionRegistry;
   readonly #logger: DiagnosticLogger;
-  readonly #fileCatalog: WorkspaceFileCatalog;
+  readonly #fileSearch: WorkspaceFileSearch;
   readonly #composerEditor: ComposerExternalEditor;
 
   #webview: vscode.Webview | null = null;
@@ -45,7 +45,7 @@ export class WebviewBridge implements vscode.Disposable {
   constructor(registry: SessionRegistry, logger: DiagnosticLogger) {
     this.#registry = registry;
     this.#logger = logger;
-    this.#fileCatalog = new WorkspaceFileCatalog({ maxFiles: 50_000 });
+    this.#fileSearch = new WorkspaceFileSearch();
     this.#composerEditor = new ComposerExternalEditor(
       (result) => {
         this.#pendingComposerText.set(result.sessionId, result.text);
@@ -118,7 +118,7 @@ export class WebviewBridge implements vscode.Disposable {
   dispose(): void {
     this.#webviewMessageDisposable?.dispose();
     for (const disposable of this.#disposables) disposable.dispose();
-    this.#fileCatalog.dispose();
+    this.#fileSearch.dispose();
   }
 
   #postSnapshot(): void {
@@ -283,12 +283,19 @@ export class WebviewBridge implements vscode.Disposable {
         try {
           const session = this.#registry.snapshot().activeSession;
           if (!session || session.id !== message.sessionId) throw new Error("The active session changed before file search completed.");
-          const configuration = readConfiguration(workspaceUriForPath(session.cwd));
-          this.#fileCatalog.configure({
-            maxFiles: configuration.fileMentionMaxFiles,
-            respectSearchExclude: configuration.fileMentionRespectSearchExclude,
-          });
-          const items = await this.#fileCatalog.search(session.cwd, message.query, message.limit, workspaceFileBoosts(session));
+          const scope = workspaceUriForPath(session.cwd);
+          const configuration = readConfiguration(scope);
+          const items = await this.#fileSearch.search(
+            session.cwd,
+            message.query,
+            message.limit,
+            workspaceFileBoosts(session),
+            {
+              excludeRules: workspaceFileExcludeRules(scope, configuration.fileMentionRespectSearchExclude),
+              respectIgnoreFiles: configuration.fileMentionRespectIgnoreFiles,
+              followSymlinks: configuration.fileMentionFollowSymlinks,
+            },
+          );
           const specials = listEditorMentionSpecials(message.query);
           this.post({
             type: "workspaceFileSuggestions",
@@ -323,6 +330,25 @@ export class WebviewBridge implements vscode.Disposable {
         break;
     }
   }
+}
+
+type ConfiguredExclude = boolean | { when?: string };
+
+function workspaceFileExcludeRules(scope: vscode.Uri, respectSearchExclude: boolean): WorkspaceFileExcludeRule[] {
+  const files = vscode.workspace.getConfiguration("files", scope).get<Record<string, ConfiguredExclude>>("exclude", {});
+  const rules = Object.entries(files)
+    .filter(([, value]) => value === true || (typeof value === "object" && value !== null))
+    .map(([pattern, value]) => ({
+      pattern,
+      ...(typeof value === "object" && value.when ? { when: value.when } : {}),
+    }));
+  if (!respectSearchExclude) return rules;
+
+  const search = vscode.workspace.getConfiguration("search", scope).get<Record<string, ConfiguredExclude>>("exclude", {});
+  for (const [pattern, value] of Object.entries(search)) {
+    if (value === true || (typeof value === "object" && value !== null)) rules.push({ pattern });
+  }
+  return rules;
 }
 
 function workspaceFileBoosts(session: SessionViewModel): Set<string> {

@@ -18,6 +18,7 @@
   import { withFrostPiCommands } from "./frostPiCommands";
   import { requestWorkspaceFileSuggestions } from "./fileSuggestionClient";
   import { promptSyntax } from "./promptSyntax";
+  import { workspaceMentionEdit } from "./workspaceMentionCompletion";
 
   let {
     sessionId,
@@ -192,9 +193,17 @@
       }));
       for (const item of result.items) {
         options.push({
-          label: item.name,
+          label: `${item.name}${item.isDirectory ? "/" : ""}`,
           detail: item.directory || "workspace root",
-          apply: mentionText(item.path),
+          type: item.isDirectory ? "folder" : "file",
+          apply: (view, _completion, from, to) => {
+            const edit = workspaceMentionEdit(item.path, item.isDirectory);
+            const replaceTo = edit.text.includes('"') && view.state.sliceDoc(to, to + 1) === '"' ? to + 1 : to;
+            view.dispatch({
+              changes: { from, to: replaceTo, insert: edit.text },
+              selection: { anchor: from + edit.cursorOffset },
+            });
+          },
         });
       }
       if (!options.length) {
@@ -214,9 +223,4 @@
       };
     };
   }
-
-  function mentionText(path: string): string {
-    return /\s/.test(path) ? `@"${path.replaceAll('"', '\\"')}" ` : `@${path} `;
-  }
-
 </script>

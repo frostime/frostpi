@@ -20,8 +20,9 @@ export function readConfiguration(scope?: vscode.Uri): FrostPiConfiguration {
       // Keep package default / DEFAULT_NO_PROXY aligned so empty/missing still reach buildPiProcessEnvironment.
       ...optional("noProxy", config.get<string>("network.proxy.noProxy", DEFAULT_NO_PROXY)),
     },
-    fileMentionMaxFiles: config.get<number>("composer.fileMentions.maxFiles", 50_000),
     fileMentionRespectSearchExclude: config.get<boolean>("composer.fileMentions.respectSearchExclude", true),
+    fileMentionRespectIgnoreFiles: config.get<boolean>("composer.fileMentions.respectIgnoreFiles", true),
+    fileMentionFollowSymlinks: config.get<boolean>("composer.fileMentions.followSymlinks", true),
   };
 }
 
