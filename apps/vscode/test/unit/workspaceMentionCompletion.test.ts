@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { workspaceMentionEdit } from "../../src/webview/features/composer/workspaceMentionCompletion.js";
+import {
+  workspaceMentionEdit,
+  workspaceMentionReplaceTo,
+} from "../../src/webview/features/composer/workspaceMentionCompletion.js";
 
 describe("workspace mention completion", () => {
   it("finishes file mentions with a space", () => {
@@ -13,5 +16,10 @@ describe("workspace mention completion", () => {
 
   it("keeps the cursor inside quotes for directories containing whitespace", () => {
     expect(workspaceMentionEdit("my docs", true)).toEqual({ text: '@"my docs/"', cursorOffset: 10 });
+  });
+
+  it("consumes an existing closing quote only while continuing a quoted mention", () => {
+    expect(workspaceMentionReplaceTo('@"my docs/', 10, '"')).toBe(11);
+    expect(workspaceMentionReplaceTo("@my", 10, '"')).toBe(10);
   });
 });

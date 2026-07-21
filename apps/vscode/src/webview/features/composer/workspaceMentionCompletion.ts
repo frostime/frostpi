@@ -3,6 +3,10 @@ export interface WorkspaceMentionEdit {
   cursorOffset: number;
 }
 
+export function workspaceMentionReplaceTo(matchText: string, to: number, nextCharacter: string): number {
+  return matchText.startsWith('@"') && nextCharacter === '"' ? to + 1 : to;
+}
+
 export function workspaceMentionEdit(path: string, isDirectory: boolean): WorkspaceMentionEdit {
   const completionPath = isDirectory && !path.endsWith("/") ? `${path}/` : path;
   const text = /\s/.test(completionPath)

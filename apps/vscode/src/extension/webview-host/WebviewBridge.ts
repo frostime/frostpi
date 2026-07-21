@@ -45,7 +45,13 @@ export class WebviewBridge implements vscode.Disposable {
   constructor(registry: SessionRegistry, logger: DiagnosticLogger) {
     this.#registry = registry;
     this.#logger = logger;
-    this.#fileSearch = new WorkspaceFileSearch();
+    this.#fileSearch = new WorkspaceFileSearch({
+      onLegacyFd: (fd) => {
+        void vscode.window.showWarningMessage(
+          `FrostPi found fd ${fd.version}. File completion remains available, but directory suggestions require fd 10.0.0 or newer.`,
+        );
+      },
+    });
     this.#composerEditor = new ComposerExternalEditor(
       (result) => {
         this.#pendingComposerText.set(result.sessionId, result.text);

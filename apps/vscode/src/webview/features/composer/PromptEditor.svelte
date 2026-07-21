@@ -18,7 +18,7 @@
   import { withFrostPiCommands } from "./frostPiCommands";
   import { requestWorkspaceFileSuggestions } from "./fileSuggestionClient";
   import { promptSyntax } from "./promptSyntax";
-  import { workspaceMentionEdit } from "./workspaceMentionCompletion";
+  import { workspaceMentionEdit, workspaceMentionReplaceTo } from "./workspaceMentionCompletion";
 
   let {
     sessionId,
@@ -198,7 +198,7 @@
           type: item.isDirectory ? "folder" : "file",
           apply: (view, _completion, from, to) => {
             const edit = workspaceMentionEdit(item.path, item.isDirectory);
-            const replaceTo = edit.text.includes('"') && view.state.sliceDoc(to, to + 1) === '"' ? to + 1 : to;
+            const replaceTo = workspaceMentionReplaceTo(match.text, to, view.state.sliceDoc(to, to + 1));
             view.dispatch({
               changes: { from, to: replaceTo, insert: edit.text },
               selection: { anchor: from + edit.cursorOffset },

@@ -42,4 +42,4 @@ This is expected. Use **FrostPi: Configure Network Proxy** or **Network & proxy*
 
 ## `@file` completion does not appear
 
-Typing `@` should immediately open workspace-path suggestions. If no path appears, check the FrostPi Output channel, verify that `fd` is available in PATH or Pi's managed bin directory, and review `files.exclude`, `search.exclude`, and the `frostpi.composer.fileMentions.*` settings. FrostPi displays no-result/search-error rows instead of failing silently. Completion inserts a workspace-relative textual reference only; Pi decides whether to read it.
+Typing `@` should immediately open workspace-path suggestions. If no path appears, check the FrostPi Output channel, verify that `fd` is available in PATH or Pi's managed bin directory, and review `files.exclude`, `search.exclude`, and the `frostpi.composer.fileMentions.*` settings. Directory rows require fd 10.0.0 or newer; older versions continue to provide file rows and trigger a one-time warning. FrostPi displays no-result/search-error rows instead of failing silently. Completion inserts a workspace-relative textual reference only; Pi decides whether to read it.
