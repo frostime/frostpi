@@ -45,11 +45,16 @@
           {@render activityRow(activity)}
         {/each}
       {/if}
-      <div class="turn-trace-break" role="separator" aria-label="Final reply">
+      <button
+        type="button"
+        class="turn-trace-break"
+        aria-label={`${traceOpen ? "Collapse" : "Expand"} work trace`}
+        onclick={() => traceOpen = !traceOpen}
+      >
         <span class="turn-trace-break-line" aria-hidden="true"></span>
         <span class="turn-trace-break-label">Reply</span>
         <span class="turn-trace-break-line" aria-hidden="true"></span>
-      </div>
+      </button>
       {#each plan.visible as activity (activity.id)}
         {@render activityRow(activity)}
       {/each}
@@ -101,8 +106,27 @@
     grid-template-columns: minmax(12px, 1fr) auto minmax(12px, 1fr);
     align-items: center;
     gap: 8px;
+    width: 100%;
     margin: 7px 2px 5px;
+    padding: 3px 2px;
     min-width: 0;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    transition: background var(--motion-fast) ease;
+  }
+
+  .turn-trace-break:hover {
+    background: color-mix(in srgb, var(--frost-surface) 48%, transparent);
+  }
+
+  .turn-trace-break:hover .turn-trace-break-line {
+    background: var(--frost-border);
+  }
+
+  .turn-trace-break:hover .turn-trace-break-label {
+    color: var(--frost-muted);
   }
 
   .turn-trace-break-line {
