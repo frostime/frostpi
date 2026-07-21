@@ -5,14 +5,18 @@ import { join, normalize, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("vscode", () => ({
-  window: {},
+  window: {
+    createQuickPick: vi.fn(),
+  },
   ProgressLocation: { Window: 10 },
   QuickPickItemKind: { Separator: -1 },
   Uri: { file: (fsPath: string) => ({ fsPath }) },
   commands: { executeCommand: vi.fn() },
 }));
 
-import { readPiSessionMetadata, resolveSessionRoots } from "../../src/extension/sessions/SessionCatalog.js";
+import { QuickPickItemKind } from "vscode";
+import { buildSessionQuickPickItems, discoverPiSessions, prioritizeSessionRoots, readPiSessionMetadata, resolveSessionRoots } from "../../src/extension/sessions/SessionCatalog.js";
+import type { SessionWorkingDirectory } from "../../src/extension/sessions/SessionWorkingDirectories.js";
 
 describe("Pi session metadata", () => {
   it("reads cwd, session name, and latest user preview from JSONL", async () => {
@@ -81,6 +85,103 @@ describe("Pi session metadata", () => {
     ].join("\n"));
 
     expect((await readPiSessionMetadata(path))?.title).toBe("fallback preview");
+  });
+});
+
+describe("session discovery across worktrees", () => {
+  it("prioritizes linked-worktree roots before current and shared roots", () => {
+    const main = resolve("/repo");
+    const linkedA = resolve("/worktrees/a");
+    const linkedB = resolve("/worktrees/b");
+    const directories: SessionWorkingDirectory[] = [
+      { cwd: main, workspaceFolderCwd: main, worktreeRoot: main, directoryName: "main", isCurrent: true },
+      { cwd: linkedA, workspaceFolderCwd: main, worktreeRoot: linkedA, directoryName: "a", isCurrent: false },
+      { cwd: linkedB, workspaceFolderCwd: main, worktreeRoot: linkedB, directoryName: "b", isCurrent: false },
+    ];
+    const shared = resolve("/sessions/shared");
+    const linkedShared = resolve("/sessions/linked-shared");
+
+    expect(prioritizeSessionRoots(directories, [
+      [resolve("/sessions/main"), shared],
+      [resolve("/sessions/a"), shared, linkedShared],
+      [resolve("/sessions/b"), shared, linkedShared],
+    ])).toEqual([
+      resolve("/sessions/a"),
+      resolve("/sessions/b"),
+      resolve("/sessions/main"),
+      shared,
+      linkedShared,
+    ]);
+  });
+
+  it("resolves project session roots for every allowed working directory", async () => {
+    const main = await mkdtemp(join(tmpdir(), "frostpi-main-worktree-"));
+    const linked = await mkdtemp(join(tmpdir(), "frostpi-linked-worktree-"));
+    for (const [cwd, title] of [[main, "Main session"], [linked, "Linked session"]] as const) {
+      const sessionDir = join(cwd, ".pi", "sessions");
+      await mkdir(sessionDir, { recursive: true });
+      await writeFile(join(cwd, ".pi", "settings.json"), JSON.stringify({ sessionDir: ".pi/sessions" }));
+      await writeFile(join(sessionDir, `${title}.jsonl`), [
+        JSON.stringify({ type: "session", version: 3, id: title, cwd }),
+        JSON.stringify({ type: "session_info", name: title }),
+      ].join("\n"));
+    }
+    const directories: SessionWorkingDirectory[] = [
+      { cwd: main, workspaceFolderCwd: main, worktreeRoot: main, directoryName: "main", branch: "main", isCurrent: true },
+      { cwd: linked, workspaceFolderCwd: main, worktreeRoot: linked, directoryName: "linked", branch: "feature", isCurrent: false },
+    ];
+
+    const sessions = await discoverPiSessions(
+      directories,
+      [],
+      (cwd) => Promise.resolve([join(cwd, ".pi", "sessions")]),
+    );
+    const quickPickItems = buildSessionQuickPickItems(sessions, directories);
+    const separatorLabels = quickPickItems.filter((item) => item.kind === QuickPickItemKind.Separator).map((item) => item.label);
+    const sessionLabels = quickPickItems.filter((item) => item.entry).map((item) => item.label);
+
+    expect(new Set(sessions.map((session) => session.title))).toEqual(new Set(["Main session", "Linked session"]));
+    expect(separatorLabels).toEqual([
+      "Worktree · feature · linked",
+      "Current workspace · main",
+    ]);
+    expect(sessionLabels).toEqual([
+      "$(git-branch) Linked session",
+      "$(comment-discussion) Main session",
+    ]);
+    expect(quickPickItems.find((item) => item.label === "$(comment-discussion) Main session")?.description)
+      .toContain("main · main");
+    expect(quickPickItems.find((item) => item.label === "$(git-branch) Linked session")?.description)
+      .toContain("feature · linked");
+  });
+
+  it("orders linked worktree groups by latest session before the current workspace", () => {
+    const main = resolve("/repo");
+    const olderLinked = resolve("/worktrees/older");
+    const newerLinked = resolve("/worktrees/newer");
+    const directories: SessionWorkingDirectory[] = [
+      { cwd: main, workspaceFolderCwd: main, worktreeRoot: main, directoryName: "repo", branch: "main", isCurrent: true },
+      { cwd: olderLinked, workspaceFolderCwd: main, worktreeRoot: olderLinked, directoryName: "older", branch: "old-feature", isCurrent: false },
+      { cwd: newerLinked, workspaceFolderCwd: main, worktreeRoot: newerLinked, directoryName: "newer", branch: "new-feature", isCurrent: false },
+    ];
+    const sessions = [
+      { path: "/s/main.jsonl", cwd: main, title: "Main", updatedAt: 300 },
+      { path: "/s/old.jsonl", cwd: olderLinked, title: "Older linked", updatedAt: 100 },
+      { path: "/s/new.jsonl", cwd: newerLinked, title: "Newer linked", updatedAt: 200 },
+    ];
+
+    const labels = buildSessionQuickPickItems(sessions, directories)
+      .filter((item) => item.kind === QuickPickItemKind.Separator || item.entry)
+      .map((item) => item.label);
+
+    expect(labels).toEqual([
+      "Worktree · new-feature · newer",
+      "$(git-branch) Newer linked",
+      "Worktree · old-feature · older",
+      "$(git-branch) Older linked",
+      "Current workspace · main",
+      "$(comment-discussion) Main",
+    ]);
   });
 });
 

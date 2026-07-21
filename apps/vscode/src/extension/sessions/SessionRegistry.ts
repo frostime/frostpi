@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { access } from "node:fs/promises";
-import { normalize, resolve } from "node:path";
+import { basename, normalize, resolve } from "node:path";
 
 import type { RpcExtensionUiResponse, ThinkingLevel } from "@frostime/pi-rpc";
 import * as vscode from "vscode";
@@ -13,6 +13,11 @@ import type { DiagnosticLogger } from "../diagnostics/DiagnosticLogger.js";
 import { ProxySecretStore } from "../network/ProxySecretStore.js";
 import { pickPiSession, readPiSessionMetadata, type PiSessionCatalogEntry } from "./SessionCatalog.js";
 import { SessionPersistence } from "./SessionPersistence.js";
+import {
+  discoverSessionWorkingDirectories,
+  findSessionWorkingDirectory,
+  type SessionWorkingDirectory,
+} from "./SessionWorkingDirectories.js";
 import { normalizePiSlashPrompt } from "./normalizePiSlashPrompt.js";
 import { SessionRuntime } from "./SessionRuntime.js";
 import type { PersistedSessionRecord } from "./sessionTypes.js";
@@ -21,6 +26,8 @@ export interface RegistryToast {
   level: "info" | "warning" | "error";
   message: string;
 }
+
+type DiscoverSessionWorkingDirectories = typeof discoverSessionWorkingDirectories;
 
 interface ForkOperation {
   phase: "waiting-for-pi" | "reconciling";
@@ -46,6 +53,8 @@ export class SessionRegistry implements vscode.Disposable {
   readonly #temporarySessionIds = new Set<string>();
   readonly #startJobs = new Map<string, Promise<void>>();
   readonly #historyJobs = new Map<string, Promise<void>>();
+  readonly #workingDirectoriesByCwd = new Map<string, SessionWorkingDirectory>();
+  readonly #discoverWorkingDirectories: DiscoverSessionWorkingDirectories;
 
   #activeSessionId: string | null = null;
   #forkOperation: ForkOperation | null = null;
@@ -59,9 +68,14 @@ export class SessionRegistry implements vscode.Disposable {
   readonly onDidToast = this.#toastEmitter.event;
   readonly onDidSetComposerText = this.#setComposerTextEmitter.event;
 
-  constructor(context: vscode.ExtensionContext, logger: DiagnosticLogger) {
+  constructor(
+    context: vscode.ExtensionContext,
+    logger: DiagnosticLogger,
+    discoverWorkingDirectories: DiscoverSessionWorkingDirectories = discoverSessionWorkingDirectories,
+  ) {
     this.#persistence = new SessionPersistence(context.workspaceState);
     this.#logger = logger;
+    this.#discoverWorkingDirectories = discoverWorkingDirectories;
     this.#proxySecrets = new ProxySecretStore(context.secrets);
     const stored = this.#persistence.load();
     for (const record of stored.sessions) this.#restoreRecord(record);
@@ -76,11 +90,12 @@ export class SessionRegistry implements vscode.Disposable {
 
   async ensureInitialSession(): Promise<void> {
     if (!vscode.workspace.workspaceFolders?.length) return;
+    await this.#reconcilePersistedWorkingDirectories();
     await this.#repairGeneratedTitles();
     // Never invent a new session on open. Empty workspaces stay on the onboarding home until
     // the user creates or resumes a session. Optionally start only an already-selected one.
     const active = this.#activeSessionId ? this.#runtimes.get(this.#activeSessionId) : undefined;
-    if (active && readConfiguration(workspaceUriForPath(active.cwd)).startSessionOnOpen) {
+    if (active && readConfiguration(workspaceUriForPath(this.#configurationScopeCwd(active.cwd))).startSessionOnOpen) {
       await this.#startRuntime(active).catch(() => undefined);
     }
   }
@@ -88,7 +103,7 @@ export class SessionRegistry implements vscode.Disposable {
   snapshot(): WorkspaceViewModel {
     const folder = activeWorkspaceFolder();
     const active = this.#activeSessionId ? this.#runtimes.get(this.#activeSessionId) : undefined;
-    const activeView = active?.view ?? null;
+    const activeView = active ? this.#withWorkingDirectoryLabel(active.view) : null;
     const sessions: SessionSummaryView[] = [...this.#runtimes.values()]
       .map((runtime) => {
         const view = runtime.view;
@@ -96,6 +111,7 @@ export class SessionRegistry implements vscode.Disposable {
           id: view.id,
           title: view.title,
           cwd: view.cwd,
+          ...this.#workingDirectoryLabel(view.cwd),
           status: view.status,
           isActive: view.id === this.#activeSessionId,
           ...(view.model ? { modelLabel: view.model.name ?? `${view.model.provider}/${view.model.id}` } : {}),
@@ -117,43 +133,41 @@ export class SessionRegistry implements vscode.Disposable {
     };
   }
 
-  async createSession(cwd = activeWorkspaceFolder()?.uri.fsPath): Promise<string> {
+  async createSession(): Promise<string | undefined> {
     this.#assertNoForkOperation();
+    const cwd = activeWorkspaceFolder()?.uri.fsPath;
     if (!cwd) throw new Error("Open a workspace folder before creating a Pi session.");
-    await this.#discardActiveTemporarySession();
-    const id = randomUUID();
-    const record: PersistedSessionRecord = {
-      id,
-      title: "New session",
-      cwd,
-      updatedAt: Date.now(),
-    };
-    this.#records.set(id, record);
-    this.#temporarySessionIds.add(id);
-    const runtime = this.#createRuntime(record);
-    this.#runtimes.set(id, runtime);
-    this.#activeSessionId = id;
-    await this.#persist();
-    this.#emitChange();
-    await this.#startRuntime(runtime);
-    return id;
+    const discovery = await this.#discoverWorkingDirectories(cwd);
+    const directory = await pickSessionWorkingDirectory(discovery.directories);
+    if (!directory) return undefined;
+    return this.#createSessionInDirectory(directory);
   }
-
 
   async resumeSession(): Promise<string | undefined> {
     this.#assertNoForkOperation();
     const cwd = activeWorkspaceFolder()?.uri.fsPath;
     if (!cwd) throw new Error("Open a workspace folder before resuming a Pi session.");
+    const discovery = await this.#discoverWorkingDirectories(cwd);
     const configuration = readConfiguration(workspaceUriForPath(cwd));
-    const entry = await pickPiSession(cwd, configuration.piArguments);
+    const entry = await pickPiSession(discovery.directories, configuration.piArguments);
     if (!entry) return undefined;
-    return this.openSession(entry);
+    const directory = findSessionWorkingDirectory(discovery.directories, entry.cwd);
+    return this.#openSession(entry, true, directory);
   }
 
   async openSession(entry: PiSessionCatalogEntry): Promise<string> {
+    return this.#openSession(entry, false);
+  }
+
+  async #openSession(
+    entry: PiSessionCatalogEntry,
+    workingDirectoryValidated: boolean,
+    workingDirectory?: SessionWorkingDirectory,
+  ): Promise<string> {
     this.#assertNoForkOperation();
     const existing = [...this.#records.values()].find((record) => record.sessionFile && samePath(record.sessionFile, entry.path));
     if (existing) {
+      if (workingDirectory) this.#rememberWorkingDirectory(workingDirectory);
       if (existing.id !== this.#activeSessionId) await this.#discardActiveTemporarySession();
       await this.activateSession(existing.id);
       return existing.id;
@@ -169,12 +183,34 @@ export class SessionRegistry implements vscode.Disposable {
       updatedAt: entry.updatedAt,
     };
     this.#records.set(id, record);
+    if (workingDirectory) this.#rememberWorkingDirectory(workingDirectory);
     const runtime = this.#createRuntime(record);
     this.#runtimes.set(id, runtime);
     this.#activeSessionId = id;
     await this.#persist();
     this.#emitChange();
-    await this.#startRuntime(runtime);
+    await this.#startRuntime(runtime, workingDirectoryValidated);
+    return id;
+  }
+
+  async #createSessionInDirectory(directory: SessionWorkingDirectory): Promise<string> {
+    await this.#discardActiveTemporarySession();
+    const id = randomUUID();
+    const record: PersistedSessionRecord = {
+      id,
+      title: "New session",
+      cwd: directory.cwd,
+      updatedAt: Date.now(),
+    };
+    this.#records.set(id, record);
+    this.#rememberWorkingDirectory(directory);
+    this.#temporarySessionIds.add(id);
+    const runtime = this.#createRuntime(record);
+    this.#runtimes.set(id, runtime);
+    this.#activeSessionId = id;
+    await this.#persist();
+    this.#emitChange();
+    await this.#startRuntime(runtime, true);
     return id;
   }
 
@@ -401,6 +437,65 @@ export class SessionRegistry implements vscode.Disposable {
     this.#runtimes.set(record.id, this.#createRuntime(record));
   }
 
+  #discoverOpenWorkspaceDirectories() {
+    return Promise.all((vscode.workspace.workspaceFolders ?? []).map((folder) => this.#discoverWorkingDirectories(folder.uri.fsPath)));
+  }
+
+  async #reconcilePersistedWorkingDirectories(): Promise<void> {
+    const externalRecords = [...this.#records.values()].filter((record) => !isOpenWorkspaceFolder(record.cwd));
+    if (!externalRecords.length) return;
+    const discoveries = await this.#discoverOpenWorkspaceDirectories();
+    if (!discoveries.length || discoveries.some((discovery) => !discovery.authoritative)) return;
+    const allowed = discoveries.flatMap((discovery) => discovery.directories);
+    const stale: PersistedSessionRecord[] = [];
+    for (const record of externalRecords) {
+      const directory = findSessionWorkingDirectory(allowed, record.cwd);
+      if (!directory) {
+        stale.push(record);
+        continue;
+      }
+      this.#rememberWorkingDirectory(directory);
+      this.#runtimes.get(record.id)?.refreshConfigurationState();
+    }
+    if (!stale.length) return;
+
+    await Promise.all(stale.map(async (record) => {
+      const runtime = this.#runtimes.get(record.id);
+      if (runtime) await runtime.dispose();
+    }));
+    for (const record of stale) this.#removeSession(record.id);
+    if (this.#activeSessionId && !this.#runtimes.has(this.#activeSessionId)) {
+      this.#activeSessionId = [...this.#runtimes.keys()].at(-1) ?? null;
+    }
+    await this.#persist();
+    this.#logger.info(`Removed ${stale.length} FrostPi session record(s) for deleted worktrees.`);
+    this.#emitChange();
+  }
+
+  async #validateRuntimeWorkingDirectory(runtime: SessionRuntime): Promise<boolean> {
+    if (isOpenWorkspaceFolder(runtime.cwd)) return true;
+    const discoveries = await this.#discoverOpenWorkspaceDirectories();
+    const allowed = discoveries.flatMap((discovery) => discovery.directories);
+    const directory = findSessionWorkingDirectory(allowed, runtime.cwd);
+    if (directory) {
+      this.#rememberWorkingDirectory(directory);
+      runtime.refreshConfigurationState();
+      return true;
+    }
+    if (!discoveries.length || discoveries.some((discovery) => !discovery.authoritative)) {
+      throw new Error(`Unable to verify ${runtime.cwd} because Git worktree discovery failed.`);
+    }
+
+    await runtime.dispose();
+    this.#removeSession(runtime.id);
+    if (this.#activeSessionId === runtime.id) this.#activeSessionId = [...this.#runtimes.keys()].at(-1) ?? null;
+    await this.#persist();
+    this.#logger.info("Removed a FrostPi session record for a deleted worktree before process start.");
+    this.#toastEmitter.fire({ level: "warning", message: "The session was removed because its worktree no longer exists." });
+    this.#emitChange();
+    return false;
+  }
+
   async #repairGeneratedTitles(): Promise<void> {
     let changed = false;
     for (const record of this.#records.values()) {
@@ -420,7 +515,7 @@ export class SessionRegistry implements vscode.Disposable {
       record.cwd,
       record.title,
       record.updatedAt,
-      () => readConfiguration(workspaceUriForPath(record.cwd)),
+      () => readConfiguration(workspaceUriForPath(this.#configurationScopeCwd(record.cwd))),
       this.#proxySecrets,
       this.#logger,
       {
@@ -433,9 +528,10 @@ export class SessionRegistry implements vscode.Disposable {
     );
   }
 
-  async #startRuntime(runtime: SessionRuntime): Promise<void> {
+  async #startRuntime(runtime: SessionRuntime, workingDirectoryValidated = false): Promise<void> {
     const pending = this.#startJobs.get(runtime.id);
     if (pending) return pending;
+    if (!workingDirectoryValidated && !await this.#validateRuntimeWorkingDirectory(runtime)) return;
 
     const sessionFile = this.#records.get(runtime.id)?.sessionFile;
     runtime.markWaitingToStart();
@@ -530,13 +626,15 @@ export class SessionRegistry implements vscode.Disposable {
   }
 
   async #restartRuntime(runtime: SessionRuntime): Promise<void> {
+    if (!await this.#validateRuntimeWorkingDirectory(runtime)) return;
     await runtime.stop().catch(() => undefined);
-    await this.#startRuntime(runtime);
+    await this.#startRuntime(runtime, true);
   }
 
   async #ensureRunning(runtime: SessionRuntime): Promise<void> {
     const status = runtime.view.status;
     if (status === "queued" || status === "stopped" || status === "failed") await this.#startRuntime(runtime);
+    if (!this.#runtimes.has(runtime.id)) throw new Error("The session's worktree is no longer available.");
   }
 
   async #queueHistory(runtime: SessionRuntime, force: boolean): Promise<void> {
@@ -634,6 +732,24 @@ export class SessionRegistry implements vscode.Disposable {
     this.#historyJobs.delete(sessionId);
   }
 
+  #rememberWorkingDirectory(directory: SessionWorkingDirectory): void {
+    this.#workingDirectoriesByCwd.set(normalizedPath(directory.cwd), directory);
+  }
+
+  #configurationScopeCwd(cwd: string): string {
+    return this.#workingDirectoriesByCwd.get(normalizedPath(cwd))?.workspaceFolderCwd ?? cwd;
+  }
+
+  #withWorkingDirectoryLabel(view: SessionRuntime["view"]): SessionRuntime["view"] {
+    const label = this.#workingDirectoryLabel(view.cwd);
+    return label.workingDirectoryLabel ? { ...view, ...label } : view;
+  }
+
+  #workingDirectoryLabel(cwd: string): { workingDirectoryLabel?: string } {
+    if (isOpenWorkspaceFolder(cwd)) return {};
+    return { workingDirectoryLabel: this.#workingDirectoriesByCwd.get(normalizedPath(cwd))?.directoryName ?? basename(cwd) };
+  }
+
   #requireRuntime(sessionId: string): SessionRuntime {
     const runtime = this.#runtimes.get(sessionId);
     if (!runtime) throw new Error(`Unknown FrostPi session: ${sessionId}`);
@@ -644,6 +760,34 @@ export class SessionRegistry implements vscode.Disposable {
     if (!this.#activeSessionId) throw new Error("No active FrostPi session");
     return this.#activeSessionId;
   }
+}
+
+async function pickSessionWorkingDirectory(
+  directories: readonly SessionWorkingDirectory[],
+): Promise<SessionWorkingDirectory | undefined> {
+  if (directories.length <= 1) return directories[0];
+  const items = directories.map((directory) => ({
+    label: directory.isCurrent
+      ? "$(folder-active) Current workspace"
+      : `$(git-branch) ${directory.branch ?? (directory.detached ? "Detached HEAD" : directory.directoryName)}`,
+    description: directory.branch && directory.isCurrent
+      ? `${directory.branch} · ${directory.directoryName}`
+      : directory.directoryName,
+    detail: directory.cwd,
+    directory,
+  }));
+  const selected = await vscode.window.showQuickPick(items, {
+    title: `New Pi session · ${directories[0]?.directoryName ?? "workspace"}`,
+    placeHolder: "Choose where Pi should run",
+    matchOnDescription: true,
+    matchOnDetail: true,
+    ignoreFocusOut: true,
+  });
+  return selected?.directory;
+}
+
+function isOpenWorkspaceFolder(cwd: string): boolean {
+  return Boolean(vscode.workspace.workspaceFolders?.some((folder) => samePath(folder.uri.fsPath, cwd)));
 }
 
 function forkSessionName(title: string): string {
@@ -689,9 +833,12 @@ function activeWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
 }
 
 function samePath(left: string, right: string): boolean {
-  const a = normalize(resolve(left));
-  const b = normalize(resolve(right));
-  return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
+  return normalizedPath(left) === normalizedPath(right);
+}
+
+function normalizedPath(path: string): string {
+  const value = normalize(resolve(path));
+  return process.platform === "win32" ? value.toLowerCase() : value;
 }
 
 function looksLikeGeneratedSessionName(value: string): boolean {

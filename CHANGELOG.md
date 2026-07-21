@@ -6,6 +6,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Run Pi sessions in existing same-repository Git worktrees from one VS Code window. New offers a worktree picker when more than one is available; Resume discovers sessions across those worktrees. FrostPi does not create, delete, or manage worktrees.
+
+### Changed
+
+- Mark sessions outside the open workspace folders with a compact directory capsule on the status line.
+- In Resume, list linked-worktree groups before the current workspace, ordered by recent activity, and use a branch icon on worktree rows.
+
 ## [0.6.2] - 2026-07-21
 
 ### Added

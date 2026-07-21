@@ -4,7 +4,26 @@ import { join, resolve } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const testEnvironment = vi.hoisted(() => ({ cwd: "", piExecutable: "" }));
+import type * as SessionWorkingDirectoriesModule from "../../src/extension/sessions/SessionWorkingDirectories.js";
+
+const testEnvironment = vi.hoisted(() => ({
+  cwd: "",
+  piExecutable: "",
+  quickPickCwd: "",
+  configurationScopes: [] as string[],
+  startSessionOnOpenByCwd: new Map<string, boolean>(),
+}));
+
+vi.mock("../../src/extension/sessions/SessionWorkingDirectories.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof SessionWorkingDirectoriesModule>();
+  return {
+    ...actual,
+    discoverSessionWorkingDirectories: (cwd: string) => Promise.resolve({
+      authoritative: false,
+      directories: [{ cwd, workspaceFolderCwd: cwd, directoryName: "workspace", isCurrent: true }],
+    }),
+  };
+});
 
 vi.mock("vscode", () => {
   class EventEmitter<T> {
@@ -25,13 +44,25 @@ vi.mock("vscode", () => {
     commands: { executeCommand: vi.fn().mockResolvedValue(undefined) },
     window: {
       activeTextEditor: undefined,
+      showQuickPick: vi.fn((items: Array<{ directory?: { cwd: string } }>) => Promise.resolve(
+        items.find((item) => item.directory?.cwd === testEnvironment.quickPickCwd),
+      )),
       showWarningMessage: vi.fn().mockResolvedValue("Close session"),
     },
     workspace: {
       get workspaceFolders() { return testEnvironment.cwd ? [{ name: "test", uri: { fsPath: testEnvironment.cwd } }] : []; },
-      getConfiguration: (section: string) => ({
-        get: (key: string, fallback: unknown) => section === "frostpi" && key === "pi.executable" ? testEnvironment.piExecutable : fallback,
-      }),
+      getConfiguration: (section: string, scope?: { fsPath?: string }) => {
+        if (section === "frostpi" && scope?.fsPath) testEnvironment.configurationScopes.push(scope.fsPath);
+        return {
+          get: (key: string, fallback: unknown) => {
+            if (section === "frostpi" && key === "pi.executable") return testEnvironment.piExecutable;
+            if (section === "frostpi" && key === "session.startOnOpen" && scope?.fsPath) {
+              return testEnvironment.startSessionOnOpenByCwd.get(scope.fsPath) ?? fallback;
+            }
+            return fallback;
+          },
+        };
+      },
       getWorkspaceFolder: () => undefined,
     },
   };
@@ -44,6 +75,9 @@ describe("FrostPi session collection", () => {
 
   afterEach(async () => {
     await Promise.all(registries.splice(0).map((registry) => registry.dispose()));
+    testEnvironment.quickPickCwd = "";
+    testEnvironment.configurationScopes = [];
+    testEnvironment.startSessionOnOpenByCwd.clear();
   });
 
   it("does not create a session when none are persisted on open", async () => {
@@ -58,6 +92,123 @@ describe("FrostPi session collection", () => {
     expect(snapshot.activeSessionId).toBeNull();
     expect(snapshot.activeSession).toBeNull();
     expect(snapshot.sessions).toEqual([]);
+  });
+
+  it("creates a session in the worktree selected by the host picker", async () => {
+    const main = await mkdtemp(join(tmpdir(), "frostpi-registry-main-"));
+    const linked = await mkdtemp(join(tmpdir(), "frostpi-registry-linked-"));
+    testEnvironment.cwd = main;
+    testEnvironment.piExecutable = resolve("test/e2e/fake-pi.cjs");
+    testEnvironment.quickPickCwd = linked;
+    const registry = new SessionRegistry(
+      createContext() as never,
+      { error: vi.fn(), info: vi.fn() } as never,
+      () => Promise.resolve({
+        authoritative: true,
+        directories: [
+          { cwd: main, workspaceFolderCwd: main, worktreeRoot: main, directoryName: "main", branch: "main", isCurrent: true },
+          { cwd: linked, workspaceFolderCwd: main, worktreeRoot: linked, directoryName: "feature-root", branch: "feature/task", isCurrent: false },
+        ],
+      }),
+    );
+    registries.push(registry);
+
+    const sessionId = await registry.createSession();
+
+    expect(sessionId).toBeTypeOf("string");
+    expect(registry.snapshot().activeSession).toMatchObject({ cwd: linked, workingDirectoryLabel: "feature-root" });
+    expect(new Set(testEnvironment.configurationScopes)).toEqual(new Set([main]));
+  });
+
+  it("removes persisted sessions only after Git confirms their worktree is gone", async () => {
+    const main = await mkdtemp(join(tmpdir(), "frostpi-registry-main-"));
+    const removed = resolve(main, "../removed-worktree");
+    testEnvironment.cwd = main;
+    testEnvironment.piExecutable = resolve("test/e2e/fake-pi.cjs");
+    let persisted: unknown = {
+      version: 1,
+      activeSessionId: "removed",
+      sessions: [{ id: "removed", title: "Old task", cwd: removed, updatedAt: 1 }],
+    };
+    const context = createContext();
+    context.workspaceState.get = () => persisted;
+    context.workspaceState.update = (_key, value) => {
+      persisted = structuredClone(value);
+      return Promise.resolve();
+    };
+    const logger = { error: vi.fn(), info: vi.fn() };
+    const registry = new SessionRegistry(
+      context as never,
+      logger as never,
+      () => Promise.resolve({
+        authoritative: true,
+        directories: [{ cwd: main, workspaceFolderCwd: main, worktreeRoot: main, directoryName: "main", branch: "main", isCurrent: true }],
+      }),
+    );
+    registries.push(registry);
+
+    await registry.ensureInitialSession();
+
+    expect(registry.snapshot().sessions).toEqual([]);
+    expect(persisted).toMatchObject({ activeSessionId: null, sessions: [] });
+    expect(logger.info).toHaveBeenCalledWith("Removed 1 FrostPi session record(s) for deleted worktrees.");
+  });
+
+  it("retains external session metadata when Git cannot establish the worktree boundary", async () => {
+    const main = await mkdtemp(join(tmpdir(), "frostpi-registry-main-"));
+    const external = resolve(main, "../uncertain-worktree");
+    testEnvironment.cwd = main;
+    testEnvironment.piExecutable = resolve("test/e2e/fake-pi.cjs");
+    const context = createContext();
+    context.workspaceState.get = () => ({
+      version: 1,
+      activeSessionId: "uncertain",
+      sessions: [{ id: "uncertain", title: "Uncertain task", cwd: external, updatedAt: 1 }],
+    });
+    const registry = new SessionRegistry(
+      context as never,
+      { error: vi.fn(), info: vi.fn() } as never,
+      () => Promise.resolve({
+        authoritative: false,
+        directories: [{ cwd: main, workspaceFolderCwd: main, directoryName: "main", isCurrent: true }],
+      }),
+    );
+    registries.push(registry);
+
+    await registry.ensureInitialSession();
+
+    expect(registry.snapshot().sessions).toEqual([expect.objectContaining({ id: "uncertain", cwd: external })]);
+  });
+
+  it("uses the anchor workspace setting when deciding whether to start a restored worktree session", async () => {
+    const main = await mkdtemp(join(tmpdir(), "frostpi-registry-main-"));
+    const linked = await mkdtemp(join(tmpdir(), "frostpi-registry-linked-"));
+    testEnvironment.cwd = main;
+    testEnvironment.piExecutable = resolve("test/e2e/fake-pi.cjs");
+    testEnvironment.startSessionOnOpenByCwd.set(main, false);
+    testEnvironment.startSessionOnOpenByCwd.set(linked, true);
+    const context = createContext();
+    context.workspaceState.get = () => ({
+      version: 1,
+      activeSessionId: "linked",
+      sessions: [{ id: "linked", title: "Linked task", cwd: linked, updatedAt: 1 }],
+    });
+    const registry = new SessionRegistry(
+      context as never,
+      { error: vi.fn(), info: vi.fn() } as never,
+      () => Promise.resolve({
+        authoritative: true,
+        directories: [
+          { cwd: main, workspaceFolderCwd: main, worktreeRoot: main, directoryName: "main", branch: "main", isCurrent: true },
+          { cwd: linked, workspaceFolderCwd: main, worktreeRoot: linked, directoryName: "linked", branch: "feature/task", isCurrent: false },
+        ],
+      }),
+    );
+    registries.push(registry);
+
+    await registry.ensureInitialSession();
+
+    expect(registry.snapshot().activeSession).toMatchObject({ cwd: linked, status: "stopped" });
   });
 
   it("rejects prompts while a resumed conversation history is loading", async () => {
@@ -198,7 +349,7 @@ process.on("SIGTERM", () => process.exit(0));
 
     const pendingFork = registry.forkMessage(activeId, "wait-entry");
     await waitFor(() => registry.snapshot().activeSession?.isForking === true && registry.snapshot().activeSession?.pendingExtensionUi.length === 1);
-    await expect(registry.createSession(dir)).rejects.toThrow("cancel it first");
+    await expect(registry.createSession()).rejects.toThrow("cancel it first");
     await registry.cancelFork(activeId);
     await expect(pendingFork).resolves.toEqual({ cancelled: true });
     await waitForForkableHistory(registry, "wait-entry");
@@ -252,11 +403,11 @@ process.on("SIGTERM", () => process.exit(0));
     const registry = new SessionRegistry(context as never, logger as never);
     registries.push(registry);
 
-    const first = await registry.createSession(testEnvironment.cwd);
+    const first = (await registry.createSession())!;
     expect(registry.snapshot().sessions.map((session) => session.id)).toEqual([first]);
     expect((persisted as { sessions: unknown[] }).sessions).toHaveLength(0);
 
-    const second = await registry.createSession(testEnvironment.cwd);
+    const second = (await registry.createSession())!;
     expect(registry.snapshot().sessions.map((session) => session.id)).toEqual([second]);
 
     await registry.sendPrompt(second, "Keep this session", []);
@@ -277,7 +428,7 @@ process.on("SIGTERM", () => process.exit(0));
       expect.objectContaining({ summary: "Compacted context: Keep code changes", tokensBefore: 42_000 }),
     ]);
 
-    const third = await registry.createSession(testEnvironment.cwd);
+    const third = (await registry.createSession())!;
     expect(new Set(registry.snapshot().sessions.map((session) => session.id))).toEqual(new Set([second, third]));
     expect((persisted as { sessions: Array<{ id: string }> }).sessions.map((session) => session.id)).toEqual([second]);
   });
@@ -344,12 +495,12 @@ process.on("SIGTERM", () => process.exit(0));
     const events: Array<{ sessionId: string; text: string }> = [];
     registry.onDidSetComposerText((event) => events.push(event));
 
-    const background = await registry.createSession(dir);
+    const background = (await registry.createSession())!;
     await waitFor(() => registry.snapshot().activeSession?.status === "ready");
     await registry.sendPrompt(background, "/input-file", []);
     expect(events).toEqual([{ sessionId: background, text: "imported from .pi-input.md" }]);
 
-    const foreground = await registry.createSession(dir);
+    const foreground = (await registry.createSession())!;
     await waitFor(() => registry.snapshot().activeSessionId === foreground && registry.snapshot().activeSession?.status === "ready");
     events.length = 0;
 

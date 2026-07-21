@@ -32,14 +32,40 @@ button.session-heading { cursor: pointer; }
 button.session-heading:hover { background: var(--frost-hover); }
 button.session-heading.active { background: var(--frost-hover); }
 .session-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.session-inline-status {
+.session-cwd-pill {
   flex: none;
-  max-width: 42%;
-  color: var(--frost-muted);
-  font-size: 10.5px;
+  max-width: 9em;
+  height: 16px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 6px;
+  border: 1px solid color-mix(in srgb, var(--frost-link) 34%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--frost-link) 14%, transparent);
+  color: var(--frost-link);
+  font-size: 9.5px;
+  font-weight: 600;
+  line-height: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.session-inline-status {
+  flex: none;
+  max-width: 48%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--frost-muted);
+  font-size: 10.5px;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.session-inline-status > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .session-heading-chevron { flex: none; margin-left: auto; color: var(--frost-muted); font-size: 11px; }
 .session-title-input {
@@ -129,11 +155,31 @@ button.session-heading.active { background: var(--frost-hover); }
   cursor: pointer;
 }
 .session-list-mark { color: var(--frost-link); }
-.session-list-copy { min-width: 0; display: flex; flex-direction: column; }
-.session-list-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.session-list-copy small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.session-list-copy strong { color: var(--frost-text); font-size: 11.5px; font-weight: 500; }
-.session-list-copy small { color: var(--frost-muted); font-size: 9.5px; }
+.session-list-copy { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.session-list-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--frost-text);
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.session-list-copy small {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  overflow: hidden;
+  color: var(--frost-muted);
+  font-size: 9.5px;
+  white-space: nowrap;
+}
+.session-list-copy small > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .session-list-copy small.attention { color: var(--frost-warning); }
 .session-list-close {
   width: 25px;
@@ -192,15 +238,17 @@ button.session-heading.active { background: var(--frost-hover); }
   font-size: 9px;
 }
 
-@media (max-width: 330px) {
-  .session-header { gap: 2px; padding-left: 4px; padding-right: 2px; }
-  .session-heading { gap: 6px; }
-  .session-actions .icon-button { width: 24px; }
-}
-
 @media (max-width: 430px) {
   .session-inline-status { display: none; }
   .session-title { font-size: 12px; }
+  .session-cwd-pill { max-width: 7em; }
+}
+
+@media (max-width: 330px) {
+  .session-header { gap: 2px; padding-left: 4px; padding-right: 2px; }
+  .session-heading { gap: 6px; }
+  .session-cwd-pill { max-width: 5.5em; padding: 0 5px; }
+  .session-actions .icon-button { width: 24px; }
 }
 
 @media (max-width: 560px) {
