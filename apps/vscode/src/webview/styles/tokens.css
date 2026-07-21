@@ -28,7 +28,13 @@
   font-size: var(--font-size);
   line-height: var(--line-height);
 }
-.app-shell { position: relative; height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+.app-shell {
+  position: relative;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
 .icon-button {
   width: 28px;
   height: 28px;
@@ -69,7 +75,6 @@
 .message-user { display: flex; justify-content: flex-end; padding-left: min(18%, 110px); }
 .user-bubble {
   max-width: 100%;
-  min-width: 0;
   padding: 9px 12px;
   background: color-mix(in srgb, var(--frost-surface) 82%, var(--frost-active));
   border: 1px solid var(--frost-border-soft);

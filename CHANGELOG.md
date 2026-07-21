@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Prevent user-message code blocks from overflowing the bubble by setting `min-width: 0` on `.user-bubble` so flex shrink can constrain the bubble width.
+- Keep user-message code blocks inside the Webview while preserving horizontal scrolling within the code block.
 
 ## [0.6.2] - 2026-07-21
 
