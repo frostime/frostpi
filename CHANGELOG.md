@@ -15,6 +15,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Mark sessions outside the open workspace folders with a compact directory capsule on the status line.
 - In Resume, list linked-worktree groups before the current workspace, ordered by recent activity, and use a branch icon on worktree rows.
 
+### Fixed
+
+- Prevent user-message code blocks from overflowing the bubble by setting `min-width: 0` on `.user-bubble` so flex shrink can constrain the bubble width.
+
 ## [0.6.2] - 2026-07-21
 
 ### Added
