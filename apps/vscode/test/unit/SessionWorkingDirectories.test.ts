@@ -1,4 +1,8 @@
-import { normalize, resolve } from "node:path";
+import { execFile } from "node:child_process";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, normalize, resolve } from "node:path";
+import { promisify } from "node:util";
 
 import { describe, expect, it } from "vitest";
 
@@ -8,6 +12,7 @@ import {
   parseGitWorktreeList,
 } from "../../src/extension/sessions/SessionWorkingDirectories.js";
 
+const execFileAsync = promisify(execFile);
 const gitOutput = (...records: string[][]): string => records.map((fields) => `${fields.join("\0")}\0\0`).join("");
 
 describe("Session working-directory discovery", () => {
@@ -61,6 +66,28 @@ describe("Session working-directory discovery", () => {
       },
     ]);
     expect(findSessionWorkingDirectory(result.directories, target)?.branch).toBe("feature/api");
+  });
+
+  it("discovers a linked worktree from Git's real porcelain output", async () => {
+    const parent = await mkdtemp(join(tmpdir(), "frostpi-git-worktrees-"));
+    const main = join(parent, "main");
+    const linked = join(parent, "linked");
+    await mkdir(main);
+    await execFileAsync("git", ["init"], { cwd: main });
+    await writeFile(join(main, "README.md"), "fixture\n");
+    await execFileAsync("git", ["add", "README.md"], { cwd: main });
+    await execFileAsync("git", ["-c", "user.name=FrostPi Tests", "-c", "user.email=frostpi@example.invalid", "commit", "-m", "fixture"], { cwd: main });
+    await execFileAsync("git", ["worktree", "add", "--detach", linked], { cwd: main });
+
+    const result = await discoverSessionWorkingDirectories(main);
+
+    expect(result.authoritative).toBe(true);
+    expect(findSessionWorkingDirectory(result.directories, linked)).toMatchObject({
+      cwd: resolve(linked),
+      worktreeRoot: resolve(linked),
+      detached: true,
+      isCurrent: false,
+    });
   });
 
   it("falls back to the workspace without authorizing external directories when Git fails", async () => {
