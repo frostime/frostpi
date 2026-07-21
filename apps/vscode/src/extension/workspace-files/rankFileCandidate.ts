@@ -2,7 +2,12 @@ import { basename, dirname } from "node:path";
 
 import type { WorkspaceFileCandidateView } from "../../shared/model/workspaceFileModel.js";
 
-export function rankFileCandidate(path: string, query: string, boosts: ReadonlySet<string> = new Set()): WorkspaceFileCandidateView | undefined {
+export function rankFileCandidate(
+  path: string,
+  query: string,
+  boosts: ReadonlySet<string> = new Set(),
+  isDirectory = false,
+): WorkspaceFileCandidateView | undefined {
   const normalizedPath = path.replaceAll("\\", "/");
   const name = basename(normalizedPath);
   const directory = dirname(normalizedPath) === "." ? "" : dirname(normalizedPath).replaceAll("\\", "/");
@@ -25,7 +30,7 @@ export function rankFileCandidate(path: string, query: string, boosts: ReadonlyS
 
   if (boosts.has(normalizedPath)) score += 180;
   score -= Math.min(normalizedPath.length / 8, 60);
-  return { path: normalizedPath, name, directory, score };
+  return { path: normalizedPath, name, directory, score, isDirectory };
 }
 
 function pathSegmentStartsWith(path: string, query: string): boolean {

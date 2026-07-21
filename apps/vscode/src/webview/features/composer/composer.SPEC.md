@@ -14,7 +14,7 @@ The composer is a plain-text CodeMirror 6 editor. FrostPi sends exactly the visi
 - On submit the composer clears immediately and keeps a local snapshot only for failure restore. Successful `promptResult` does not touch the draft (extension commands may already have filled it via `set_editor_text`). Failed `promptResult` restores the snapshot only when the composer is still empty.
 - Only a command in the first non-whitespace token of a line is decorated as a command.
 - Typing `@` must immediately start mention completion. With an empty (or matching) query, `@Selection` and `@CurrentFile` appear above workspace file results. Empty, error, and timeout file results must be observable rather than silent.
-- `@Selection` inserts `@path:start-end` (current line when nothing is selected). `@CurrentFile` and file rows insert a workspace-relative path. Paths containing whitespace use `@"path with spaces"`.
+- `@Selection` inserts `@path:start-end` (current line when nothing is selected). `@CurrentFile`, file rows, and directory rows insert a workspace-relative path. Files finish with a space; directories finish with `/` and continue completion. For directories containing whitespace, the cursor stays inside the closing quote. Paths containing whitespace use `@"path with spaces"`.
 - File mentions are presentation and completion aids only: FrostPi does not read or inject file content. The composer has no separate Add Context (+) menu; mentions cover path/line references.
 - Request identifiers must not depend exclusively on `crypto.randomUUID`.
 - Pasted PNG/JPEG/WebP files remain explicit image attachments and obey configured limits.

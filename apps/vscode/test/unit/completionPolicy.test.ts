@@ -7,6 +7,7 @@ describe("prompt completion activation", () => {
     expect(shouldStartPromptCompletion("@", 1)).toBe(true);
     expect(shouldStartPromptCompletion("Inspect @Session", 16)).toBe(true);
     expect(shouldStartPromptCompletion('Inspect @"docs/design', 21)).toBe(true);
+    expect(shouldStartPromptCompletion('Inspect @"my docs/"', 18)).toBe(true);
   });
 
   it("opens command completion only for the first non-whitespace token", () => {

@@ -6,6 +6,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Complete workspace files and directories through `@` using bounded, query-driven `fd` searches; selecting a directory continues completion within it.
+
+### Changed
+
+- Replace the cached 50,000-path mention catalog with cancellable per-query searches that respect ignore files, VS Code excludes, and configurable symlink handling.
+
+### Fixed
+
+- Keep file completion available with fd versions older than 10 while disabling unsupported directory rows, warn once about upgrading, and stop searches that exceed seven seconds.
+
 ## [0.6.1] - 2026-07-21
 
 ### Changed

@@ -250,19 +250,23 @@
           "scope": "machine-overridable",
           "description": "Comma-separated hosts that bypass the proxy. Defaults to local loopback addresses. Edit in Settings when the default loopback list is not enough."
         },
-        "frostpi.composer.fileMentions.maxFiles": {
-          "type": "number",
-          "minimum": 1000,
-          "maximum": 250000,
-          "default": 50000,
-          "scope": "resource",
-          "description": "Maximum workspace files indexed for @ path completion."
-        },
         "frostpi.composer.fileMentions.respectSearchExclude": {
           "type": "boolean",
           "default": true,
           "scope": "resource",
-          "description": "Exclude paths matched by VS Code search.exclude from @ file completion."
+          "description": "Exclude paths matched by VS Code search.exclude from @ path completion."
+        },
+        "frostpi.composer.fileMentions.respectIgnoreFiles": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Respect .gitignore, .ignore, .fdignore, and global ignore rules during @ path completion."
+        },
+        "frostpi.composer.fileMentions.followSymlinks": {
+          "type": "boolean",
+          "default": true,
+          "scope": "resource",
+          "description": "Follow symbolic links during @ path completion."
         }
       }
     }

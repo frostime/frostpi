@@ -77,8 +77,9 @@ process.on("SIGTERM", () => process.exit(0));
       maxImageBytes: 10 * 1024 * 1024,
       diagnosticsLevel: "info" as const,
       proxy: { mode: "inherit" as const },
-      fileMentionMaxFiles: 50_000,
       fileMentionRespectSearchExclude: true,
+      fileMentionRespectIgnoreFiles: true,
+      fileMentionFollowSymlinks: true,
     };
     const secrets = new ProxySecretStore({ get: () => Promise.resolve(undefined) } as never);
     const logger = { error: vi.fn(), info: vi.fn() };
@@ -187,8 +188,9 @@ process.on("SIGTERM", () => process.exit(0));
       maxImageBytes: 10 * 1024 * 1024,
       diagnosticsLevel: "info" as const,
       proxy: { mode: "inherit" as const },
-      fileMentionMaxFiles: 50_000,
       fileMentionRespectSearchExclude: true,
+      fileMentionRespectIgnoreFiles: true,
+      fileMentionFollowSymlinks: true,
     };
     const secrets = new ProxySecretStore({ get: () => Promise.resolve(undefined) } as never);
     const logger = { error: vi.fn(), info: vi.fn() };
@@ -257,8 +259,9 @@ process.on("SIGTERM", () => process.exit(0));
       maxImageBytes: 10 * 1024 * 1024,
       diagnosticsLevel: "info" as const,
       proxy: { mode: "inherit" as const },
-      fileMentionMaxFiles: 50_000,
       fileMentionRespectSearchExclude: true,
+      fileMentionRespectIgnoreFiles: true,
+      fileMentionFollowSymlinks: true,
     };
     const secrets = new ProxySecretStore({ get: () => Promise.resolve(undefined) } as never);
     const logger = { error: vi.fn(), info: vi.fn() };
@@ -330,8 +333,9 @@ process.on("SIGTERM", () => process.exit(0));
       maxImageBytes: 10 * 1024 * 1024,
       diagnosticsLevel: "info" as const,
       proxy: { mode: "inherit" as const },
-      fileMentionMaxFiles: 50_000,
       fileMentionRespectSearchExclude: true,
+      fileMentionRespectIgnoreFiles: true,
+      fileMentionFollowSymlinks: true,
     };
     const secrets = new ProxySecretStore({ get: () => Promise.resolve(undefined) } as never);
     const logger = { error: vi.fn(), info: vi.fn() };
