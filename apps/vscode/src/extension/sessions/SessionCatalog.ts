@@ -342,10 +342,11 @@ export function buildSessionQuickPickItems(
   const items: PiSessionQuickPickItem[] = [];
   for (const { directory, group } of [...linked, ...current]) {
     const location = searchableLocation(directory);
+    const icon = directory.isCurrent ? "$(comment-discussion)" : "$(git-branch)";
     items.push({ label: separatorLabel(directory), kind: vscode.QuickPickItemKind.Separator });
     for (const entry of group) {
       items.push({
-        label: `$(comment-discussion) ${entry.title}`,
+        label: `${icon} ${entry.title}`,
         description: `${location} · ${relativeAge(entry.updatedAt)}`,
         detail: entry.preview ? `${entry.preview}  ·  ${entry.path}` : entry.path,
         entry,
@@ -386,16 +387,15 @@ async function selectSessionQuickPickItem(
 }
 
 function separatorLabel(directory: SessionWorkingDirectory): string {
+  // Separator labels are plain text — QuickPick does not render $(codicon) there.
   if (directory.isCurrent) {
     const branch = directory.branch ?? (directory.detached ? "Detached HEAD" : undefined);
     return branch
-      ? `$(folder-active) Current workspace · ${branch}`
-      : `$(folder-active) Current workspace · ${directory.directoryName}`;
+      ? `Current workspace · ${branch}`
+      : `Current workspace · ${directory.directoryName}`;
   }
   const branch = directory.branch ?? (directory.detached ? "Detached HEAD" : undefined);
-  return branch
-    ? `$(git-branch) ${branch} · ${directory.directoryName}`
-    : `$(git-branch) ${directory.directoryName}`;
+  return branch ? `Worktree · ${branch} · ${directory.directoryName}` : `Worktree · ${directory.directoryName}`;
 }
 
 function searchableLocation(directory: SessionWorkingDirectory): string {

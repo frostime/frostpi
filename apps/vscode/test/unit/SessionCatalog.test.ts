@@ -141,16 +141,16 @@ describe("session discovery across worktrees", () => {
 
     expect(new Set(sessions.map((session) => session.title))).toEqual(new Set(["Main session", "Linked session"]));
     expect(separatorLabels).toEqual([
-      "$(git-branch) feature · linked",
-      "$(folder-active) Current workspace · main",
+      "Worktree · feature · linked",
+      "Current workspace · main",
     ]);
     expect(sessionLabels).toEqual([
-      "$(comment-discussion) Linked session",
+      "$(git-branch) Linked session",
       "$(comment-discussion) Main session",
     ]);
     expect(quickPickItems.find((item) => item.label === "$(comment-discussion) Main session")?.description)
       .toContain("main · main");
-    expect(quickPickItems.find((item) => item.label === "$(comment-discussion) Linked session")?.description)
+    expect(quickPickItems.find((item) => item.label === "$(git-branch) Linked session")?.description)
       .toContain("feature · linked");
   });
 
@@ -174,11 +174,11 @@ describe("session discovery across worktrees", () => {
       .map((item) => item.label);
 
     expect(labels).toEqual([
-      "$(git-branch) new-feature · newer",
-      "$(comment-discussion) Newer linked",
-      "$(git-branch) old-feature · older",
-      "$(comment-discussion) Older linked",
-      "$(folder-active) Current workspace · main",
+      "Worktree · new-feature · newer",
+      "$(git-branch) Newer linked",
+      "Worktree · old-feature · older",
+      "$(git-branch) Older linked",
+      "Current workspace · main",
       "$(comment-discussion) Main",
     ]);
   });

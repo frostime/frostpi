@@ -58,7 +58,7 @@ Resume discovers Pi sessions for every allowed Session working directory.
 - Roots exclusive to linked worktrees are scanned before roots exclusive to the current workspace; roots shared by multiple working directories are scanned last.
 - The existing global scan bound remains 2,000 JSONL files across all roots; discovery does not enumerate every candidate merely to sort by `mtime`.
 - Results are grouped by worktree: non-empty linked-worktree groups first (by each group's latest update), then the current workspace; each group is ordered by most recent update.
-- Separator labels distinguish linked worktrees (`$(git-branch)`) from the current workspace (`$(folder-active)`).
+- Separator labels are plain text (`Worktree · …` / `Current workspace · …`); session rows use `$(git-branch)` for linked worktrees and `$(comment-discussion)` for the current workspace.
 - Each Session item includes its worktree label in a searchable `label`, `description`, or `detail`, in addition to title, prompt preview, time, and path.
 - Native `createQuickPick` search matches `label`, `description`, and `detail` across all groups.
 - **Browse for a session file…** accepts a JSONL only when its header `cwd` matches an allowed Session working directory.
