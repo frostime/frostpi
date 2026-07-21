@@ -17,11 +17,6 @@
     onresume: () => void;
   } = $props();
 
-  function statusLabel(session: SessionSummaryView): string {
-    const status = runtimeStatusLabel(session);
-    return session.workingDirectoryLabel ? `${session.workingDirectoryLabel} · ${status}` : status;
-  }
-
   function runtimeStatusLabel(session: SessionSummaryView): string {
     if (session.requiresUserInput) return "Action required";
     if (session.status === "queued") return "Waiting to start";
@@ -58,8 +53,13 @@
         >
           <span class="session-list-mark">{session.id === activeId ? "✓" : ""}</span>
           <span class="session-list-copy">
-            <strong>{session.title}</strong>
-            <small class:attention={session.requiresUserInput}>{statusLabel(session)}</small>
+            <strong class="session-list-title">{session.title}</strong>
+            <small class:attention={session.requiresUserInput}>
+              {#if session.workingDirectoryLabel}
+                <span class="session-cwd-pill">{session.workingDirectoryLabel}</span>
+              {/if}
+              <span>{runtimeStatusLabel(session)}</span>
+            </small>
           </span>
         </button>
         <button class="session-list-close" type="button" aria-label={`Close ${session.title}`} title="Close session" onclick={() => onclose(session.id)}>

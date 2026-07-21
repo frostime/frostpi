@@ -73,11 +73,6 @@
     postToHost({ type: "closeSession", sessionId });
   }
 
-  function statusLabel(): string {
-    const status = activeStatusLabel();
-    return active.workingDirectoryLabel ? `${active.workingDirectoryLabel} · ${status}` : status;
-  }
-
   function activeStatusLabel(): string {
     if (active.pendingExtensionUi.length > 0) return "action required";
     if (active.isForking) return "forking session";
@@ -146,7 +141,12 @@
         >
           <StatusDot status={active.status} />
           <span class="session-title">{active.title}</span>
-          <span class="session-inline-status">· {statusLabel()}</span>
+          <span class="session-inline-status">
+            {#if active.workingDirectoryLabel}
+              <span class="session-cwd-pill" title={active.cwd}>{active.workingDirectoryLabel}</span>
+            {/if}
+            <span>· {activeStatusLabel()}</span>
+          </span>
           <span class="codicon codicon-chevron-down session-heading-chevron" aria-hidden="true"></span>
         </button>
       {/if}
