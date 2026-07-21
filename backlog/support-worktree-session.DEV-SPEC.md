@@ -57,9 +57,10 @@ Resume discovers Pi sessions for every allowed Session working directory.
 - Resolved roots are deduplicated before scanning.
 - Roots exclusive to linked worktrees are scanned before roots exclusive to the current workspace; roots shared by multiple working directories are scanned last.
 - The existing global scan bound remains 2,000 JSONL files across all roots; discovery does not enumerate every candidate merely to sort by `mtime`.
-- Results are grouped by worktree: current workspace first, then other worktrees by display name; each group is ordered by most recent update.
+- Results are grouped by worktree: non-empty linked-worktree groups first (by each group's latest update), then the current workspace; each group is ordered by most recent update.
+- Separator labels distinguish linked worktrees (`$(git-branch)`) from the current workspace (`$(folder-active)`).
 - Each Session item includes its worktree label in a searchable `label`, `description`, or `detail`, in addition to title, prompt preview, time, and path.
-- Native `QuickPick` search matches `label`, `description`, and `detail` across all groups.
+- Native `createQuickPick` search matches `label`, `description`, and `detail` across all groups.
 - **Browse for a session file…** accepts a JSONL only when its header `cwd` matches an allowed Session working directory.
 - Selecting a JSONL already represented in FrostPi activates the existing runtime rather than creating a duplicate.
 
@@ -67,8 +68,8 @@ Resume discovers Pi sessions for every allowed Session working directory.
 
 For a Session outside the currently open workspace folders:
 
-- the Session list secondary text is `<directory name> · <status>`;
-- the active Session header uses the same secondary text;
+- the Session list and header show the directory name as a compact capsule on the secondary status line;
+- runtime status remains beside that capsule;
 - the complete `cwd` is available as a tooltip.
 
 Sessions in an open workspace folder retain the existing status-only text. Existing responsive behavior remains: secondary header text may be hidden below 430 px.

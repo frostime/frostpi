@@ -5,7 +5,9 @@ import { join, normalize, resolve } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 
 vi.mock("vscode", () => ({
-  window: {},
+  window: {
+    createQuickPick: vi.fn(),
+  },
   ProgressLocation: { Window: 10 },
   QuickPickItemKind: { Separator: -1 },
   Uri: { file: (fsPath: string) => ({ fsPath }) },
@@ -134,16 +136,51 @@ describe("session discovery across worktrees", () => {
       (cwd) => Promise.resolve([join(cwd, ".pi", "sessions")]),
     );
     const quickPickItems = buildSessionQuickPickItems(sessions, directories);
+    const separatorLabels = quickPickItems.filter((item) => item.kind === -1).map((item) => item.label);
+    const sessionLabels = quickPickItems.filter((item) => item.entry).map((item) => item.label);
 
     expect(new Set(sessions.map((session) => session.title))).toEqual(new Set(["Main session", "Linked session"]));
-    expect(quickPickItems).toEqual(expect.arrayContaining([
-      expect.objectContaining({ label: "main · main · Current workspace", kind: -1 }),
-      expect.objectContaining({ label: "feature · linked", kind: -1 }),
-    ]));
+    expect(separatorLabels).toEqual([
+      "$(git-branch) feature · linked",
+      "$(folder-active) Current workspace · main",
+    ]);
+    expect(sessionLabels).toEqual([
+      "$(comment-discussion) Linked session",
+      "$(comment-discussion) Main session",
+    ]);
     expect(quickPickItems.find((item) => item.label === "$(comment-discussion) Main session")?.description)
-      .toContain("main · main · Current workspace");
+      .toContain("main · main");
     expect(quickPickItems.find((item) => item.label === "$(comment-discussion) Linked session")?.description)
       .toContain("feature · linked");
+  });
+
+  it("orders linked worktree groups by latest session before the current workspace", () => {
+    const main = resolve("/repo");
+    const olderLinked = resolve("/worktrees/older");
+    const newerLinked = resolve("/worktrees/newer");
+    const directories: SessionWorkingDirectory[] = [
+      { cwd: main, workspaceFolderCwd: main, worktreeRoot: main, directoryName: "repo", branch: "main", isCurrent: true },
+      { cwd: olderLinked, workspaceFolderCwd: main, worktreeRoot: olderLinked, directoryName: "older", branch: "old-feature", isCurrent: false },
+      { cwd: newerLinked, workspaceFolderCwd: main, worktreeRoot: newerLinked, directoryName: "newer", branch: "new-feature", isCurrent: false },
+    ];
+    const sessions = [
+      { path: "/s/main.jsonl", cwd: main, title: "Main", updatedAt: 300 },
+      { path: "/s/old.jsonl", cwd: olderLinked, title: "Older linked", updatedAt: 100 },
+      { path: "/s/new.jsonl", cwd: newerLinked, title: "Newer linked", updatedAt: 200 },
+    ];
+
+    const labels = buildSessionQuickPickItems(sessions, directories)
+      .filter((item) => item.kind === -1 || item.entry)
+      .map((item) => item.label);
+
+    expect(labels).toEqual([
+      "$(git-branch) new-feature · newer",
+      "$(comment-discussion) Newer linked",
+      "$(git-branch) old-feature · older",
+      "$(comment-discussion) Older linked",
+      "$(folder-active) Current workspace · main",
+      "$(comment-discussion) Main",
+    ]);
   });
 });
 

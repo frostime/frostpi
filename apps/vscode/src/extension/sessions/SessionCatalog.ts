@@ -37,7 +37,7 @@ export async function pickPiSession(
     () => discoverPiSessions(directories, piArguments),
   );
 
-  const browse: vscode.QuickPickItem & { browse: true } = {
+  const browse: PiSessionQuickPickItem = {
     label: "$(folder-opened) Browse for a session file…",
     description: "Open a Pi JSONL session directly",
     alwaysShow: true,
@@ -47,12 +47,9 @@ export async function pickPiSession(
   if (sessions.length) items.push({ label: "Other", kind: vscode.QuickPickItemKind.Separator });
   items.push(browse);
 
-  const selected = await vscode.window.showQuickPick(items, {
+  const selected = await selectSessionQuickPickItem(items, {
     title: "Resume Pi session",
     placeHolder: sessions.length ? "Search sessions across this repository's worktrees" : "No sessions were discovered; browse for a JSONL file",
-    matchOnDescription: true,
-    matchOnDetail: true,
-    ignoreFocusOut: true,
   });
   if (!selected) return undefined;
   if (selected.entry) return selected.entry;
@@ -327,12 +324,25 @@ export function buildSessionQuickPickItems(
   sessions: readonly PiSessionCatalogEntry[],
   directories: readonly SessionWorkingDirectory[],
 ): PiSessionQuickPickItem[] {
+  const groups = directories
+    .map((directory) => {
+      const group = sessions
+        .filter((entry) => samePath(entry.cwd, directory.cwd))
+        .slice()
+        .sort((a, b) => b.updatedAt - a.updatedAt);
+      return { directory, group, latest: group[0]?.updatedAt ?? 0 };
+    })
+    .filter((entry) => entry.group.length > 0);
+
+  const linked = groups
+    .filter((entry) => !entry.directory.isCurrent)
+    .sort((a, b) => b.latest - a.latest || a.directory.directoryName.localeCompare(b.directory.directoryName));
+  const current = groups.filter((entry) => entry.directory.isCurrent);
+
   const items: PiSessionQuickPickItem[] = [];
-  for (const directory of directories) {
-    const group = sessions.filter((entry) => samePath(entry.cwd, directory.cwd));
-    if (!group.length) continue;
-    const location = workingDirectoryLabel(directory);
-    items.push({ label: location, kind: vscode.QuickPickItemKind.Separator });
+  for (const { directory, group } of [...linked, ...current]) {
+    const location = searchableLocation(directory);
+    items.push({ label: separatorLabel(directory), kind: vscode.QuickPickItemKind.Separator });
     for (const entry of group) {
       items.push({
         label: `$(comment-discussion) ${entry.title}`,
@@ -345,10 +355,52 @@ export function buildSessionQuickPickItems(
   return items;
 }
 
-function workingDirectoryLabel(directory: SessionWorkingDirectory): string {
+async function selectSessionQuickPickItem(
+  items: readonly PiSessionQuickPickItem[],
+  options: { title: string; placeHolder: string },
+): Promise<PiSessionQuickPickItem | undefined> {
+  const quickPick = vscode.window.createQuickPick<PiSessionQuickPickItem>();
+  quickPick.title = options.title;
+  quickPick.placeholder = options.placeHolder;
+  quickPick.matchOnDescription = true;
+  quickPick.matchOnDetail = true;
+  quickPick.ignoreFocusOut = true;
+  quickPick.items = items;
+
+  try {
+    return await new Promise<PiSessionQuickPickItem | undefined>((resolve) => {
+      let settled = false;
+      const finish = (value: PiSessionQuickPickItem | undefined) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+        quickPick.hide();
+      };
+      quickPick.onDidAccept(() => finish(quickPick.activeItems[0] ?? quickPick.selectedItems[0]));
+      quickPick.onDidHide(() => finish(undefined));
+      quickPick.show();
+    });
+  } finally {
+    quickPick.dispose();
+  }
+}
+
+function separatorLabel(directory: SessionWorkingDirectory): string {
+  if (directory.isCurrent) {
+    const branch = directory.branch ?? (directory.detached ? "Detached HEAD" : undefined);
+    return branch
+      ? `$(folder-active) Current workspace · ${branch}`
+      : `$(folder-active) Current workspace · ${directory.directoryName}`;
+  }
+  const branch = directory.branch ?? (directory.detached ? "Detached HEAD" : undefined);
+  return branch
+    ? `$(git-branch) ${branch} · ${directory.directoryName}`
+    : `$(git-branch) ${directory.directoryName}`;
+}
+
+function searchableLocation(directory: SessionWorkingDirectory): string {
   const source = directory.branch ?? (directory.detached ? "Detached HEAD" : undefined);
-  const label = source ? `${source} · ${directory.directoryName}` : directory.directoryName;
-  return directory.isCurrent ? `${label} · Current workspace` : label;
+  return source ? `${source} · ${directory.directoryName}` : directory.directoryName;
 }
 
 function relativeAge(timestamp: number): string {
