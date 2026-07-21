@@ -86,8 +86,7 @@ export async function discoverPiSessions(
   const paths = await findJsonlFiles(roots, MAX_FILES);
   const entries = await mapConcurrent(paths, 12, readPiSessionMetadata);
   return entries
-    .filter((entry): entry is PiSessionCatalogEntry => Boolean(entry && findSessionWorkingDirectory(directories, entry.cwd)))
-    .sort((a, b) => b.updatedAt - a.updatedAt);
+    .filter((entry): entry is PiSessionCatalogEntry => Boolean(entry && findSessionWorkingDirectory(directories, entry.cwd)));
 }
 
 export function prioritizeSessionRoots(
@@ -368,6 +367,7 @@ async function selectSessionQuickPickItem(
   quickPick.ignoreFocusOut = true;
   quickPick.items = items;
 
+  const disposables: vscode.Disposable[] = [];
   try {
     return await new Promise<PiSessionQuickPickItem | undefined>((resolve) => {
       let settled = false;
@@ -377,11 +377,14 @@ async function selectSessionQuickPickItem(
         resolve(value);
         quickPick.hide();
       };
-      quickPick.onDidAccept(() => finish(quickPick.activeItems[0] ?? quickPick.selectedItems[0]));
-      quickPick.onDidHide(() => finish(undefined));
+      disposables.push(
+        quickPick.onDidAccept(() => finish(quickPick.activeItems[0] ?? quickPick.selectedItems[0])),
+        quickPick.onDidHide(() => finish(undefined)),
+      );
       quickPick.show();
     });
   } finally {
+    for (const disposable of disposables) disposable.dispose();
     quickPick.dispose();
   }
 }

@@ -14,6 +14,7 @@ vi.mock("vscode", () => ({
   commands: { executeCommand: vi.fn() },
 }));
 
+import { QuickPickItemKind } from "vscode";
 import { buildSessionQuickPickItems, discoverPiSessions, prioritizeSessionRoots, readPiSessionMetadata, resolveSessionRoots } from "../../src/extension/sessions/SessionCatalog.js";
 import type { SessionWorkingDirectory } from "../../src/extension/sessions/SessionWorkingDirectories.js";
 
@@ -136,7 +137,7 @@ describe("session discovery across worktrees", () => {
       (cwd) => Promise.resolve([join(cwd, ".pi", "sessions")]),
     );
     const quickPickItems = buildSessionQuickPickItems(sessions, directories);
-    const separatorLabels = quickPickItems.filter((item) => item.kind === -1).map((item) => item.label);
+    const separatorLabels = quickPickItems.filter((item) => item.kind === QuickPickItemKind.Separator).map((item) => item.label);
     const sessionLabels = quickPickItems.filter((item) => item.entry).map((item) => item.label);
 
     expect(new Set(sessions.map((session) => session.title))).toEqual(new Set(["Main session", "Linked session"]));
@@ -170,7 +171,7 @@ describe("session discovery across worktrees", () => {
     ];
 
     const labels = buildSessionQuickPickItems(sessions, directories)
-      .filter((item) => item.kind === -1 || item.entry)
+      .filter((item) => item.kind === QuickPickItemKind.Separator || item.entry)
       .map((item) => item.label);
 
     expect(labels).toEqual([

@@ -238,17 +238,17 @@ button.session-heading.active { background: var(--frost-hover); }
   font-size: 9px;
 }
 
+@media (max-width: 430px) {
+  .session-inline-status { display: none; }
+  .session-title { font-size: 12px; }
+  .session-cwd-pill { max-width: 7em; }
+}
+
 @media (max-width: 330px) {
   .session-header { gap: 2px; padding-left: 4px; padding-right: 2px; }
   .session-heading { gap: 6px; }
   .session-cwd-pill { max-width: 5.5em; padding: 0 5px; }
   .session-actions .icon-button { width: 24px; }
-}
-
-@media (max-width: 430px) {
-  .session-inline-status { display: none; }
-  .session-title { font-size: 12px; }
-  .session-cwd-pill { max-width: 7em; }
 }
 
 @media (max-width: 560px) {

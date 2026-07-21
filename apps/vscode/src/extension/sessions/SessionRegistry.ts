@@ -465,7 +465,7 @@ export class SessionRegistry implements vscode.Disposable {
     }));
     for (const record of stale) this.#removeSession(record.id);
     if (this.#activeSessionId && !this.#runtimes.has(this.#activeSessionId)) {
-      this.#activeSessionId = [...this.#runtimes.keys()][0] ?? null;
+      this.#activeSessionId = [...this.#runtimes.keys()].at(-1) ?? null;
     }
     await this.#persist();
     this.#logger.info(`Removed ${stale.length} FrostPi session record(s) for deleted worktrees.`);
