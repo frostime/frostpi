@@ -18,6 +18,11 @@
   } = $props();
 
   function statusLabel(session: SessionSummaryView): string {
+    const status = runtimeStatusLabel(session);
+    return session.workingDirectoryLabel ? `${session.workingDirectoryLabel} · ${status}` : status;
+  }
+
+  function runtimeStatusLabel(session: SessionSummaryView): string {
     if (session.requiresUserInput) return "Action required";
     if (session.status === "queued") return "Waiting to start";
     if (session.historyStatus === "queued") return "Waiting for history";
@@ -48,6 +53,7 @@
           type="button"
           role="option"
           aria-selected={session.id === activeId}
+          title={session.cwd}
           onclick={() => onselect(session.id)}
         >
           <span class="session-list-mark">{session.id === activeId ? "✓" : ""}</span>

@@ -11,6 +11,7 @@ export interface SessionSummaryView {
   id: string;
   title: string;
   cwd: string;
+  workingDirectoryLabel?: string;
   status: SessionRuntimeStatus;
   isActive: boolean;
   modelLabel?: string;
@@ -45,6 +46,7 @@ export interface SessionViewModel {
   id: string;
   title: string;
   cwd: string;
+  workingDirectoryLabel?: string;
   status: SessionRuntimeStatus;
   isStreaming: boolean;
   isCompacting: boolean;

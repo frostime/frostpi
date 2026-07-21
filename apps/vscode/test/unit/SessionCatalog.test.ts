@@ -12,7 +12,8 @@ vi.mock("vscode", () => ({
   commands: { executeCommand: vi.fn() },
 }));
 
-import { readPiSessionMetadata, resolveSessionRoots } from "../../src/extension/sessions/SessionCatalog.js";
+import { discoverPiSessions, readPiSessionMetadata, resolveSessionRoots } from "../../src/extension/sessions/SessionCatalog.js";
+import type { SessionWorkingDirectory } from "../../src/extension/sessions/SessionWorkingDirectories.js";
 
 describe("Pi session metadata", () => {
   it("reads cwd, session name, and latest user preview from JSONL", async () => {
@@ -81,6 +82,30 @@ describe("Pi session metadata", () => {
     ].join("\n"));
 
     expect((await readPiSessionMetadata(path))?.title).toBe("fallback preview");
+  });
+});
+
+describe("session discovery across worktrees", () => {
+  it("resolves project session roots for every allowed working directory", async () => {
+    const main = await mkdtemp(join(tmpdir(), "frostpi-main-worktree-"));
+    const linked = await mkdtemp(join(tmpdir(), "frostpi-linked-worktree-"));
+    for (const [cwd, title] of [[main, "Main session"], [linked, "Linked session"]] as const) {
+      const sessionDir = join(cwd, ".pi", "sessions");
+      await mkdir(sessionDir, { recursive: true });
+      await writeFile(join(cwd, ".pi", "settings.json"), JSON.stringify({ sessionDir: ".pi/sessions" }));
+      await writeFile(join(sessionDir, `${title}.jsonl`), [
+        JSON.stringify({ type: "session", version: 3, id: title, cwd }),
+        JSON.stringify({ type: "session_info", name: title }),
+      ].join("\n"));
+    }
+    const directories: SessionWorkingDirectory[] = [
+      { cwd: main, workspaceFolderCwd: main, worktreeRoot: main, directoryName: "main", branch: "main", isCurrent: true },
+      { cwd: linked, workspaceFolderCwd: main, worktreeRoot: linked, directoryName: "linked", branch: "feature", isCurrent: false },
+    ];
+
+    const sessions = await discoverPiSessions(directories, []);
+
+    expect(new Set(sessions.map((session) => session.title))).toEqual(new Set(["Main session", "Linked session"]));
   });
 });
 

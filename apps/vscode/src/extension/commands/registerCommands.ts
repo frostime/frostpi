@@ -22,8 +22,8 @@ export function registerCommands(
   context.subscriptions.push(
     vscode.commands.registerCommand("frostpi.focus", () => viewProvider.reveal()),
     vscode.commands.registerCommand("frostpi.newSession", async () => {
-      await registry.createSession();
-      await viewProvider.reveal();
+      const sessionId = await registry.createSession();
+      if (sessionId) await viewProvider.reveal();
     }),
     vscode.commands.registerCommand("frostpi.resumeSession", async () => {
       const sessionId = await registry.resumeSession();

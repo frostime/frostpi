@@ -74,6 +74,11 @@
   }
 
   function statusLabel(): string {
+    const status = activeStatusLabel();
+    return active.workingDirectoryLabel ? `${active.workingDirectoryLabel} · ${status}` : status;
+  }
+
+  function activeStatusLabel(): string {
     if (active.pendingExtensionUi.length > 0) return "action required";
     if (active.isForking) return "forking session";
     if (active.isCompacting) return "compacting context";
@@ -136,6 +141,7 @@
           type="button"
           aria-haspopup="dialog"
           aria-expanded={sessionListOpen}
+          title={active.cwd}
           onclick={() => { sessionListOpen = !sessionListOpen; menuOpen = false; launcherOpen = false; }}
         >
           <StatusDot status={active.status} />

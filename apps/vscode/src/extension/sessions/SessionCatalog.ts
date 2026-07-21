@@ -5,6 +5,10 @@ import { basename, isAbsolute, join, normalize, resolve } from "node:path";
 import * as vscode from "vscode";
 
 import { workspaceUriForPath } from "../configuration/workspaceScope.js";
+import {
+  findSessionWorkingDirectory,
+  type SessionWorkingDirectory,
+} from "./SessionWorkingDirectories.js";
 
 export interface PiSessionCatalogEntry {
   path: string;
@@ -19,10 +23,15 @@ const MAX_FILES = 2_000;
 const HEADER_BYTES = 64 * 1024;
 const TAIL_BYTES = 384 * 1024;
 
-export async function pickPiSession(cwd: string, piArguments: string[]): Promise<PiSessionCatalogEntry | undefined> {
+export async function pickPiSession(
+  directories: readonly SessionWorkingDirectory[],
+  piArguments: string[],
+): Promise<PiSessionCatalogEntry | undefined> {
+  const current = directories[0];
+  if (!current) return undefined;
   const sessions = await vscode.window.withProgress(
     { location: vscode.ProgressLocation.Window, title: "Finding Pi sessions…" },
-    () => discoverPiSessions(cwd, piArguments),
+    () => discoverPiSessions(directories, piArguments),
   );
 
   const browse: vscode.QuickPickItem & { browse: true } = {
@@ -33,14 +42,19 @@ export async function pickPiSession(cwd: string, piArguments: string[]): Promise
   };
   const items: Array<(vscode.QuickPickItem & { entry?: PiSessionCatalogEntry; browse?: true })> = [];
   if (sessions.length) {
-    items.push({ label: "Previous sessions", kind: vscode.QuickPickItemKind.Separator });
-    for (const entry of sessions) {
-      items.push({
-        label: `$(comment-discussion) ${entry.title}`,
-        description: relativeAge(entry.updatedAt),
-        detail: entry.preview ? `${entry.preview}  ·  ${entry.path}` : entry.path,
-        entry,
-      });
+    for (const directory of directories) {
+      const group = sessions.filter((entry) => samePath(entry.cwd, directory.cwd));
+      if (!group.length) continue;
+      const location = workingDirectoryLabel(directory);
+      items.push({ label: location, kind: vscode.QuickPickItemKind.Separator });
+      for (const entry of group) {
+        items.push({
+          label: `$(comment-discussion) ${entry.title}`,
+          description: `${location} · ${relativeAge(entry.updatedAt)}`,
+          detail: entry.preview ? `${entry.preview}  ·  ${entry.path}` : entry.path,
+          entry,
+        });
+      }
     }
     items.push({ label: "Other", kind: vscode.QuickPickItemKind.Separator });
   }
@@ -48,7 +62,7 @@ export async function pickPiSession(cwd: string, piArguments: string[]): Promise
 
   const selected = await vscode.window.showQuickPick(items, {
     title: "Resume Pi session",
-    placeHolder: sessions.length ? "Select a session from this workspace" : "No sessions were discovered; browse for a JSONL file",
+    placeHolder: sessions.length ? "Search sessions across this repository's worktrees" : "No sessions were discovered; browse for a JSONL file",
     matchOnDescription: true,
     matchOnDetail: true,
     ignoreFocusOut: true,
@@ -62,14 +76,14 @@ export async function pickPiSession(cwd: string, piArguments: string[]): Promise
     canSelectFolders: false,
     canSelectMany: false,
     filters: { "Pi session": ["jsonl"] },
-    defaultUri: workspaceUriForPath(cwd),
+    defaultUri: workspaceUriForPath(current.cwd),
   });
   if (!files?.[0]) return undefined;
   const entry = await readPiSessionMetadata(files[0].fsPath);
   if (!entry) throw new Error("The selected file is not a readable Pi session.");
-  if (!samePath(entry.cwd, cwd)) {
+  if (!findSessionWorkingDirectory(directories, entry.cwd)) {
     const choice = await vscode.window.showWarningMessage(
-      `This session belongs to ${entry.cwd}. Open that folder before resuming it.`,
+      `This session belongs to ${entry.cwd}, which is not an available worktree for this workspace.`,
       "Open folder",
     );
     if (choice === "Open folder") await vscode.commands.executeCommand("vscode.openFolder", workspaceUriForPath(entry.cwd));
@@ -78,12 +92,16 @@ export async function pickPiSession(cwd: string, piArguments: string[]): Promise
   return entry;
 }
 
-export async function discoverPiSessions(cwd: string, piArguments: string[]): Promise<PiSessionCatalogEntry[]> {
-  const roots = await resolveSessionRoots(cwd, piArguments);
+export async function discoverPiSessions(
+  directories: readonly SessionWorkingDirectory[],
+  piArguments: string[],
+): Promise<PiSessionCatalogEntry[]> {
+  const rootsByDirectory = await Promise.all(directories.map((directory) => resolveSessionRoots(directory.cwd, piArguments)));
+  const roots = rootsByDirectory.flat().filter((root, index, all) => all.findIndex((candidate) => samePath(candidate, root)) === index);
   const paths = await findJsonlFiles(roots, MAX_FILES);
   const entries = await mapConcurrent(paths, 12, readPiSessionMetadata);
   return entries
-    .filter((entry): entry is PiSessionCatalogEntry => Boolean(entry && samePath(entry.cwd, cwd)))
+    .filter((entry): entry is PiSessionCatalogEntry => Boolean(entry && findSessionWorkingDirectory(directories, entry.cwd)))
     .sort((a, b) => b.updatedAt - a.updatedAt);
 }
 
@@ -296,6 +314,12 @@ function samePath(left: string, right: string): boolean {
   const a = normalize(resolve(left));
   const b = normalize(resolve(right));
   return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+function workingDirectoryLabel(directory: SessionWorkingDirectory): string {
+  const source = directory.branch ?? (directory.detached ? "Detached HEAD" : undefined);
+  const label = source ? `${source} · ${directory.directoryName}` : directory.directoryName;
+  return directory.isCurrent ? `${label} · Current workspace` : label;
 }
 
 function relativeAge(timestamp: number): string {
