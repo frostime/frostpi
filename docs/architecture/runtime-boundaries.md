@@ -3,12 +3,12 @@ title: Runtime and Trust Boundaries
 description: Execution location, trust, persistence, proxy, secret handling, and failure isolation.
 scope:
   - /apps/vscode/src/extension/**
-updated: 2026-07-16
+updated: 2026-07-21
 ---
 
 # Runtime and Trust Boundaries
 
-FrostPi is a workspace extension. Local workspaces launch Pi locally; Remote SSH, WSL, and Dev Containers launch Pi in the remote Extension Host. No local-to-remote command bridge exists.
+FrostPi is a workspace extension. Local workspaces launch Pi locally; Remote SSH, WSL, and Dev Containers launch Pi in the remote Extension Host. No local-to-remote command bridge exists. A Session may run in the current workspace folder or an existing worktree of the same Git repository; the Extension Host discovers and validates that boundary before process start. Arbitrary external directories remain outside the workspace trust boundary.
 
 Untrusted and virtual workspaces are unsupported because Pi can execute commands and modify files. The Webview has no Node access, uses a restrictive CSP, and all commands are schema-validated by the host.
 

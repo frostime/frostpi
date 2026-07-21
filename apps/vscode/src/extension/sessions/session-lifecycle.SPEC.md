@@ -5,7 +5,7 @@ scope:
   - /apps/vscode/src/extension/sessions/**
   - /apps/vscode/src/extension/conversation/**
   - /apps/vscode/src/extension/extension-ui/**
-updated: 2026-07-19
+updated: 2026-07-21
 ---
 
 # Pi Session Lifecycle
@@ -13,6 +13,14 @@ updated: 2026-07-19
 ## Ownership
 
 One `SessionRuntime` owns exactly one live `pi --mode rpc` child process. `SessionRegistry` owns the collection, active selection, persistence metadata, and Webview-facing workspace snapshot. Pi owns conversation persistence and session JSONL content.
+
+## Working directories
+
+Each Session owns its process working directory. New and Resume use the active editor's workspace folder, otherwise the first workspace folder, as their anchor. That folder is always allowed; existing non-bare, non-`prunable` worktrees of the same Git repository are also allowed. A workspace opened below the worktree root maps the same repository-relative subdirectory into linked worktrees, and omits a worktree when that mapped directory does not exist.
+
+Worktree discovery and path authorization remain in the Extension Host. The Webview cannot supply a `cwd`. Multi-root workspaces do not aggregate repositories in New or Resume, but persisted records are validated against every open workspace folder so an inactive root's Sessions remain valid. An external worktree Session inherits resource-scoped FrostPi configuration from its anchor workspace folder.
+
+FrostPi queries Git on New, Resume, initial restoration, and before starting or restarting a stopped external Session. It does not cache the worktree list persistently, watch `.git`, or interrupt a running process after external worktree removal. Authoritatively removed worktrees cause FrostPi metadata cleanup without deleting Pi JSONL; failed Git discovery retains uncertain records and does not authorize their process start.
 
 ## Concurrency
 
@@ -51,7 +59,7 @@ FrostPi persists only:
 - last-updated timestamp;
 - active session id.
 
-It does not persist message bodies, reasoning, tool output, images, provider credentials, or API keys. On restoration, the process starts with `--session <path>` and conversation state is rebuilt from Pi's `get_messages` response.
+It does not persist message bodies, reasoning, tool output, images, provider credentials, API keys, worktree lists, branch names, or the anchor workspace folder. The anchor is recovered from current Git worktree relationships before an external process starts. On restoration, the process starts with `--session <path>` and conversation state is rebuilt from Pi's `get_messages` response.
 
 ## State semantics
 

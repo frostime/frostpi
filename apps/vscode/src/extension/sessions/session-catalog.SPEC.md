@@ -1,8 +1,16 @@
+---
+title: Existing-session discovery and resume
+description: Session storage roots, bounded JSONL discovery, worktree grouping, metadata recovery, and Resume ownership checks.
+scope:
+  - /apps/vscode/src/extension/sessions/SessionCatalog.ts
+updated: 2026-07-21
+---
+
 # Existing-session discovery and resume
 
 ## Scope
 
-FrostPi implements the user-visible equivalent of Pi's `/resume` for the active VS Code workspace. It does not invoke Pi's terminal selector and does not edit session files.
+FrostPi implements the user-visible equivalent of Pi's `/resume` for the active VS Code workspace folder and its existing same-repository worktrees. It does not invoke Pi's terminal selector and does not edit session files.
 
 ## Discovery
 
@@ -16,9 +24,9 @@ Candidate session roots are discovered from:
 
 Relative `sessionDir` values follow Pi runtime semantics: expand `~`, then resolve against the active workspace folder (the cwd FrostPi uses when launching Pi). They are **not** resolved relative to the settings file directory; that rule applies to Pi resource paths (extensions, skills, …), not `sessionDir`.
 
-All candidate roots are scanned so older sessions remain discoverable after a configuration change. Results are filtered by the session header's `cwd`, matching the active workspace folder.
+Roots are resolved separately for the active workspace folder and every allowed worktree working directory, then deduplicated. This preserves each worktree's project `.pi/settings.json` and Pi's cwd-relative `sessionDir` semantics. All candidate roots are scanned so older sessions remain discoverable after a configuration change. Results are filtered by the session header's `cwd`, which must match one of the allowed working directories.
 
-Scanning is bounded to 2,000 JSONL files. Metadata reads use bounded head and tail windows rather than loading the whole conversation. Invalid, truncated, inaccessible, and non-session files are skipped.
+Scanning is bounded to 2,000 JSONL files globally across all roots. Metadata reads use bounded head and tail windows rather than loading the whole conversation. Invalid, truncated, inaccessible, and non-session files are skipped. The native VS Code picker groups results by worktree, orders each group by update time, and keeps worktree labels in searchable item fields so search still crosses groups.
 
 Extension hooks that rewrite the session directory at runtime are not visible to discovery; use **Browse for a session file…** for non-standard storage.
 
@@ -34,7 +42,7 @@ Selecting a session creates a normal FrostPi `SessionRuntime` with the session h
 
 Opening a session already present in FrostPi activates the existing runtime instead of spawning a duplicate process.
 
-A manually browsed session whose `cwd` differs from the active workspace is not started. FrostPi offers to open the owning folder first, preventing an agent attached to one VS Code workspace from silently operating in another project.
+A manually browsed session whose `cwd` is outside the allowed active-workspace/worktree set is not started. FrostPi offers to open the owning folder first, preventing an agent attached to one repository from silently operating in another project.
 
 ## Non-goals
 

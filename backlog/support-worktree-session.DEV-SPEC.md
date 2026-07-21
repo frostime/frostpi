@@ -99,7 +99,8 @@ A new extension-host module owns Session working-directory discovery. It hides:
 - path normalization and equality;
 - valid worktree filtering;
 - nested workspace-directory mapping;
-- display metadata needed by native pickers.
+- display metadata needed by native pickers;
+- the anchor workspace folder whose resource-scoped FrostPi configuration applies to an external runtime.
 
 The module is stateless. One user operation shares one discovery result; no worktree list is persisted or continuously cached.
 
