@@ -12,7 +12,7 @@ vi.mock("vscode", () => ({
   commands: { executeCommand: vi.fn() },
 }));
 
-import { discoverPiSessions, readPiSessionMetadata, resolveSessionRoots } from "../../src/extension/sessions/SessionCatalog.js";
+import { buildSessionQuickPickItems, discoverPiSessions, readPiSessionMetadata, resolveSessionRoots } from "../../src/extension/sessions/SessionCatalog.js";
 import type { SessionWorkingDirectory } from "../../src/extension/sessions/SessionWorkingDirectories.js";
 
 describe("Pi session metadata", () => {
@@ -104,8 +104,17 @@ describe("session discovery across worktrees", () => {
     ];
 
     const sessions = await discoverPiSessions(directories, []);
+    const quickPickItems = buildSessionQuickPickItems(sessions, directories);
 
     expect(new Set(sessions.map((session) => session.title))).toEqual(new Set(["Main session", "Linked session"]));
+    expect(quickPickItems).toEqual(expect.arrayContaining([
+      expect.objectContaining({ label: "main · main · Current workspace", kind: -1 }),
+      expect.objectContaining({ label: "feature · linked", kind: -1 }),
+    ]));
+    expect(quickPickItems.find((item) => item.label === "$(comment-discussion) Main session")?.description)
+      .toContain("main · main · Current workspace");
+    expect(quickPickItems.find((item) => item.label === "$(comment-discussion) Linked session")?.description)
+      .toContain("feature · linked");
   });
 });
 

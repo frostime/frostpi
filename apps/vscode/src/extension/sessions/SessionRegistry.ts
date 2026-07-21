@@ -53,7 +53,7 @@ export class SessionRegistry implements vscode.Disposable {
   readonly #temporarySessionIds = new Set<string>();
   readonly #startJobs = new Map<string, Promise<void>>();
   readonly #historyJobs = new Map<string, Promise<void>>();
-  readonly #workspaceFolderCwds = new Map<string, string>();
+  readonly #workingDirectoriesByCwd = new Map<string, SessionWorkingDirectory>();
   readonly #discoverWorkingDirectories: DiscoverSessionWorkingDirectories;
 
   #activeSessionId: string | null = null;
@@ -103,8 +103,7 @@ export class SessionRegistry implements vscode.Disposable {
   snapshot(): WorkspaceViewModel {
     const folder = activeWorkspaceFolder();
     const active = this.#activeSessionId ? this.#runtimes.get(this.#activeSessionId) : undefined;
-    const rawActiveView = active?.view ?? null;
-    const activeView = rawActiveView ? withWorkingDirectoryLabel(rawActiveView) : null;
+    const activeView = active ? this.#withWorkingDirectoryLabel(active.view) : null;
     const sessions: SessionSummaryView[] = [...this.#runtimes.values()]
       .map((runtime) => {
         const view = runtime.view;
@@ -112,7 +111,7 @@ export class SessionRegistry implements vscode.Disposable {
           id: view.id,
           title: view.title,
           cwd: view.cwd,
-          ...workingDirectoryLabel(view.cwd),
+          ...this.#workingDirectoryLabel(view.cwd),
           status: view.status,
           isActive: view.id === this.#activeSessionId,
           ...(view.model ? { modelLabel: view.model.name ?? `${view.model.provider}/${view.model.id}` } : {}),
@@ -153,7 +152,7 @@ export class SessionRegistry implements vscode.Disposable {
     const entry = await pickPiSession(discovery.directories, configuration.piArguments);
     if (!entry) return undefined;
     const directory = findSessionWorkingDirectory(discovery.directories, entry.cwd);
-    return this.#openSession(entry, true, directory?.workspaceFolderCwd);
+    return this.#openSession(entry, true, directory);
   }
 
   async openSession(entry: PiSessionCatalogEntry): Promise<string> {
@@ -163,12 +162,12 @@ export class SessionRegistry implements vscode.Disposable {
   async #openSession(
     entry: PiSessionCatalogEntry,
     workingDirectoryValidated: boolean,
-    workspaceFolderCwd?: string,
+    workingDirectory?: SessionWorkingDirectory,
   ): Promise<string> {
     this.#assertNoForkOperation();
     const existing = [...this.#records.values()].find((record) => record.sessionFile && samePath(record.sessionFile, entry.path));
     if (existing) {
-      if (workspaceFolderCwd) this.#workspaceFolderCwds.set(existing.id, workspaceFolderCwd);
+      if (workingDirectory) this.#rememberWorkingDirectory(workingDirectory);
       if (existing.id !== this.#activeSessionId) await this.#discardActiveTemporarySession();
       await this.activateSession(existing.id);
       return existing.id;
@@ -184,7 +183,7 @@ export class SessionRegistry implements vscode.Disposable {
       updatedAt: entry.updatedAt,
     };
     this.#records.set(id, record);
-    if (workspaceFolderCwd) this.#workspaceFolderCwds.set(id, workspaceFolderCwd);
+    if (workingDirectory) this.#rememberWorkingDirectory(workingDirectory);
     const runtime = this.#createRuntime(record);
     this.#runtimes.set(id, runtime);
     this.#activeSessionId = id;
@@ -204,7 +203,7 @@ export class SessionRegistry implements vscode.Disposable {
       updatedAt: Date.now(),
     };
     this.#records.set(id, record);
-    this.#workspaceFolderCwds.set(id, directory.workspaceFolderCwd);
+    this.#rememberWorkingDirectory(directory);
     this.#temporarySessionIds.add(id);
     const runtime = this.#createRuntime(record);
     this.#runtimes.set(id, runtime);
@@ -455,7 +454,7 @@ export class SessionRegistry implements vscode.Disposable {
         stale.push(record);
         continue;
       }
-      this.#workspaceFolderCwds.set(record.id, directory.workspaceFolderCwd);
+      this.#rememberWorkingDirectory(directory);
       this.#runtimes.get(record.id)?.refreshConfigurationState();
     }
     if (!stale.length) return;
@@ -479,7 +478,7 @@ export class SessionRegistry implements vscode.Disposable {
     const allowed = discoveries.flatMap((discovery) => discovery.directories);
     const directory = findSessionWorkingDirectory(allowed, runtime.cwd);
     if (directory) {
-      this.#workspaceFolderCwds.set(runtime.id, directory.workspaceFolderCwd);
+      this.#rememberWorkingDirectory(directory);
       runtime.refreshConfigurationState();
       return true;
     }
@@ -516,7 +515,7 @@ export class SessionRegistry implements vscode.Disposable {
       record.cwd,
       record.title,
       record.updatedAt,
-      () => readConfiguration(workspaceUriForPath(this.#workspaceFolderCwds.get(record.id) ?? record.cwd)),
+      () => readConfiguration(workspaceUriForPath(this.#workingDirectoriesByCwd.get(normalizedPath(record.cwd))?.workspaceFolderCwd ?? record.cwd)),
       this.#proxySecrets,
       this.#logger,
       {
@@ -563,8 +562,6 @@ export class SessionRegistry implements vscode.Disposable {
     forkName: string,
   ): void {
     const originalRuntime = this.#createRuntime(original);
-    const workspaceFolderCwd = this.#workspaceFolderCwds.get(operation.sourceId);
-    if (workspaceFolderCwd) this.#workspaceFolderCwds.set(operation.forkId, workspaceFolderCwd);
     const previousStatus = this.#lastStatuses.get(operation.sourceId) ?? operation.runtime.view.status;
     const pendingUiCount = operation.runtime.view.pendingExtensionUi.length;
     operation.runtime.rebindSessionId(operation.forkId);
@@ -733,7 +730,20 @@ export class SessionRegistry implements vscode.Disposable {
     this.#lastPendingUiCounts.delete(sessionId);
     this.#startJobs.delete(sessionId);
     this.#historyJobs.delete(sessionId);
-    this.#workspaceFolderCwds.delete(sessionId);
+  }
+
+  #rememberWorkingDirectory(directory: SessionWorkingDirectory): void {
+    this.#workingDirectoriesByCwd.set(normalizedPath(directory.cwd), directory);
+  }
+
+  #withWorkingDirectoryLabel(view: SessionRuntime["view"]): SessionRuntime["view"] {
+    const label = this.#workingDirectoryLabel(view.cwd);
+    return label.workingDirectoryLabel ? { ...view, ...label } : view;
+  }
+
+  #workingDirectoryLabel(cwd: string): { workingDirectoryLabel?: string } {
+    if (isOpenWorkspaceFolder(cwd)) return {};
+    return { workingDirectoryLabel: this.#workingDirectoriesByCwd.get(normalizedPath(cwd))?.directoryName ?? basename(cwd) };
   }
 
   #requireRuntime(sessionId: string): SessionRuntime {
@@ -774,15 +784,6 @@ async function pickSessionWorkingDirectory(
 
 function isOpenWorkspaceFolder(cwd: string): boolean {
   return Boolean(vscode.workspace.workspaceFolders?.some((folder) => samePath(folder.uri.fsPath, cwd)));
-}
-
-function withWorkingDirectoryLabel(view: SessionRuntime["view"]): SessionRuntime["view"] {
-  const label = workingDirectoryLabel(view.cwd);
-  return label.workingDirectoryLabel ? { ...view, ...label } : view;
-}
-
-function workingDirectoryLabel(cwd: string): { workingDirectoryLabel?: string } {
-  return isOpenWorkspaceFolder(cwd) ? {} : { workingDirectoryLabel: basename(cwd) };
 }
 
 function forkSessionName(title: string): string {
@@ -828,9 +829,12 @@ function activeWorkspaceFolder(): vscode.WorkspaceFolder | undefined {
 }
 
 function samePath(left: string, right: string): boolean {
-  const a = normalize(resolve(left));
-  const b = normalize(resolve(right));
-  return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
+  return normalizedPath(left) === normalizedPath(right);
+}
+
+function normalizedPath(path: string): string {
+  const value = normalize(resolve(path));
+  return process.platform === "win32" ? value.toLowerCase() : value;
 }
 
 function looksLikeGeneratedSessionName(value: string): boolean {

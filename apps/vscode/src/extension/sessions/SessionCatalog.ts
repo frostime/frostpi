@@ -19,6 +19,8 @@ export interface PiSessionCatalogEntry {
   preview?: string;
 }
 
+type PiSessionQuickPickItem = vscode.QuickPickItem & { entry?: PiSessionCatalogEntry; browse?: true };
+
 const MAX_FILES = 2_000;
 const HEADER_BYTES = 64 * 1024;
 const TAIL_BYTES = 384 * 1024;
@@ -40,24 +42,8 @@ export async function pickPiSession(
     alwaysShow: true,
     browse: true,
   };
-  const items: Array<(vscode.QuickPickItem & { entry?: PiSessionCatalogEntry; browse?: true })> = [];
-  if (sessions.length) {
-    for (const directory of directories) {
-      const group = sessions.filter((entry) => samePath(entry.cwd, directory.cwd));
-      if (!group.length) continue;
-      const location = workingDirectoryLabel(directory);
-      items.push({ label: location, kind: vscode.QuickPickItemKind.Separator });
-      for (const entry of group) {
-        items.push({
-          label: `$(comment-discussion) ${entry.title}`,
-          description: `${location} · ${relativeAge(entry.updatedAt)}`,
-          detail: entry.preview ? `${entry.preview}  ·  ${entry.path}` : entry.path,
-          entry,
-        });
-      }
-    }
-    items.push({ label: "Other", kind: vscode.QuickPickItemKind.Separator });
-  }
+  const items = buildSessionQuickPickItems(sessions, directories);
+  if (sessions.length) items.push({ label: "Other", kind: vscode.QuickPickItemKind.Separator });
   items.push(browse);
 
   const selected = await vscode.window.showQuickPick(items, {
@@ -314,6 +300,28 @@ function samePath(left: string, right: string): boolean {
   const a = normalize(resolve(left));
   const b = normalize(resolve(right));
   return process.platform === "win32" ? a.toLowerCase() === b.toLowerCase() : a === b;
+}
+
+export function buildSessionQuickPickItems(
+  sessions: readonly PiSessionCatalogEntry[],
+  directories: readonly SessionWorkingDirectory[],
+): PiSessionQuickPickItem[] {
+  const items: PiSessionQuickPickItem[] = [];
+  for (const directory of directories) {
+    const group = sessions.filter((entry) => samePath(entry.cwd, directory.cwd));
+    if (!group.length) continue;
+    const location = workingDirectoryLabel(directory);
+    items.push({ label: location, kind: vscode.QuickPickItemKind.Separator });
+    for (const entry of group) {
+      items.push({
+        label: `$(comment-discussion) ${entry.title}`,
+        description: `${location} · ${relativeAge(entry.updatedAt)}`,
+        detail: entry.preview ? `${entry.preview}  ·  ${entry.path}` : entry.path,
+        entry,
+      });
+    }
+  }
+  return items;
 }
 
 function workingDirectoryLabel(directory: SessionWorkingDirectory): string {

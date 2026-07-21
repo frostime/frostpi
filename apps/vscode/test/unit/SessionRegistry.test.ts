@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type * as SessionWorkingDirectoriesModule from "../../src/extension/sessions/SessionWorkingDirectories.js";
 
-const testEnvironment = vi.hoisted(() => ({ cwd: "", piExecutable: "", quickPickCwd: "" }));
+const testEnvironment = vi.hoisted(() => ({ cwd: "", piExecutable: "", quickPickCwd: "", configurationScopes: [] as string[] }));
 
 vi.mock("../../src/extension/sessions/SessionWorkingDirectories.js", async (importOriginal) => {
   const actual = await importOriginal<typeof SessionWorkingDirectoriesModule>();
@@ -45,9 +45,12 @@ vi.mock("vscode", () => {
     },
     workspace: {
       get workspaceFolders() { return testEnvironment.cwd ? [{ name: "test", uri: { fsPath: testEnvironment.cwd } }] : []; },
-      getConfiguration: (section: string) => ({
-        get: (key: string, fallback: unknown) => section === "frostpi" && key === "pi.executable" ? testEnvironment.piExecutable : fallback,
-      }),
+      getConfiguration: (section: string, scope?: { fsPath?: string }) => {
+        if (section === "frostpi" && scope?.fsPath) testEnvironment.configurationScopes.push(scope.fsPath);
+        return {
+          get: (key: string, fallback: unknown) => section === "frostpi" && key === "pi.executable" ? testEnvironment.piExecutable : fallback,
+        };
+      },
       getWorkspaceFolder: () => undefined,
     },
   };
@@ -61,6 +64,7 @@ describe("FrostPi session collection", () => {
   afterEach(async () => {
     await Promise.all(registries.splice(0).map((registry) => registry.dispose()));
     testEnvironment.quickPickCwd = "";
+    testEnvironment.configurationScopes = [];
   });
 
   it("does not create a session when none are persisted on open", async () => {
@@ -90,7 +94,7 @@ describe("FrostPi session collection", () => {
         authoritative: true,
         directories: [
           { cwd: main, workspaceFolderCwd: main, worktreeRoot: main, directoryName: "main", branch: "main", isCurrent: true },
-          { cwd: linked, workspaceFolderCwd: main, worktreeRoot: linked, directoryName: "linked", branch: "feature/task", isCurrent: false },
+          { cwd: linked, workspaceFolderCwd: main, worktreeRoot: linked, directoryName: "feature-root", branch: "feature/task", isCurrent: false },
         ],
       }),
     );
@@ -99,7 +103,8 @@ describe("FrostPi session collection", () => {
     const sessionId = await registry.createSession();
 
     expect(sessionId).toBeTypeOf("string");
-    expect(registry.snapshot().activeSession).toMatchObject({ cwd: linked, workingDirectoryLabel: linked.split(/[\\/]/).at(-1) });
+    expect(registry.snapshot().activeSession).toMatchObject({ cwd: linked, workingDirectoryLabel: "feature-root" });
+    expect(new Set(testEnvironment.configurationScopes)).toEqual(new Set([main]));
   });
 
   it("removes persisted sessions only after Git confirms their worktree is gone", async () => {
