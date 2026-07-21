@@ -95,7 +95,7 @@ export class SessionRegistry implements vscode.Disposable {
     // Never invent a new session on open. Empty workspaces stay on the onboarding home until
     // the user creates or resumes a session. Optionally start only an already-selected one.
     const active = this.#activeSessionId ? this.#runtimes.get(this.#activeSessionId) : undefined;
-    if (active && readConfiguration(workspaceUriForPath(active.cwd)).startSessionOnOpen) {
+    if (active && readConfiguration(workspaceUriForPath(this.#configurationScopeCwd(active.cwd))).startSessionOnOpen) {
       await this.#startRuntime(active).catch(() => undefined);
     }
   }
@@ -515,7 +515,7 @@ export class SessionRegistry implements vscode.Disposable {
       record.cwd,
       record.title,
       record.updatedAt,
-      () => readConfiguration(workspaceUriForPath(this.#workingDirectoriesByCwd.get(normalizedPath(record.cwd))?.workspaceFolderCwd ?? record.cwd)),
+      () => readConfiguration(workspaceUriForPath(this.#configurationScopeCwd(record.cwd))),
       this.#proxySecrets,
       this.#logger,
       {
@@ -734,6 +734,10 @@ export class SessionRegistry implements vscode.Disposable {
 
   #rememberWorkingDirectory(directory: SessionWorkingDirectory): void {
     this.#workingDirectoriesByCwd.set(normalizedPath(directory.cwd), directory);
+  }
+
+  #configurationScopeCwd(cwd: string): string {
+    return this.#workingDirectoriesByCwd.get(normalizedPath(cwd))?.workspaceFolderCwd ?? cwd;
   }
 
   #withWorkingDirectoryLabel(view: SessionRuntime["view"]): SessionRuntime["view"] {

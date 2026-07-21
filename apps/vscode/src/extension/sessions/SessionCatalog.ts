@@ -20,6 +20,7 @@ export interface PiSessionCatalogEntry {
 }
 
 type PiSessionQuickPickItem = vscode.QuickPickItem & { entry?: PiSessionCatalogEntry; browse?: true };
+type SessionRootResolver = (cwd: string, piArguments: string[]) => Promise<string[]>;
 
 const MAX_FILES = 2_000;
 const HEADER_BYTES = 64 * 1024;
@@ -81,8 +82,9 @@ export async function pickPiSession(
 export async function discoverPiSessions(
   directories: readonly SessionWorkingDirectory[],
   piArguments: string[],
+  resolveRoots: SessionRootResolver = resolveSessionRoots,
 ): Promise<PiSessionCatalogEntry[]> {
-  const rootsByDirectory = await Promise.all(directories.map((directory) => resolveSessionRoots(directory.cwd, piArguments)));
+  const rootsByDirectory = await Promise.all(directories.map((directory) => resolveRoots(directory.cwd, piArguments)));
   const roots = rootsByDirectory.flat().filter((root, index, all) => all.findIndex((candidate) => samePath(candidate, root)) === index);
   const paths = await findJsonlFiles(roots, MAX_FILES);
   const entries = await mapConcurrent(paths, 12, readPiSessionMetadata);

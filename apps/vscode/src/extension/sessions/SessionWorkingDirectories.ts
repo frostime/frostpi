@@ -53,7 +53,7 @@ export async function discoverSessionWorkingDirectories(
   }
 
   const current = worktrees
-    .filter((worktree) => !worktree.bare && !worktree.prunable && pathContains(worktree.path, cwd))
+    .filter((worktree) => !worktree.prunable && pathContains(worktree.path, cwd))
     .sort((left, right) => right.path.length - left.path.length)[0];
   if (!current) return fallback;
 

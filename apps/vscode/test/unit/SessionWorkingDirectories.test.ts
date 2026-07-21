@@ -34,6 +34,37 @@ describe("Session working-directory discovery", () => {
     ]);
   });
 
+  it("uses a bare repository as the anchor for linked worktrees", async () => {
+    const bare = resolve("/repo.git");
+    const linked = resolve("/worktrees/feature");
+    const result = await discoverSessionWorkingDirectories(bare, {
+      listWorktrees: () => Promise.resolve(gitOutput(
+        ["worktree /repo.git", "bare"],
+        ["worktree /worktrees/feature", "HEAD bbbbb", "branch refs/heads/feature/task"],
+      )),
+      isDirectory: () => Promise.resolve(true),
+    });
+
+    expect(result.authoritative).toBe(true);
+    expect(result.directories).toEqual([
+      {
+        cwd: bare,
+        workspaceFolderCwd: bare,
+        worktreeRoot: bare,
+        directoryName: "repo.git",
+        isCurrent: true,
+      },
+      {
+        cwd: linked,
+        workspaceFolderCwd: bare,
+        worktreeRoot: linked,
+        directoryName: "feature",
+        branch: "feature/task",
+        isCurrent: false,
+      },
+    ]);
+  });
+
   it("maps a nested workspace directory into valid worktrees", async () => {
     const workspaceCwd = resolve("/repo/packages/api");
     const target = resolve("/worktrees/feature/packages/api");

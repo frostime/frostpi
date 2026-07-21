@@ -103,7 +103,11 @@ describe("session discovery across worktrees", () => {
       { cwd: linked, workspaceFolderCwd: main, worktreeRoot: linked, directoryName: "linked", branch: "feature", isCurrent: false },
     ];
 
-    const sessions = await discoverPiSessions(directories, []);
+    const sessions = await discoverPiSessions(
+      directories,
+      [],
+      (cwd) => Promise.resolve([join(cwd, ".pi", "sessions")]),
+    );
     const quickPickItems = buildSessionQuickPickItems(sessions, directories);
 
     expect(new Set(sessions.map((session) => session.title))).toEqual(new Set(["Main session", "Linked session"]));
