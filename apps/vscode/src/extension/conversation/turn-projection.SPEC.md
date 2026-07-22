@@ -10,7 +10,7 @@ FrostPi presents one user prompt and all subsequent Pi activity as a turn. Pi RP
 - Tool result events update the existing tool activity by tool-call ID.
 - `agent_settled` closes the active turn.
 - A host-side completion path may close a specific still-running local turn by id when that turn never received agent events (Pi extension slash commands).
-- Historical messages and live events use the same activity model.
+- Historical messages and live events use the same activity model. Assistant `errorMessage` values remain visible even when the failed message has no content.
 - View objects are replaced, not mutated, so incremental bridge updates remain observable.
 - Hydrated and settled user turns may carry the stable Pi session entry id required for message-level operations. Pi's user `message_start` timestamp and protocol order correlate live turns with `get_entries`; rejected optimistic turns receive no entry id. Duplicate prompt text is never used as identity. Active-leaf movement outside the incremental descendant path triggers full active-path hydration.
 - Disclosure state is Webview-only and never stored in the Pi session.

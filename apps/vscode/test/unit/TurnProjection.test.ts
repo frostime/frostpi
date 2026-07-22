@@ -65,6 +65,26 @@ describe("TurnProjection", () => {
     expect(projection.snapshot().turns[0]?.activities[1]).toMatchObject({ type: "tool", tool: { status: "complete", output: "clean" } });
   });
 
+  it("restores provider errors that have no assistant content", () => {
+    const projection = new TurnProjection();
+    projection.hydrate([
+      { role: "user", id: "u1", timestamp: 1, content: "test" },
+      {
+        role: "assistant",
+        id: "a1",
+        timestamp: 2,
+        stopReason: "error",
+        errorMessage: "Provided authentication token is expired.",
+        content: [],
+      },
+    ]);
+
+    expect(projection.snapshot().turns[0]).toMatchObject({
+      status: "error",
+      activities: [{ type: "response", status: "error", blocks: [{ type: "error", text: "Provided authentication token is expired." }] }],
+    });
+  });
+
   it("keeps notices between the turn activities observed before and after them", () => {
     const projection = new TurnProjection();
     projection.appendUserPrompt("test", []);
@@ -127,13 +147,26 @@ describe("TurnProjection", () => {
     expect(settledTurn?.endedAt).toEqual(expect.any(Number));
   });
 
-  it("preserves an assistant error when agent_settled follows it", () => {
+  it("shows an assistant error with no content after the agent settles", () => {
     const projection = new TurnProjection();
     projection.appendUserPrompt("test", []);
     projection.applyEvent({ type: "agent_start" });
-    projection.applyEvent({ type: "message_end", message: { role: "assistant", timestamp: 1, stopReason: "error", content: [{ type: "text", text: "provider failed" }] } });
+    projection.applyEvent({
+      type: "message_end",
+      message: {
+        role: "assistant",
+        timestamp: 1,
+        stopReason: "error",
+        errorMessage: "Provided authentication token is expired.",
+        content: [],
+      },
+    });
     projection.applyEvent({ type: "agent_settled" });
-    expect(projection.snapshot().turns[0]?.status).toBe("error");
+
+    expect(projection.snapshot().turns[0]).toMatchObject({
+      status: "error",
+      activities: [{ type: "response", status: "error", blocks: [{ type: "error", text: "Provided authentication token is expired." }] }],
+    });
   });
 
   it("parks follow-ups outside the active turn until the next agent_start", () => {

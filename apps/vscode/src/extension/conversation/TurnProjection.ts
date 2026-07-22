@@ -96,7 +96,7 @@ export class TurnProjection {
         currentTurnId = turnId;
         const messageId = rawMessageId(raw, `history-assistant-${++this.#sequence}`);
         const status = assistantMessageStatus(raw.stopReason);
-        const activities = activitiesFromAssistant(messageId, raw.content, status, timestamp);
+        const activities = activitiesFromAssistant(messageId, raw.content, raw.errorMessage, status, timestamp);
         this.#replaceMessageActivities(turnId, messageId, activities);
         this.#setTurnStatus(turnId, statusToTurnStatus(status), timestamp);
         continue;
@@ -298,7 +298,7 @@ export class TurnProjection {
       : delta.type === "error" ? delta.reason === "aborted" ? "aborted" : "error"
       : "streaming";
     const timestamp = typeof raw.timestamp === "number" ? raw.timestamp : Date.now();
-    const activities = activitiesFromAssistant(messageId, raw.content, status, timestamp);
+    const activities = activitiesFromAssistant(messageId, raw.content, raw.errorMessage, status, timestamp);
     this.#replaceMessageActivities(turn.id, messageId, activities);
     if (status === "streaming") this.#setTurnStatus(turn.id, "running");
     else if (status === "aborted" || status === "error") this.#setTurnStatus(turn.id, statusToTurnStatus(status), Date.now());
@@ -576,32 +576,41 @@ function userBlocks(content: unknown, attachments: unknown): MessageBlockView[] 
   return blocks.length ? blocks : [{ type: "text", text: "" }];
 }
 
-function activitiesFromAssistant(messageId: string, content: unknown, status: MessageStatus, timestamp: number): AgentActivityView[] {
+function activitiesFromAssistant(
+  messageId: string,
+  content: unknown,
+  errorMessage: unknown,
+  status: MessageStatus,
+  timestamp: number,
+): AgentActivityView[] {
   const activities: AgentActivityView[] = [];
-  if (typeof content === "string") {
-    if (content) activities.push(responseActivity(messageId, 0, [{ type: "text", text: content }], status, timestamp));
-    return activities;
-  }
   let index = 0;
-  for (const part of arrayValue(content)) {
-    if (!isRecord(part) || typeof part.type !== "string") continue;
-    if (part.type === "thinking" && typeof part.thinking === "string") {
-      activities.push({ id: `${messageId}:reasoning:${index++}`, type: "reasoning", text: part.thinking, status, timestamp });
-      continue;
+  if (typeof content === "string") {
+    if (content) activities.push(responseActivity(messageId, index++, [{ type: "text", text: content }], status, timestamp));
+  } else {
+    for (const part of arrayValue(content)) {
+      if (!isRecord(part) || typeof part.type !== "string") continue;
+      if (part.type === "thinking" && typeof part.thinking === "string") {
+        activities.push({ id: `${messageId}:reasoning:${index++}`, type: "reasoning", text: part.thinking, status, timestamp });
+        continue;
+      }
+      if (part.type === "text" && typeof part.text === "string" && part.text) {
+        activities.push(responseActivity(messageId, index++, [{ type: "text", text: part.text }], status, timestamp));
+        continue;
+      }
+      if (part.type === "image" && typeof part.data === "string" && typeof part.mimeType === "string") {
+        activities.push(responseActivity(messageId, index++, [{ type: "images", images: [imageView(part, part.data)] }], status, timestamp));
+        continue;
+      }
+      if (part.type === "toolCall" && typeof part.id === "string") {
+        const tool = createToolView(part.id, stringValue(part.name, "tool"), recordValue(part.arguments), timestamp);
+        activities.push({ id: `tool-${part.id}`, type: "tool", tool, timestamp });
+        index++;
+      }
     }
-    if (part.type === "text" && typeof part.text === "string" && part.text) {
-      activities.push(responseActivity(messageId, index++, [{ type: "text", text: part.text }], status, timestamp));
-      continue;
-    }
-    if (part.type === "image" && typeof part.data === "string" && typeof part.mimeType === "string") {
-      activities.push(responseActivity(messageId, index++, [{ type: "images", images: [imageView(part, part.data)] }], status, timestamp));
-      continue;
-    }
-    if (part.type === "toolCall" && typeof part.id === "string") {
-      const tool = createToolView(part.id, stringValue(part.name, "tool"), recordValue(part.arguments), timestamp);
-      activities.push({ id: `tool-${part.id}`, type: "tool", tool, timestamp });
-      index++;
-    }
+  }
+  if (status === "error" && typeof errorMessage === "string" && errorMessage) {
+    activities.push(responseActivity(messageId, index, [{ type: "error", text: errorMessage }], status, timestamp));
   }
   return activities;
 }
