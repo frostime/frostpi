@@ -38,6 +38,40 @@ describe("Webview bridge validation", () => {
     }).success).toBe(true);
   });
 
+  it("accepts file locations with a line and column", () => {
+    expect(webviewToHostSchema.safeParse({
+      bridgeVersion: BRIDGE_VERSION,
+      type: "openFile",
+      path: "src/file.ts",
+      line: 42,
+      column: 5,
+    }).success).toBe(true);
+  });
+
+  it("accepts an ordered file line range", () => {
+    expect(webviewToHostSchema.safeParse({
+      bridgeVersion: BRIDGE_VERSION,
+      type: "openFile",
+      path: "src/file.ts",
+      line: 5,
+      endLine: 10,
+    }).success).toBe(true);
+  });
+
+  it.each([
+    { column: 5 },
+    { endLine: 10 },
+    { line: 10, endLine: 5 },
+    { line: 5, column: 2, endLine: 10 },
+  ])("rejects an invalid file location: $column $line $endLine", (location) => {
+    expect(webviewToHostSchema.safeParse({
+      bridgeVersion: BRIDGE_VERSION,
+      type: "openFile",
+      path: "src/file.ts",
+      ...location,
+    }).success).toBe(false);
+  });
+
   it("rejects incompatible bridge versions", () => {
     expect(webviewToHostSchema.safeParse({ bridgeVersion: "stale-version", type: "ready" }).success).toBe(false);
   });

@@ -13,6 +13,27 @@ const imageSchema = z.object({
   size: z.number().int().nonnegative().max(MAX_IMAGE_BYTES),
 });
 
+const openFileSchema = z.object({
+  type: z.literal("openFile"),
+  path: z.string().min(1).max(32_768),
+  line: z.number().int().positive().optional(),
+  column: z.number().int().positive().optional(),
+  endLine: z.number().int().positive().optional(),
+}).superRefine((message, context) => {
+  if (message.column !== undefined && message.line === undefined) {
+    context.addIssue({ code: "custom", message: "column requires line", path: ["column"] });
+  }
+  if (message.endLine !== undefined && message.line === undefined) {
+    context.addIssue({ code: "custom", message: "endLine requires line", path: ["endLine"] });
+  }
+  if (message.endLine !== undefined && message.line !== undefined && message.endLine < message.line) {
+    context.addIssue({ code: "custom", message: "endLine must not precede line", path: ["endLine"] });
+  }
+  if (message.endLine !== undefined && message.column !== undefined) {
+    context.addIssue({ code: "custom", message: "line ranges cannot include a column", path: ["column"] });
+  }
+});
+
 const payloadSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("ready") }),
   z.object({ type: z.literal("openFolder") }),
@@ -65,7 +86,7 @@ const payloadSchema = z.discriminatedUnion("type", [
   }),
   z.object({ type: z.literal("addSelection") }),
   z.object({ type: z.literal("addCurrentFile") }),
-  z.object({ type: z.literal("openFile"), path: z.string().min(1).max(32_768), line: z.number().int().positive().optional() }),
+  openFileSchema,
   z.object({ type: z.literal("openDiff"), path: z.string().min(1).max(32_768) }),
   z.object({ type: z.literal("openExternal"), url: z.string().url().max(2_048) }),
   z.object({ type: z.literal("refreshCommands"), sessionId: z.string().min(1).max(128) }),

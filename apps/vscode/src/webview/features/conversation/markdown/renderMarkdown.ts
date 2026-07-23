@@ -4,6 +4,8 @@ import MarkdownIt from "markdown-it";
 import type StateBlock from "markdown-it/lib/rules_block/state_block.mjs";
 import type StateInline from "markdown-it/lib/rules_inline/state_inline.mjs";
 
+import { parseFileHref, parseFileReference, type FileReference } from "./fileReferences.js";
+
 const katexCache = new Map<string, string>();
 const KATEX_CACHE_LIMIT = 256;
 
@@ -212,6 +214,41 @@ function applyMathPlugin(md: MarkdownIt): void {
     `<div class="math-block">${renderKatex(tokens[idx]!.content, true)}</div>\n`;
 }
 
+function fileReferenceAttributes(reference: FileReference): string {
+  return [
+    `href="#"`,
+    `class="file-link"`,
+    `data-file-path="${escapeHtml(reference.path)}"`,
+    ...(reference.line === undefined ? [] : [`data-file-line="${reference.line}"`]),
+    ...(reference.column === undefined ? [] : [`data-file-column="${reference.column}"`]),
+    ...(reference.endLine === undefined ? [] : [`data-file-end-line="${reference.endLine}"`]),
+  ].join(" ");
+}
+
+function applyFileLinkPlugin(md: MarkdownIt): void {
+  md.renderer.rules.code_inline = (tokens, idx) => {
+    const content = tokens[idx]!.content;
+    const reference = parseFileReference(content);
+    const code = `<code>${escapeHtml(content)}</code>`;
+    return reference ? `<a ${fileReferenceAttributes(reference)}>${code}</a>` : code;
+  };
+
+  md.renderer.rules.link_open = (tokens, idx, options, _env, renderer) => {
+    const token = tokens[idx]!;
+    const href = token.attrGet("href");
+    const reference = href ? parseFileHref(href) : null;
+    if (reference) {
+      token.attrSet("href", "#");
+      token.attrJoin("class", "file-link");
+      token.attrSet("data-file-path", reference.path);
+      if (reference.line !== undefined) token.attrSet("data-file-line", String(reference.line));
+      if (reference.column !== undefined) token.attrSet("data-file-column", String(reference.column));
+      if (reference.endLine !== undefined) token.attrSet("data-file-end-line", String(reference.endLine));
+    }
+    return renderer.renderToken(tokens, idx, options);
+  };
+}
+
 const markdown: MarkdownIt = new MarkdownIt({
   html: false,
   linkify: true,
@@ -224,12 +261,24 @@ const markdown: MarkdownIt = new MarkdownIt({
   },
 });
 
+markdown.linkify.set({ fuzzyLink: false });
 applyMathPlugin(markdown);
+applyFileLinkPlugin(markdown);
 
 export function renderMarkdownHtml(content: string): string {
   return DOMPurify.sanitize(markdown.render(content), {
     USE_PROFILES: { html: true },
-    ADD_ATTR: ["target", "rel", "class", "style", "aria-hidden"],
+    ADD_ATTR: [
+      "target",
+      "rel",
+      "class",
+      "style",
+      "aria-hidden",
+      "data-file-path",
+      "data-file-line",
+      "data-file-column",
+      "data-file-end-line",
+    ],
     ADD_TAGS: ["annotation", "semantics"],
   });
 }

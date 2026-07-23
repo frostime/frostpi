@@ -7,21 +7,13 @@ status: planned
 
 ## 目标
 
-在 FrostPi conversation 中，Pi 回复里的文件路径可点击，直接在 VS Code 编辑器中打开对应文件，支持 `<path>:<line>` / `<path>:<line>:<col>` 跳转。
+在 FrostPi conversation 中，Markdown 文件链接和完整的内联代码文件引用可点击，直接在 VS Code 编辑器中打开对应文件。支持 `<path>:<line>`、`<path>:<line>:<col>`、`<path>:<start>-<end>` 和 GitHub 风格的 `<path>#L<start>-L<end>`；纯文本文件名不自动渲染为链接。
 
 ## 现有基础设施
 
-Host ↔ Webview bridge 已有 `openFile` 消息（`apps/vscode/src/shared/bridge/webviewToHost.ts`）：
+Host ↔ Webview bridge 的 `openFile` 消息位于 `apps/vscode/src/shared/bridge/webviewToHost.ts`，携带 `path` 以及可选的 `line`、`column` 和 `endLine`。`column` 和 `endLine` 均依赖 `line`，范围必须正序，且范围与列号互斥。
 
-```typescript
-z.object({
-  type: z.literal("openFile"),
-  path: z.string().min(1).max(32_768),
-  line: z.number().int().positive().optional(),
-})
-```
-
-Host 侧处理链路完整（`webviewToHost.ts` 定义 → `applyHostMessage.ts` dispatch → VS Code `vscode.window.showTextDocument`）。
+Host 侧处理链路为：`webviewToHost.ts` 定义 → `WebviewBridge.ts` dispatch → `openReferencedLocation.ts` → VS Code `vscode.window.showTextDocument`。
 
 ## 缺口：Webview 侧不识别文件路径
 
@@ -39,7 +31,7 @@ function handleClick(event: MouseEvent): void {
 
 两处缺失：
 1. 不处理非 http(s) 的 `<a href>` ——文件路径链接直接 fallthrough 到浏览器默认行为（webview 内无效）
-2. 不处理裸文本中的文件路径（例如 AI 可能用 `` `path/file.ts:42` `` 内联代码引用，markdown-it `linkify` 不会将其转为 `<a>` 标签）
+2. 不处理内联代码中的文件路径（例如 AI 可能用 `` `path/file.ts:42` `` 引用，markdown-it `linkify` 不会将其转为 `<a>` 标签）
 
 ## 输出文件路径的常见格式
 
@@ -47,7 +39,7 @@ function handleClick(event: MouseEvent): void {
 |------|------|--------------------|-----------|
 | Markdown link | `[src/foo.ts](src/foo.ts)` | `<a href="src/foo.ts">` | ❌ 非 http(s) 被丢弃 |
 | 内联代码 + 行号 | `` `src/foo.ts:42` `` | `<code>src/foo.ts:42</code>` | ❌ 不在 `<a>` 内 |
-| 裸文本 | `src/foo.ts` | 纯文本 | ❌ linkify 不处理文件路径 |
+| 裸文本 | `src/foo.ts` | 纯文本 | 保持纯文本（预期） |
 | 绝对路径 | `` `/home/user/project/src/foo.ts` `` | `<code>` 或纯文本 | ❌ |
 
 ## 推荐实现
@@ -102,6 +94,8 @@ const FILE_LINK_RE = /^([^\s`"']+\.[a-zA-Z0-9]+)(?::(\d+))?(?::(\d+))?$/;
 | 相对路径 | 基于 workspace cwd 解析 | `src/foo.ts:42` |
 | 仅行号 | `path:line` | `src/foo.ts:42` → open at line 42 |
 | 行列号 | `path:line:col` | `src/foo.ts:42:5` → open at line 42, col 5 |
+| 行范围 | `path:start-end` | `src/foo.ts:5-10` → select lines 5–10 |
+| GitHub 行范围 | `path#Lstart-Lend` | `src/foo.ts#L5-L10` → select lines 5–10 |
 
 路径解析由 Host 侧完成（`applyHostMessage.ts` 中 `openFile` handler），Webview 只负责从文本中提取 path + line 并发送 `openFile` 消息。
 
@@ -117,7 +111,9 @@ const FILE_LINK_RE = /^([^\s`"']+\.[a-zA-Z0-9]+)(?::(\d+))?(?::(\d+))?$/;
 |------|------|
 | `apps/vscode/src/webview/features/conversation/markdown/renderMarkdown.ts` | 新增 `code_inline` 渲染规则（方案 B）或文件链接解析工具函数 |
 | `apps/vscode/src/webview/features/conversation/markdown/MarkdownHtml.svelte` | 扩展 `handleClick`，处理非 http(s) 链接 |
-| `apps/vscode/src/extension/webview-host/applyHostMessage.ts` | `openFile` handler 增强：相对路径解析、workspace cwd 拼接 |
+| `apps/vscode/src/shared/bridge/webviewToHost.ts` | 扩展 `openFile` 的行列及范围合约 |
+| `apps/vscode/src/extension/webview-host/WebviewBridge.ts` | 基于当前 Session cwd dispatch `openFile` |
+| `apps/vscode/src/extension/editor-context/openReferencedLocation.ts` | 解析相对路径并定位或选中范围 |
 
 ## 验收标准
 
@@ -129,3 +125,5 @@ const FILE_LINK_RE = /^([^\s`"']+\.[a-zA-Z0-9]+)(?::(\d+))?(?::(\d+))?$/;
 6. 文件不存在时 toast 提示，不影响当前会话
 7. http(s) 链接保持现有行为（调用 `openExternal`）
 8. 非文件路径的普通文本和内联代码不受影响
+9. 纯文本文件名（如 `AGENTS.md`）不自动渲染为链接
+10. `` `src/foo.ts:5-10` `` 与 `[范围](src/foo.ts#L5-L10)` 打开文件并选中第 5–10 行

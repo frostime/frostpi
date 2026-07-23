@@ -274,7 +274,7 @@ export class WebviewBridge implements vscode.Disposable {
         break;
       }
       case "openFile":
-        await openReferencedLocation(message.path, message.line);
+        await openReferencedLocation(message, this.#registry.snapshot().activeSession?.cwd);
         break;
       case "openDiff":
         await openFileDiff(message.path);

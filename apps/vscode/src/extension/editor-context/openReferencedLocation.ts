@@ -1,18 +1,37 @@
+import { isAbsolute, resolve } from "node:path";
+
 import * as vscode from "vscode";
 
-export async function openReferencedLocation(path: string, line?: number): Promise<void> {
-  const workspaceFolder = vscode.workspace.workspaceFolders?.find((folder) => path.startsWith(folder.uri.fsPath));
-  const uri = workspaceFolder ? vscode.Uri.file(path) : resolveWorkspacePath(path);
-  const document = await vscode.workspace.openTextDocument(uri);
-  const editor = await vscode.window.showTextDocument(document, { preview: true });
-  if (line !== undefined) {
-    const position = new vscode.Position(Math.max(0, line - 1), 0);
-    editor.selection = new vscode.Selection(position, position);
-    editor.revealRange(new vscode.Range(position, position), vscode.TextEditorRevealType.InCenterIfOutsideViewport);
-  }
+export interface ReferencedLocation {
+  path: string;
+  line?: number | undefined;
+  column?: number | undefined;
+  endLine?: number | undefined;
 }
 
-function resolveWorkspacePath(path: string): vscode.Uri {
-  const folder = vscode.workspace.workspaceFolders?.[0];
-  return folder ? vscode.Uri.joinPath(folder.uri, path) : vscode.Uri.file(path);
+export async function openReferencedLocation(
+  reference: ReferencedLocation,
+  basePath?: string,
+): Promise<void> {
+  const workspacePath = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+  const fsPath = isAbsolute(reference.path)
+    ? reference.path
+    : resolve(basePath ?? workspacePath ?? "", reference.path);
+  const document = await vscode.workspace.openTextDocument(vscode.Uri.file(fsPath));
+  const editor = await vscode.window.showTextDocument(document, { preview: true });
+  if (reference.line === undefined) return;
+
+  const start = document.validatePosition(
+    new vscode.Position(reference.line - 1, (reference.column ?? 1) - 1),
+  );
+  const end = reference.endLine === undefined
+    ? start
+    : document.lineAt(
+      document.validatePosition(new vscode.Position(reference.endLine - 1, 0)).line,
+    ).range.end;
+  editor.selection = new vscode.Selection(start, end);
+  editor.revealRange(
+    new vscode.Range(start, end),
+    vscode.TextEditorRevealType.InCenterIfOutsideViewport,
+  );
 }
