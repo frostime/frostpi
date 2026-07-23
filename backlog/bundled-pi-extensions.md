@@ -278,3 +278,70 @@ FrostPi：
 2. 实现启动注入与 VSIX 打包校验。
 3. 加最小 probe extension + 单测/集成测试。
 4. 再让具体业务 backlog 决定是否使用该桥，以及何时退回原生 RPC。
+
+---
+
+## 附录 A：Temp File 返回值模式
+
+> 记录时间：2026-07-21
+
+### 问题
+
+RPC `prompt` 调用 extension command 的 response 不带 `data` 字段（`rpc-types.d.ts`：`command: "prompt"` 的 success 分支无反回 payload）。Extension command handler 的返回值被 RPC 层丢弃。
+
+这意味着 extension command 只能是 `f()`（fire and observe），无法做到 `result = f()`（request-response）。
+
+`extension_ui_request` 子协议有固定 method 集合且无 correlation ID，不适合承载任意结构化返回值；用 stdout 时序做隐式关联并发不安全。
+
+### 方案：Temp file 旁路
+
+FrostPi 在调用 extension command 前创建一个临时 JSON 文件，路径通过 slash command 参数传入。Extension handler 将结构化结果写入该文件，FrostPi 在 `prompt` response 到达后读取。
+
+```text
+FrostPi                                    Pi (RPC)
+   │                                          │
+   ├─ fs.mkdtemp() → /tmp/frostpi/r-<uuid>.json
+   │                                          │
+   ├─ prompt("/frostpi.tree.navigate          │
+   │     --result-file /tmp/frostpi/r-xxx     │
+   │     --target-id abc123                   │
+   │     --summarize")                        │
+   │                                          │  handler 执行
+   │                                          │    ctx.navigateTree(id, opts)
+   │                                          │    // 从 args 解析 result-file
+   │                                          │    // 通过 ctx.sessionManager 查询 post-navigation 状态
+   │                                          │    writeFileSync(resultFile, JSON.stringify({...}))
+   │                                          │
+   │◄── response ────────────────────────────┤  handler 结束
+   │                                          │
+   ├─ readFileSync(tmpFile) → 结构化结果
+   ├─ unlink(tmpFile)
+```
+
+### 关键性质
+
+| 维度 | Temp file | `extension_ui_request` 旁路 |
+|------|-----------|------------------------------|
+| correlation | UUID 文件名 = 天然 ID | 依赖 stdout 时序假设 |
+| 并发安全 | ✅ 每个请求独立文件 | ❌ 不能同时发两个 command |
+| 结构化数据 | ✅ 任意 JSON | ⚠️ 受限于 9 种固定 method |
+| 其他 extension 干扰 | ✅ 完全隔离 | ⚠️ 其他 extension 的 `notify` 等会交叉 |
+| 数据量 | 无上限 | `set_editor_text` 单字段，`notify` 单行 |
+
+### 合法性依据
+
+1. **Node built-ins 可用**：[`docs/extensions.md`](C:\Users\EEG\AppData\Roaming\npm\node_modules\@earendil-works\pi-coding-agent\docs\extensions.md) 的 "Available Imports" 表格末尾明确声明 `node:fs`、`node:path` 等 Node.js built-ins 可用
+
+2. **Pi RPC 已有文件旁路先例**：
+   - `bash` 命令 → `fullOutputPath`：结果过大时写 temp 文件
+   - `export_html` 命令 → `outputPath`：导出到指定文件路径
+
+3. **Temp 文件生命周期由 FrostPi 管理**：在 OS temp 目录创建和清理，不污染 workspace、不进入用户视野
+
+### 使用约定
+
+- Temp 文件由 FrostPi 创建（`fs.mkdtemp`），路径通过 slash command 参数传入
+- Extension 只写不删（删除由 FrostPi 负责，包括异常路径）
+- 文件名使用 UUID 避免预测和冲突
+- Extension 写入失败不应阻塞主流程（try/catch + 写 error 字段到 result file）
+- 此模式仅用于 bundled extension 和 FrostPi 之间的私有通信，不作为用户可见 API

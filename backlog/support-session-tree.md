@@ -288,3 +288,215 @@ Phase 1 完成时：
 - 选择用户消息时，Composer 恢复其文本且该消息本身不留在已提交历史中（符合 Pi `/tree` 语义）；
 - 导航失败/取消不破坏当前 session；
 - 不依赖捆绑 extension。
+
+---
+
+## 附录 A：Extension 兜底方案通信可行性验证
+
+> 记录时间：2026-07-21
+> 验证范围：`summarize: true/false` 均覆盖，extension bridge 方案在 RPC 通信层面是否满足需求
+> 验证方式：逐条结论附带 Pi 源码/类型锚点
+
+### 前提
+
+- Extension command 通过 RPC `prompt` 触发，handler 内同步 `await ctx.navigateTree()`
+- `summarize` 参数由 FrostPi 在发起命令前通过 Tree Picker UI 收集，作为 slash command 参数传入
+- 目标：选节点 →（可选 summary 确认）→ 导航 → 刷新 conversation → 恢复 editorText
+
+### 1. 时序保证：`prompt` response 在 handler 完成后才发出
+
+**证据**：`dist/core/agent-session.js:799-803`
+
+```javascript
+if (expandPromptTemplates && text.startsWith("/")) {
+    const handled = await this._tryExecuteExtensionCommand(text);
+    if (handled) {
+        preflightResult?.(true);  // ← response 在此之后才发出
+        return;
+    }
+}
+```
+
+`_tryExecuteExtensionCommand` 被 `await`，extension command handler **完全执行完毕后**（包括其内部的 `await ctx.navigateTree()`）`preflightResult(true)` 才触发，进而 `output(success(id, "prompt"))` 写入 stdout。
+
+**结论**：`prompt` response 到达 = handler 已结束 = 导航已完成（成功或失败）。FrostPi 收到 response 后立即 `get_messages` + `get_entries` 即可拿到最新状态，无需轮询。
+
+---
+
+### 2. 关键类型损失：`ctx.navigateTree()` 在 RPC 下只返回 `{ cancelled }`
+
+**证据 A**：`AgentSession.navigateTree()` 的完整返回类型
+
+> `dist/core/agent-session.d.ts:588-595`
+
+```typescript
+navigateTree(targetId: string, options?: { ... }): Promise<{
+    editorText?: string;
+    cancelled: boolean;
+    aborted?: boolean;
+    summaryEntry?: BranchSummaryEntry;
+}>;
+```
+
+**证据 B**：Extension 侧 `ExtensionCommandContext.navigateTree()` 的返回类型
+
+> `dist/core/extensions/types.d.ts:267-273`
+
+```typescript
+navigateTree(targetId: string, options?: { ... }): Promise<{
+    cancelled: boolean;  // ← 仅此字段
+}>;
+```
+
+**证据 C**：RPC mode 的 `commandContextActions.navigateTree` 实现
+
+> `dist/modes/rpc/rpc-mode.js:239-248`
+
+```javascript
+navigateTree: async (targetId, options) => {
+    const result = await session.navigateTree(targetId, { ... });
+    return { cancelled: result.cancelled };  // ← editorText/aborted/summaryEntry 全部丢弃
+},
+```
+
+**影响**：Extension 无法从 `ctx.navigateTree()` 返回值拿到 `editorText`、`aborted`、`summaryEntry`。但这对 FrostPi **不是阻塞性问题**，因为：
+- `editorText`：FrostPi 在调用导航前已通过 `get_tree` 持有目标 entry 的完整数据（含 message content），可自行写入 Composer seed
+- `aborted`：FrostPi 可通过对比导航前后的 `leafId`（先 `get_entries` → 记 leafId → 导航 → 再 `get_entries` → 对比）推断是否成功
+- `summaryEntry`：若启用 summary，生成的 `branchSummary` entry 会出现在 `get_messages` 返回的 active branch 中（见下文 §4）
+
+---
+
+### 3. `summarize: true` 的通信流
+
+**证据**：`ctx.navigateTree()` 接受 `summarize` 参数
+
+> `dist/core/extensions/types.d.ts:268-271`
+
+```typescript
+navigateTree(targetId: string, options?: {
+    summarize?: boolean;
+    customInstructions?: string;
+    replaceInstructions?: boolean;
+    label?: string;
+}): Promise<{ cancelled: boolean }>;
+```
+
+**两种交互模式**：
+
+| 模式 | 流程 | session_before_tree 行为 |
+|------|------|--------------------------|
+| `summarize: false` | FrostPi → prompt → handler(navigateTree) → response | 不触发 |
+| `summarize: true`（默认 prompt） | FrostPi → prompt → handler(navigateTree) → LLM 生成 summary → response | 触发但无 UI 交互（除非其他 extension 的 handler 调用了 `ctx.ui.confirm()` 等） |
+| `summarize: true`（自定义 instructions） | FrostPi Tree Picker 收集用户指令 → 拼入 slash command args → 同上 | 同上 |
+
+两种模式共享同一时序保证（§1）：`navigateTree()` 内的 summary LLM 调用也是同步 await 的，response 在全部完成后才发出。
+
+**残余风险**：
+- 若 summary LLM 调用失败（网络错误等），`navigateTree()` 内部可能抛异常或返回 `aborted: true`。Extension 只拿到 `{ cancelled }`，无法区分「导航失败」和「summary 生成失败但导航成功」。FrostPi 需通过对比 `leafId` 判断实际导航结果。
+- 无取消 summary LLM 的 RPC 入口（`abort` RPC 命令 abort 的是 agent turn，不是 summarization）
+
+---
+
+### 4. Branch Summary 消息可获取性
+
+**证据**：`BranchSummaryMessage` 是 `AgentMessage` 联合类型的正式成员
+
+> `docs/session-format.md`（Message Types 章节）
+
+```typescript
+interface BranchSummaryMessage {
+    role: "branchSummary";
+    summary: string;
+    fromId: string;   // 从哪个 entry 分支出来的
+    timestamp: number;
+}
+
+type AgentMessage = ... | BranchSummaryMessage | CompactionSummaryMessage;
+```
+
+**证据**：`get_messages` 返回 `AgentMessage[]`
+
+> `dist/modes/rpc/rpc-types.d.ts`（`RpcResponse` 中 `get_messages` 分支）
+
+```typescript
+| {
+    type: "response";
+    command: "get_messages";
+    success: true;
+    data: { messages: AgentMessage[] };
+}
+```
+
+**结构位置**：`navigateTree` + summary 后，branch summary entry 插入到新 active branch 上（branch point 的子节点，被废弃分支之前的位置），因此 `get_messages`（返回 active branch 上下文）会包含它。它和 `compactionSummary` 消息同级同构——一段 summary 文本，显示在 conversation 中作为上下文标记。
+
+**结论**：两种模式（summary / no-summary）下，FrostPi 都可通过 `get_messages` + `get_entries` 拿到完整的最新状态。FrostPi 侧只需为 `branchSummary` role 增加渲染映射。
+
+---
+
+### 5. 总体结论
+
+Extension bridge 方案在 RPC 通信层面**满足需求**（`summarize: true/false` 均覆盖），不需要等 Pi 原生 `navigate_tree` RPC 命令。
+
+残余风险（非阻塞）：
+- 无取消 summary 生成的 RPC 入口
+- Extension 侧丢失 `aborted` / `summaryEntry` / `editorText`（可绕过）
+- Slash 命令命名空间污染（可通过 bundled extension + 明确前缀规避）
+
+---
+
+## 附录 B：Tree 可视化布局要点
+
+> 参考实现：`~/.pi/agent/projects/session-tree-web-tool/`（`lib/analyze_session.py` → `flatten_tree()`）
+
+### 核心问题
+
+Session tree 的「缩进」不等于「树深度」。直接用 `depth - 1` 做 indent 会产生错误布局：线性链（无分支）不应该增加缩进层级，只有分支点才产生视觉嵌套。
+
+### 正确算法（`flatten_tree` 的 indent 规则）
+
+```python
+# 关键逻辑（简化自 analyze_session.py:451-636）
+
+if multiple_children:
+    child_indent = indent + 1       # 分支点：子节点缩进 +1
+elif just_branched and indent > 0:
+    child_indent = indent + 1       # 刚从分支点下来：继续缩进
+else:
+    child_indent = indent           # 线性链：保持同级
+```
+
+规则：
+1. **单子节点**（无分支）：与父节点同 indent → 视觉上保持线性
+2. **多子节点**（分支点）：子节点 indent = 父节点 indent + 1
+3. **刚从分支点下来的单子节点**：仍然 indent + 1（过渡层）
+4. **多根节点**：视为 virtual root 的子节点，起始 indent = 1
+
+### 其他关键字段
+
+| 字段 | 用途 |
+|------|------|
+| `indent` | 缩进级别（非深度），用于 CSS `padding-left` |
+| `is_last` | 是否是其父的最后一个子节点 → 垂直引导线在此处截止 |
+| `is_virtual_root_child` | 多根时标记为 virtual root 的直接子节点 |
+| `just_branched` | 传播标记：父节点有多个子节点时，告知子节点「你处于分支上下文」 |
+
+### Active path 排序
+
+子节点排序：active path 上的节点始终排在最前（`sorted(children, key=lambda n: 0 if in_active else 1)`）。这确保 active branch 在树视图中连续可见。
+
+### 过滤后重计算
+
+当 filter 隐藏部分节点后，必须重新计算 indent / is_last（`recalculate_visual_structure()`）：
+1. 对每个可见节点，找到最近的可见祖先
+2. 以可见祖先为 parent 重建兄弟关系
+3. 重新运行 indent 规则
+
+### 前端渲染
+
+该项目前端（Alpine.js）使用 `padding-left: (indent * 1.5 + 1.2)rem` 做缩进，并用 `node-indent-guide`（绝对定位的 `border-left` 竖线）绘制层级引导线。引导线通过 `is_last` 控制截止位置。
+
+### 对 FrostPi 的启示
+
+- 不要在后端返回嵌套 tree JSON 让前端自己算缩进——后端应返回 flat node list + 正确的 `indent` / `is_last` 字段
+- 若用 RPC `get_tree`（返回嵌套结构），FrostPi 侧必须实现等价的 flatten + indent 算法
+- 参考 `analyze_session.py` 的 `flatten_tree()` 是可移植的参考实现（纯 Python，逻辑清晰）
