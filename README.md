@@ -79,11 +79,11 @@ Configure inherited, VS Code, custom, or direct proxy modes for Pi subprocesses.
 
 When supported by the installed VS Code version, FrostPi follows these Chat settings immediately after they change:
 
-- `chat.fontFamily` and `chat.fontSize` for rendered Markdown messages.
+- `chat.fontFamily` and `chat.fontSize` for rendered Markdown messages; code blocks also follow `chat.fontSize`.
 - `chat.editor.fontFamily` for the composer and Markdown code blocks.
 - `chat.editor.fontSize` for the composer.
 
-Code blocks retain FrostPi's compact fixed size. Unsupported settings fall back to VS Code's normal interface and editor fonts.
+Unsupported settings fall back to VS Code's normal interface and editor fonts.
 
 ## Privacy and Product Boundaries
 

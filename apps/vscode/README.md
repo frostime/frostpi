@@ -71,6 +71,15 @@ Proxy configuration is resolved when a Pi process starts. Changing proxy setting
 - `frostpi.network.proxy.noProxy`
 - `frostpi.diagnostics.level`
 
+FrostPi also follows VS Code's Chat typography settings as soon as they change:
+
+- `chat.fontFamily` controls rendered message text.
+- `chat.fontSize` controls rendered message and code-block size.
+- `chat.editor.fontFamily` controls the composer and code-block font.
+- `chat.editor.fontSize` controls the composer size.
+
+When a Chat font remains `default`, FrostPi falls back to VS Code's normal interface or editor font.
+
 Use **FrostPi: Configure Network Proxy** or the session menu to choose User/Workspace scope and configure the active mode. Proxy usernames and passwords are stored in VS Code SecretStorage rather than in `settings.json`. Running sessions show `restart required` until explicitly restarted.
 
 ## Privacy

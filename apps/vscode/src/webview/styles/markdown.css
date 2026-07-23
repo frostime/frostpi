@@ -34,7 +34,7 @@
   background: var(--frost-code-bg);
   border: 1px solid var(--frost-border-soft);
   border-radius: 7px;
-  font: 11px/1.55 var(--frostpi-chat-composer-font-family, var(--font-mono));
+  font: var(--frostpi-chat-message-font-size, var(--font-size))/1.55 var(--frostpi-chat-composer-font-family, var(--font-mono));
   tab-size: 2;
 }
 .markdown-body pre.hljs { padding: 10px 11px; }
