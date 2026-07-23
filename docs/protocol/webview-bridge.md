@@ -10,7 +10,7 @@ updated: 2026-07-19
 
 # Host–Webview Synchronization
 
-The host sends a complete snapshot after `ready` and whenever the active session changes. Stable-session updates replace scalar fields and transport ordered `turns` and `notices` through collection deltas.
+The host sends a complete snapshot after `ready` and whenever the active session changes. Stable-session updates replace scalar fields and transport ordered `turns` and `notices` through collection deltas. On `ready` and when one of the supported VS Code Chat typography settings changes, the host sends `setChatTypography`; the Webview applies message settings to rendered Markdown messages, the Chat editor font family to the Composer and Markdown code blocks, and the Chat editor font size to the Composer.
 
 `upsert` requires unchanged prefix order and carries appended or reference-changed objects. `replace` carries the full collection after removal/reordering. Projection writers must replace changed objects, not mutate them.
 

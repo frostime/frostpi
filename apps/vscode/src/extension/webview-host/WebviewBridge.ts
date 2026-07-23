@@ -12,6 +12,7 @@ import { captureActiveFileReference } from "../editor-context/captureActiveFile.
 import { ComposerExternalEditor } from "../editor-context/ComposerExternalEditor.js";
 import { listEditorMentionSpecials } from "../editor-context/editorMentionSpecials.js";
 import { readConfiguration } from "../configuration/readConfiguration.js";
+import { readChatTypography } from "../configuration/readChatTypography.js";
 import { workspaceUriForPath } from "../configuration/workspaceScope.js";
 import { captureActiveSelection } from "../editor-context/captureSelection.js";
 import { openReferencedLocation } from "../editor-context/openReferencedLocation.js";
@@ -66,6 +67,9 @@ export class WebviewBridge implements vscode.Disposable {
       registry.onDidChange(() => this.#postWorkspaceUpdate()),
       registry.onDidToast((toast) => this.post({ type: "toast", ...toast })),
       registry.onDidSetComposerText(({ sessionId, text }) => this.post({ type: "setComposerText", sessionId, text })),
+      vscode.workspace.onDidChangeConfiguration((event) => {
+        if (chatTypographyChanged(event)) this.#postChatTypography();
+      }),
       this.#composerEditor,
     );
   }
@@ -133,6 +137,10 @@ export class WebviewBridge implements vscode.Disposable {
     this.post({ type: "snapshot", workspace });
   }
 
+  #postChatTypography(): void {
+    this.post({ type: "setChatTypography", typography: readChatTypography(vscode.workspace.getConfiguration("chat")) });
+  }
+
   #postWorkspaceUpdate(): void {
     if (!this.#webview) return;
     const workspace = this.#registry.snapshot();
@@ -192,6 +200,7 @@ export class WebviewBridge implements vscode.Disposable {
     switch (message.type) {
       case "ready":
         this.#postSnapshot();
+        this.#postChatTypography();
         this.#flushPendingComposerText();
         break;
       case "openFolder":
@@ -339,6 +348,13 @@ export class WebviewBridge implements vscode.Disposable {
 }
 
 type ConfiguredExclude = boolean | { when?: string };
+
+function chatTypographyChanged(event: vscode.ConfigurationChangeEvent): boolean {
+  return event.affectsConfiguration("chat.fontFamily")
+    || event.affectsConfiguration("chat.fontSize")
+    || event.affectsConfiguration("chat.editor.fontFamily")
+    || event.affectsConfiguration("chat.editor.fontSize");
+}
 
 function workspaceFileExcludeRules(scope: vscode.Uri, respectSearchExclude: boolean): WorkspaceFileExcludeRule[] {
   const files = vscode.workspace.getConfiguration("files", scope).get<Record<string, ConfiguredExclude>>("exclude", {});

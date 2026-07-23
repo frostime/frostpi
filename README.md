@@ -75,6 +75,16 @@ Run multiple independent Pi sessions, switch providers and models, resume existi
 
 Configure inherited, VS Code, custom, or direct proxy modes for Pi subprocesses. Custom mode accepts `host:port`, `http(s)://...`, or `socks5://...`; credentials are stored in VS Code SecretStorage. FrostPi also provides context metrics, diagnostics export, strict LF-delimited JSONL transport, and schema-checked Webview messages.
 
+### Typography
+
+When supported by the installed VS Code version, FrostPi follows these Chat settings immediately after they change:
+
+- `chat.fontFamily` and `chat.fontSize` for rendered Markdown messages.
+- `chat.editor.fontFamily` for the composer and Markdown code blocks.
+- `chat.editor.fontSize` for the composer.
+
+Code blocks retain FrostPi's compact fixed size. Unsupported settings fall back to VS Code's normal interface and editor fonts.
+
 ## Privacy and Product Boundaries
 
 FrostPi contains no telemetry or remote service of its own. Prompts and images are passed to the locally launched Pi process.

@@ -10,7 +10,7 @@ updated: 2026-07-20
 
 # Webview Bridge Compatibility Contract
 
-The Extension Host is authoritative. A newly mounted Webview sends `ready` and receives a complete `snapshot`. Active-session changes also force a full snapshot; ordinary updates use `workspaceDelta`.
+The Extension Host is authoritative. A newly mounted Webview sends `ready` and receives a complete `snapshot`, followed by `setChatTypography`. Active-session changes also force a full snapshot; ordinary updates use `workspaceDelta`. `setChatTypography` is resent only when `chat.fontFamily`, `chat.fontSize`, `chat.editor.fontFamily`, or `chat.editor.fontSize` changes. `chat.fontFamily` and `chat.fontSize` affect rendered Markdown messages. `chat.editor.fontFamily` affects the Composer and Markdown code blocks; `chat.editor.fontSize` affects the Composer. Code blocks retain FrostPi's compact fixed size.
 
 Turns and notices are ordered collections with stable ids. `upsert` is valid only while existing order is an unchanged prefix; removal/reordering requires `replace`. Projection code replaces changed objects instead of mutating them so the bridge can avoid repeatedly copying large Markdown, output, and image payloads.
 
