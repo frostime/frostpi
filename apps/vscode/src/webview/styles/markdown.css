@@ -1,6 +1,10 @@
 /* Markdown / KaTeX / highlight.js — mermaid block chrome lives in MermaidBlock.svelte */
 
 .markdown-body { min-width: 0; overflow-wrap: anywhere; }
+.message-content {
+  font-family: var(--frostpi-chat-message-font-family, var(--font-ui));
+  font-size: var(--frostpi-chat-message-font-size, var(--font-size));
+}
 .markdown-body > :first-child { margin-top: 0 !important; }
 .markdown-body > :last-child { margin-bottom: 0 !important; }
 .markdown-body p { margin: 0 0 .72em; }
@@ -18,7 +22,7 @@
   border: 1px solid var(--frost-border-soft);
   border-radius: 4px;
   background: var(--frost-code-bg);
-  font-family: var(--font-mono);
+  font-family: var(--frostpi-chat-composer-font-family, var(--font-mono));
   font-size: .91em;
 }
 .markdown-body pre {
@@ -30,7 +34,7 @@
   background: var(--frost-code-bg);
   border: 1px solid var(--frost-border-soft);
   border-radius: 7px;
-  font: 11px/1.55 var(--font-mono);
+  font: var(--frostpi-chat-message-font-size, var(--font-size))/1.55 var(--frostpi-chat-composer-font-family, var(--font-mono));
   tab-size: 2;
 }
 .markdown-body pre.hljs { padding: 10px 11px; }

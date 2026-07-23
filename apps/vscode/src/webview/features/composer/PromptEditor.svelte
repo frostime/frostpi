@@ -127,8 +127,8 @@
         EditorView.theme({
           "&": { backgroundColor: "transparent", color: "var(--frost-text)" },
           ".cm-scroller": {
-            fontFamily: "var(--font-ui)",
-            fontSize: "var(--font-size)",
+            fontFamily: "var(--frostpi-chat-composer-font-family, var(--font-ui))",
+            fontSize: "var(--frostpi-chat-composer-font-size, var(--font-size))",
             lineHeight: "1.48",
             overflowX: "hidden",
             overflowY: "auto",

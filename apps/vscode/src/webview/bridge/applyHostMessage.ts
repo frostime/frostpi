@@ -1,5 +1,6 @@
 import { BRIDGE_VERSION } from "$shared/bridge/bridgeVersion";
 import type { CollectionDelta, HostToWebviewMessage } from "$shared/bridge/hostToWebview";
+import type { ChatTypographyView } from "$shared/model/chatTypography";
 import type { SessionViewModel } from "$shared/model/sessionViewModel";
 
 import { insertDraftText, setDraftText } from "../state/composerDraftStore.svelte";
@@ -14,6 +15,9 @@ export function applyHostMessage(message: HostToWebviewMessage): void {
     return;
   }
   switch (message.type) {
+    case "setChatTypography":
+      applyChatTypography(message.typography);
+      break;
     case "snapshot":
       workspaceStore.set(message.workspace);
       applyForkComposerSeed(message.workspace.activeSession);
@@ -78,6 +82,19 @@ export function applyHostMessage(message: HostToWebviewMessage): void {
       showToast(message.level, message.message);
       break;
   }
+}
+
+function applyChatTypography(typography: ChatTypographyView): void {
+  const style = document.documentElement.style;
+  setOptionalCssProperty(style, "--frostpi-chat-message-font-family", typography.message.fontFamily);
+  style.setProperty("--frostpi-chat-message-font-size", `${typography.message.fontSize}px`);
+  setOptionalCssProperty(style, "--frostpi-chat-composer-font-family", typography.composer.fontFamily);
+  style.setProperty("--frostpi-chat-composer-font-size", `${typography.composer.fontSize}px`);
+}
+
+function setOptionalCssProperty(style: CSSStyleDeclaration, name: string, value: string | undefined): void {
+  if (value) style.setProperty(name, value);
+  else style.removeProperty(name);
 }
 
 export function mergeCollection<T extends { id: string }>(current: readonly T[], delta: CollectionDelta<T>): T[] {

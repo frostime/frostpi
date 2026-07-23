@@ -1,4 +1,5 @@
 import type { AgentTurnView, SessionNoticeView } from "../model/agentTurnModel.js";
+import type { ChatTypographyView } from "../model/chatTypography.js";
 import type { SessionSummaryView, SessionViewModel, WorkspaceViewModel } from "../model/sessionViewModel.js";
 import type { EditorMentionSpecialView, WorkspaceFileCandidateView } from "../model/workspaceFileModel.js";
 
@@ -25,6 +26,7 @@ export interface WorkspaceDeltaView {
 
 export type HostToWebviewPayload =
   | { type: "snapshot"; workspace: WorkspaceViewModel }
+  | { type: "setChatTypography"; typography: ChatTypographyView }
   | { type: "workspaceDelta"; workspace: WorkspaceDeltaView }
   | { type: "insertPromptText"; text: string }
   | { type: "setComposerText"; sessionId: string; text: string }

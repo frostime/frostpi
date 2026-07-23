@@ -200,7 +200,7 @@
 .prompt-editor .cm-editor { min-height: 72px; }
 .prompt-editor .cm-scroller { min-height: 72px; }
 .prompt-editor .cm-scroller { max-height: 188px; overflow-x: hidden; overflow-y: auto; }
-.prompt-editor .cm-content { min-height: 72px; max-height: none; font-size: var(--font-size-ui); }
+.prompt-editor .cm-content { min-height: 72px; max-height: none; }
 .prompt-editor .cm-content:focus-visible { outline: none; }
 .prompt-editor .cm-scroller:focus-visible { outline: none; }
 .prompt-editor .cm-editor:focus-visible { outline: none; }
