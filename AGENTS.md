@@ -11,6 +11,10 @@ pnpm build
 pnpm package:vsix && pnpm verify:vsix
 ```
 
+During unit testing in code development, prioritize local testing to avoid the inefficiency of full-scale testing (e.g., `pnpm --dir apps/vscode exec vitest run ...`).
+
+For commands where only the result matters, print only the tail or even just the exit code, and redirect stdout to a temporary file.
+
 ## Maintenance
 
 - Use [`docs/index.md`](docs/index.md) as the documentation entry point. Before changing architecture, protocol, session state, bridge behavior, or UI interaction, read the linked topic document and the nearest `*.SPEC.md`.
