@@ -6,6 +6,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.1] - 2026-07-23
+
+### Added
+
+- Follow VS Code Chat `fontFamily`, `fontSize`, `editor.fontFamily`, and `editor.fontSize` settings for conversation messages and the composer.
+
 ### Changed
 
 - Make composer `Tab` and `Shift+Tab` indent and outdent by two spaces, and continue simple `-` and `*` Markdown lists when pressing `Enter`.
@@ -205,7 +211,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add editor context capture, file navigation, Git-base diffs, diagnostics export, CSP, and trusted-workspace constraints.
 - Add production builds, tests, VSIX verification, release scripts, and maintenance documentation.
 
-[Unreleased]: https://github.com/frostime/frostpi/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/frostime/frostpi/compare/v0.7.1...HEAD
+[0.7.1]: https://github.com/frostime/frostpi/compare/v0.7.0...v0.7.1
 [0.7.0]: https://github.com/frostime/frostpi/compare/v0.6.2...v0.7.0
 [0.6.2]: https://github.com/frostime/frostpi/compare/v0.6.1...v0.6.2
 [0.6.1]: https://github.com/frostime/frostpi/compare/v0.6.0...v0.6.1
