@@ -2,7 +2,8 @@
 
 The composer is a plain-text CodeMirror 6 editor. FrostPi sends exactly the visible document text plus explicit image attachments.
 
-- `Enter` inserts a newline; `Ctrl+Enter` and `Cmd+Enter` submit.
+- `Enter` inserts a newline; `Ctrl+Enter` and `Cmd+Enter` submit. On a non-empty Markdown `-` or `*` list item, `Enter` continues the same marker and indentation. On an empty list item, it removes the marker while preserving the indentation.
+- `Tab` accepts an active completion. Otherwise it inserts two spaces at an unselected cursor, indents all selected lines by two spaces, or indents the whole current line when it is a Markdown `-` or `*` list item. `Shift+Tab` removes up to two leading spaces (or one leading tab) from the current line or all selected lines. Neither key combination moves focus out of the composer.
 - The editor starts at roughly three lines, grows with content, and scrolls internally after its maximum height.
 - A toolbar expand control toggles a panel-local expanded composer: conversation height collapses, the composer fills the remaining FrostPi shell, and Escape or the same control restores the normal layout. Expanded state is Webview-local and resets on session switch.
 - CodeMirror focus must not create a second nested focus border; screen-reader live regions remain off-screen.

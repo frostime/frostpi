@@ -17,6 +17,7 @@
   import { shouldStartPromptCompletion } from "./completionPolicy";
   import { withFrostPiCommands } from "./frostPiCommands";
   import { requestWorkspaceFileSuggestions } from "./fileSuggestionClient";
+  import { indentPromptWithTab, insertPromptNewline, outdentPromptWithShiftTab } from "./promptEditing";
   import { promptSyntax } from "./promptSyntax";
   import { workspaceMentionEdit, workspaceMentionReplaceTo } from "./workspaceMentionCompletion";
 
@@ -91,6 +92,8 @@
         keymap.of([
           ...completionKeymap,
           { key: "Tab", run: acceptCompletion },
+          { key: "Tab", run: indentPromptWithTab, shift: outdentPromptWithShiftTab },
+          { key: "Enter", run: insertPromptNewline },
           ...historyKeymap,
           { key: "Mod-Enter", run: () => { onsubmit(); return true; } },
           ...defaultKeymap,

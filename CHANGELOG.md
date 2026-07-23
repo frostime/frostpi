@@ -6,6 +6,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Make composer `Tab` and `Shift+Tab` indent and outdent by two spaces, and continue simple `-` and `*` Markdown lists when pressing `Enter`.
+
 ## [0.7.0] - 2026-07-22
 
 ### Added
