@@ -8,7 +8,7 @@
   background: linear-gradient(to bottom, transparent 0, var(--frost-bg) 18px);
   padding: 11px 12px 13px;
 }
-.composer-shell { position: relative; min-width: 0; width: 100%; max-width: 820px; margin: 0 auto; }
+.composer-shell { position: relative; min-width: 0; width: 100%; max-width: var(--content-max-width); margin: 0 auto; }
 .composer-box {
   position: relative;
   min-width: 0;
@@ -94,7 +94,7 @@
 .app-shell:has(.composer-expanded) { grid-template-rows: auto 0fr minmax(0, 1fr); }
 .app-shell:has(.composer-expanded) .conversation-frame { min-height: 0; overflow: hidden; opacity: 0; pointer-events: none; }
 .app-shell:has(.composer-expanded) .composer-region { min-height: 0; height: 100%; display: flex; flex-direction: column; gap: 8px; padding-top: 8px; }
-.app-shell:has(.composer-expanded) .composer-shell { flex: 1 1 auto; min-height: 0; max-width: none; display: flex; flex-direction: column; }
+.app-shell:has(.composer-expanded) .composer-shell { flex: 1 1 auto; min-height: 0; max-width: var(--content-max-width); display: flex; flex-direction: column; }
 .app-shell:has(.composer-expanded) .composer-box { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .app-shell:has(.composer-expanded) .prompt-editor { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
 .app-shell:has(.composer-expanded) .prompt-editor .cm-editor { flex: 1 1 auto; min-height: 0; height: 100%; display: flex !important; flex-direction: column; }
@@ -197,10 +197,10 @@
   font-size: 9.5px;
 }
 .cm-tooltip.cm-tooltip-autocomplete .cm-completionIcon { color: var(--frost-muted); }
-.prompt-editor .cm-editor { min-height: 72px; }
-.prompt-editor .cm-scroller { min-height: 72px; }
-.prompt-editor .cm-scroller { max-height: 188px; overflow-x: hidden; overflow-y: auto; }
-.prompt-editor .cm-content { min-height: 72px; max-height: none; }
+.prompt-editor .cm-editor { min-height: var(--composer-editor-min-height); }
+.prompt-editor .cm-scroller { min-height: var(--composer-editor-min-height); }
+.prompt-editor .cm-scroller { max-height: var(--composer-editor-max-height); overflow-x: hidden; overflow-y: auto; }
+.prompt-editor .cm-content { min-height: var(--composer-editor-min-height); max-height: none; }
 .prompt-editor .cm-content:focus-visible { outline: none; }
 .prompt-editor .cm-scroller:focus-visible { outline: none; }
 .prompt-editor .cm-editor:focus-visible { outline: none; }

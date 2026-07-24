@@ -15,7 +15,7 @@
 {/if}
 
 <style>
-.extension-widgets { width: 100%; max-width: 820px; margin: 0 auto 7px; display: grid; gap: 6px; }
+.extension-widgets { width: 100%; max-width: var(--content-max-width); margin: 0 auto 7px; display: grid; gap: 6px; }
 .extension-widget {
   display: flex;
   gap: 7px;

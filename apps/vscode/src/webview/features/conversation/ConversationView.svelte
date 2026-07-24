@@ -142,7 +142,7 @@
 </div>
 
 <style>
-.conversation-inner { width: 100%; max-width: 820px; min-height: 100%; margin: 0 auto; padding: 18px 14px 28px; }
+.conversation-inner { width: 100%; max-width: var(--content-max-width); min-height: 100%; margin: 0 auto; padding: 18px 14px 28px; }
 .conversation-tail { height: 8px; }
 .conversation-empty {
   min-height: min(430px, 65vh);

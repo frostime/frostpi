@@ -134,7 +134,7 @@
             overflowY: "auto",
           },
           ".cm-content": {
-            minHeight: "72px",
+            minHeight: "72px", /* keep in sync with --composer-editor-min-height */
             padding: "13px 14px 11px",
             caretColor: "var(--frost-text)",
           },

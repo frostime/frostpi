@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Extract shared content max-width and composer editor size constants into CSS variables.
+
+### Fixed
+
+- Keep the composer width constrained when expanded so it grows upward instead of stretching to full viewport width.
+
 ## [0.8.0] - 2026-07-24
 
 ### Added

@@ -24,7 +24,7 @@
 <style>
 .session-metrics {
   width: 100%;
-  max-width: 820px;
+  max-width: var(--content-max-width);
   min-height: 17px;
   margin: 0 auto 4px;
   display: flex;
