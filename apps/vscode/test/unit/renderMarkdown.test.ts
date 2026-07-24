@@ -91,6 +91,40 @@ describe("renderMarkdownHtml", () => {
     expect(link?.getAttribute("href")).toBe("https://example.com/file.ts:42");
     expect(link?.hasAttribute("data-file-path")).toBe(false);
   });
+
+  it("does not turn inline code with an unknown extension into a file link", () => {
+    const html = renderMarkdownHtml("`data.bin:42` and `archive.zip`");
+    const root = document.createElement("div");
+    root.innerHTML = html;
+
+    expect(root.querySelector("a.file-link")).toBeNull();
+    expect(root.querySelectorAll("code")).toHaveLength(2);
+  });
+
+  it("turns inline code with known text-file extensions and common base names into file links", () => {
+    const html = renderMarkdownHtml("`Makefile:10` `LICENSE` `main.tex:15` `config.yaml` `src/utils.py`");
+    const root = document.createElement("div");
+    root.innerHTML = html;
+    const links = root.querySelectorAll("a.file-link");
+
+    expect(links).toHaveLength(5);
+    expect(links[0]?.getAttribute("data-file-line")).toBe("10");
+    expect(links[1]?.getAttribute("data-file-path")).toBe("LICENSE");
+    expect(links[2]?.getAttribute("data-file-line")).toBe("15");
+    expect(links[3]?.getAttribute("data-file-path")).toBe("config.yaml");
+    expect(links[4]?.getAttribute("data-file-path")).toBe("src/utils.py");
+  });
+
+  it("still treats Markdown links as links regardless of extension", () => {
+    const html = renderMarkdownHtml("[data](data.bin) [src](src/file.unknown)");
+    const root = document.createElement("div");
+    root.innerHTML = html;
+    const links = root.querySelectorAll("a");
+
+    expect(links).toHaveLength(2);
+    expect(links[0]?.getAttribute("data-file-path")).toBe("data.bin");
+    expect(links[1]?.getAttribute("data-file-path")).toBe("src/file.unknown");
+  });
 });
 
 describe("parseFileReference", () => {
@@ -101,9 +135,13 @@ describe("parseFileReference", () => {
     ["src/file.ts:5-10", { path: "src/file.ts", line: 5, endLine: 10 }],
     ["src/file.ts#L12", { path: "src/file.ts", line: 12 }],
     ["src/file.ts#L12-L14", { path: "src/file.ts", line: 12, endLine: 14 }],
-    ["/etc/hosts", { path: "/etc/hosts" }],
+    ["/home/user/.bashrc", { path: "/home/user/.bashrc" }],
     ["C:\\work\\file.ts:7:2", { path: "C:\\work\\file.ts", line: 7, column: 2 }],
     ["README.md", { path: "README.md" }],
+    ["Makefile", { path: "Makefile" }],
+    ["LICENSE", { path: "LICENSE" }],
+    [".env.local", { path: ".env.local" }],
+    ["paper.bib", { path: "paper.bib" }],
   ])("parses %s", (source, expected) => {
     expect(parseFileReference(source)).toEqual(expected);
   });
@@ -118,6 +156,11 @@ describe("parseFileReference", () => {
     "file.ts:0",
     "file.ts:10-5",
     "file.ts#L10-L5",
+    "data.bin",
+    "archive.zip",
+    "photo.jpg",
+    "src/file.unknown",
+    "/etc/hosts",
   ])(
     "does not classify %s as a file reference",
     (source) => {
