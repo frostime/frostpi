@@ -22,6 +22,13 @@ export interface CompactionView {
   timestamp: number;
 }
 
+export interface BranchSummaryView {
+  id: string;
+  summary: string;
+  fromId: string;
+  timestamp: number;
+}
+
 /** Local follow-up waiting for the current agent run to settle. Not part of the durable turn timeline. */
 export interface QueuedFollowUpView {
   id: string;

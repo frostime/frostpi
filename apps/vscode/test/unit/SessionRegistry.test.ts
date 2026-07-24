@@ -6,6 +6,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type * as SessionWorkingDirectoriesModule from "../../src/extension/sessions/SessionWorkingDirectories.js";
 
+const treePickerMocks = vi.hoisted(() => ({
+  pickBranchEnd: vi.fn(),
+  pickBranchSummary: vi.fn(),
+  confirmDraftReplacement: vi.fn(),
+}));
+
+vi.mock("../../src/extension/session-tree/SessionTreePicker.js", () => treePickerMocks);
+
 const testEnvironment = vi.hoisted(() => ({
   cwd: "",
   piExecutable: "",
@@ -47,6 +55,7 @@ vi.mock("vscode", () => {
       showQuickPick: vi.fn((items: Array<{ directory?: { cwd: string } }>) => Promise.resolve(
         items.find((item) => item.directory?.cwd === testEnvironment.quickPickCwd),
       )),
+      showInformationMessage: vi.fn().mockResolvedValue(undefined),
       showWarningMessage: vi.fn().mockResolvedValue("Close session"),
     },
     workspace: {
@@ -78,6 +87,80 @@ describe("FrostPi session collection", () => {
     testEnvironment.quickPickCwd = "";
     testEnvironment.configurationScopes = [];
     testEnvironment.startSessionOnOpenByCwd.clear();
+    treePickerMocks.pickBranchEnd.mockReset();
+    treePickerMocks.pickBranchSummary.mockReset();
+    treePickerMocks.confirmDraftReplacement.mockReset();
+  });
+
+  it("orchestrates Branch here and treats the selected current path as a no-op", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "frostpi-registry-tree-"));
+    const sessionFile = join(dir, "tree.jsonl");
+    const artifactPath = join(dir, "session-tree.js");
+    const fakePi = join(dir, "fake-pi.cjs");
+    await writeFile(sessionFile, `${JSON.stringify({ type: "session", version: 3, id: "tree", cwd: dir })}\n`);
+    await writeFile(artifactPath, "export default () => {};\n");
+    await writeFile(fakePi, String.raw`#!/usr/bin/env node
+const fs = require("node:fs");
+const path = require("node:path");
+const extensionPath = process.argv[process.argv.indexOf("-e") + 1];
+const sessionFile = process.argv[process.argv.indexOf("--session") + 1];
+const entries = [
+  { type: "message", id: "root", parentId: null, timestamp: "2026-01-01T00:00:01.000Z", message: { role: "user", content: "Start", timestamp: 1 } },
+  { type: "message", id: "answer", parentId: "root", timestamp: "2026-01-01T00:00:02.000Z", message: { role: "assistant", content: [{ type: "text", text: "Answer" }], timestamp: 2 } },
+  { type: "message", id: "old-user", parentId: "answer", timestamp: "2026-01-01T00:00:03.000Z", message: { role: "user", content: "Revise me", timestamp: 3 } },
+  { type: "message", id: "other-user", parentId: "answer", timestamp: "2026-01-01T00:00:04.000Z", message: { role: "user", content: "Other path", timestamp: 4 } },
+];
+let leafId = "old-user";
+let messages = [entries[0].message, entries[1].message, entries[2].message];
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => {
+  input += chunk;
+  while (input.includes("\n")) {
+    const index = input.indexOf("\n");
+    const command = JSON.parse(input.slice(0, index));
+    input = input.slice(index + 1);
+    const response = { type: "response", id: command.id, success: true };
+    if (command.type === "get_state") response.data = { model: null, thinkingLevel: "off", isStreaming: false, isCompacting: false, pendingMessageCount: 0, sessionFile, sessionId: "tree" };
+    else if (command.type === "get_messages") response.data = { messages };
+    else if (command.type === "get_entries") response.data = { entries, leafId };
+    else if (command.type === "get_available_models") response.data = { models: [] };
+    else if (command.type === "get_commands") response.data = { commands: [
+      { name: "frostpi.session-tree", source: "extension", sourceInfo: { path: extensionPath, source: "local", scope: "temporary", origin: "top-level" } },
+    ] };
+    else if (command.type === "get_session_stats") response.data = { sessionFile, sessionId: "tree", userMessages: 3, assistantMessages: 1, toolCalls: 0, toolResults: 0, totalMessages: 4, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, cost: 0 };
+    else if (command.type === "prompt") {
+      const request = JSON.parse(Buffer.from(command.message.split(" ")[1], "base64url").toString("utf8"));
+      leafId = "answer";
+      messages = [entries[0].message, entries[1].message];
+      fs.writeFileSync(path.join(process.env.FROSTPI_SESSION_TREE_RESULT_DIR, request.requestId + ".json"), JSON.stringify({ version: 1, requestId: request.requestId, status: "committed", leafId }));
+    }
+    process.stdout.write(JSON.stringify(response) + "\n");
+  }
+});
+process.on("SIGTERM", () => process.exit(0));
+`);
+    testEnvironment.cwd = dir;
+    testEnvironment.piExecutable = fakePi;
+    const context = { ...createContext(), asAbsolutePath: () => artifactPath };
+    const registry = new SessionRegistry(context as never, { error: vi.fn(), info: vi.fn() } as never);
+    registries.push(registry);
+    treePickerMocks.confirmDraftReplacement.mockResolvedValue(true);
+    treePickerMocks.pickBranchSummary.mockResolvedValue({ summarize: false });
+
+    const sessionId = await registry.openSession({ path: sessionFile, cwd: dir, title: "Tree", updatedAt: Date.now() });
+    await waitFor(() => registry.snapshot().activeSession?.sessionTreeAvailable === true && registry.snapshot().activeSession?.historyStatus === "loaded");
+
+    await expect(registry.checkPiIntegration(sessionId)).resolves.toBeUndefined();
+    await expect(registry.branchHere(sessionId, "old-user", true)).resolves.toEqual({ cancelled: false });
+    expect(treePickerMocks.confirmDraftReplacement).toHaveBeenCalledOnce();
+    expect(treePickerMocks.pickBranchSummary).toHaveBeenCalledOnce();
+    expect(registry.snapshot().activeSession?.composerSeed).toMatchObject({ text: "Revise me", images: [] });
+
+    treePickerMocks.pickBranchEnd.mockImplementation((choices: Array<{ isCurrent: boolean }>) => Promise.resolve(choices.find((choice) => choice.isCurrent)));
+    treePickerMocks.pickBranchSummary.mockClear();
+    await expect(registry.switchBranch(sessionId, "answer", false)).resolves.toEqual({ cancelled: true });
+    expect(treePickerMocks.pickBranchSummary).not.toHaveBeenCalled();
   });
 
   it("does not create a session when none are persisted on open", async () => {

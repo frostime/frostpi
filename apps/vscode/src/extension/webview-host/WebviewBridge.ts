@@ -243,6 +243,12 @@ export class WebviewBridge implements vscode.Disposable {
       case "cancelFork":
         await this.#registry.cancelFork(message.sessionId);
         break;
+      case "branchHere":
+        await this.#registry.branchHere(message.sessionId, message.entryId, message.hasDraft);
+        break;
+      case "switchBranch":
+        await this.#registry.switchBranch(message.sessionId, message.branchPointId, message.hasDraft);
+        break;
       case "forkMessage":
         try {
           const result = await this.#registry.forkMessage(message.sessionId, message.entryId);
@@ -287,6 +293,9 @@ export class WebviewBridge implements vscode.Disposable {
       }
       case "refreshCommands":
         await this.#registry.refreshCommands(message.sessionId);
+        break;
+      case "checkPiIntegration":
+        await this.#registry.checkPiIntegration(message.sessionId);
         break;
       case "refreshModels":
         await this.#registry.refreshModels(message.sessionId);

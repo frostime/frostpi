@@ -58,6 +58,18 @@ const payloadSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("abort"), sessionId: z.string().min(1).max(128) }),
   z.object({ type: z.literal("cancelFork"), sessionId: z.string().min(1).max(128) }),
   z.object({
+    type: z.literal("branchHere"),
+    sessionId: z.string().min(1).max(128),
+    entryId: z.string().min(1).max(128),
+    hasDraft: z.boolean(),
+  }),
+  z.object({
+    type: z.literal("switchBranch"),
+    sessionId: z.string().min(1).max(128),
+    branchPointId: z.string().min(1).max(128).nullable(),
+    hasDraft: z.boolean(),
+  }),
+  z.object({
     type: z.literal("forkMessage"),
     requestId: z.string().min(1).max(128),
     sessionId: z.string().min(1).max(128),
@@ -90,6 +102,7 @@ const payloadSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("openDiff"), path: z.string().min(1).max(32_768) }),
   z.object({ type: z.literal("openExternal"), url: z.string().url().max(2_048) }),
   z.object({ type: z.literal("refreshCommands"), sessionId: z.string().min(1).max(128) }),
+  z.object({ type: z.literal("checkPiIntegration"), sessionId: z.string().min(1).max(128) }),
   z.object({ type: z.literal("refreshModels"), sessionId: z.string().min(1).max(128) }),
   z.object({ type: z.literal("loadHistory"), sessionId: z.string().min(1).max(128) }),
   z.object({ type: z.literal("searchWorkspaceFiles"), requestId: z.string().min(1).max(128), sessionId: z.string().min(1).max(128), query: z.string().max(1_024), limit: z.number().int().min(1).max(50) }),

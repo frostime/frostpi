@@ -2,7 +2,7 @@ import type { RpcEvent, RpcSessionState } from "@frostime/pi-rpc";
 
 import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
 import type { AgentTurnStatus, SessionNoticeLevel } from "../../shared/model/agentTurnModel.js";
-import type { AttachmentLimitsView, SessionRuntimeStatus, SessionViewModel } from "../../shared/model/sessionViewModel.js";
+import type { AttachmentLimitsView, BranchControlView, SessionRuntimeStatus, SessionViewModel } from "../../shared/model/sessionViewModel.js";
 import { TurnProjection } from "./TurnProjection.js";
 import type { UserEntryReference } from "./userEntryReferences.js";
 
@@ -37,10 +37,15 @@ export class SessionProjection {
       turns: [],
       notices: [],
       compactions: [],
+      branchSummaries: [],
       queuedFollowUps: [],
       pendingExtensionUi: [],
       extensionStatuses: [],
       extensionWidgets: [],
+      branchControls: [],
+      sessionTreeAvailable: false,
+      isNavigatingTree: false,
+      isSummarizingTree: false,
       updatedAt: initialUpdatedAt,
     };
   }
@@ -97,6 +102,23 @@ export class SessionProjection {
 
   setComposerSeed(seed: NonNullable<SessionViewModel["composerSeed"]>): void {
     this.#view.composerSeed = seed;
+    this.#touch();
+  }
+
+  setSessionTreeState(
+    available: boolean,
+    branchControls: BranchControlView[],
+    isNavigatingTree = this.#view.isNavigatingTree,
+  ): void {
+    this.#view.sessionTreeAvailable = available;
+    this.#view.branchControls = branchControls;
+    this.#view.isNavigatingTree = isNavigatingTree;
+    this.#touch();
+  }
+
+  setNavigatingTree(isNavigatingTree: boolean, isSummarizingTree = false): void {
+    this.#view.isNavigatingTree = isNavigatingTree;
+    this.#view.isSummarizingTree = isNavigatingTree && isSummarizingTree;
     this.#touch();
   }
 
@@ -231,6 +253,7 @@ export class SessionProjection {
     this.#view.turns = snapshot.turns;
     this.#view.notices = snapshot.notices;
     this.#view.compactions = snapshot.compactions;
+    this.#view.branchSummaries = snapshot.branchSummaries;
     this.#view.queuedFollowUps = snapshot.queuedFollowUps;
   }
 

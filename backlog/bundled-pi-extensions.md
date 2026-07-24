@@ -1,10 +1,16 @@
 ---
 created: 2026-07-20
-status: researched
+status: partially-implemented
 feasibility-study: conducted
 ---
 
 # 捆绑 FrostPi 私有 Pi Extensions
+
+## 当前实现边界
+
+会话树功能已落地一个 feature-specific bundled extension：`apps/vscode/pi-extensions/session-tree.ts` 构建为 `dist/pi-extensions/session-tree.js`，由每个 `SessionRuntime` 通过绝对 `-e` 路径注入。它使用 per-runtime token、OS 临时结果目录和 bounded metadata result；Host 通过 `get_commands.sourceInfo.path` 探测并隐藏其私有命令。
+
+通用 bundled-extension RPC framework、统一 operation router 和 probe command 仍未实现。出现第二个实际 RPC capability gap 前，不从当前 feature-specific bridge 抽象通用平台。
 
 ## 目标
 

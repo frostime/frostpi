@@ -18,6 +18,7 @@ import {
   findSessionWorkingDirectory,
   type SessionWorkingDirectory,
 } from "./SessionWorkingDirectories.js";
+import { confirmDraftReplacement, pickBranchEnd, pickBranchSummary } from "../session-tree/SessionTreePicker.js";
 import { normalizePiSlashPrompt } from "./normalizePiSlashPrompt.js";
 import { SessionRuntime } from "./SessionRuntime.js";
 import type { PersistedSessionRecord } from "./sessionTypes.js";
@@ -53,8 +54,10 @@ export class SessionRegistry implements vscode.Disposable {
   readonly #temporarySessionIds = new Set<string>();
   readonly #startJobs = new Map<string, Promise<void>>();
   readonly #historyJobs = new Map<string, Promise<void>>();
+  readonly #treeInteractionSessions = new Set<string>();
   readonly #workingDirectoriesByCwd = new Map<string, SessionWorkingDirectory>();
   readonly #discoverWorkingDirectories: DiscoverSessionWorkingDirectories;
+  readonly #sessionTreeArtifactPath: string | undefined;
 
   #activeSessionId: string | null = null;
   #forkOperation: ForkOperation | null = null;
@@ -76,6 +79,9 @@ export class SessionRegistry implements vscode.Disposable {
     this.#persistence = new SessionPersistence(context.workspaceState);
     this.#logger = logger;
     this.#discoverWorkingDirectories = discoverWorkingDirectories;
+    this.#sessionTreeArtifactPath = typeof context.asAbsolutePath === "function"
+      ? context.asAbsolutePath("dist/pi-extensions/session-tree.js")
+      : undefined;
     this.#proxySecrets = new ProxySecretStore(context.secrets);
     const stored = this.#persistence.load();
     for (const record of stored.sessions) this.#restoreRecord(record);
@@ -363,6 +369,42 @@ export class SessionRegistry implements vscode.Disposable {
     return { cancelled: false, forkSessionId: operation.forkId };
   }
 
+  async branchHere(sessionId: string, entryId: string, hasDraft: boolean): Promise<{ cancelled: boolean }> {
+    return this.#withTreeInteraction(sessionId, async () => {
+      this.#assertNoForkOperation();
+      if (sessionId !== this.#activeSessionId) throw new Error("Activate the session before branching from one of its messages.");
+      const runtime = this.#requireRuntime(sessionId);
+      await this.#ensureRunning(runtime);
+      if (hasDraft && !await confirmDraftReplacement()) return { cancelled: true };
+      const summary = await pickBranchSummary();
+      if (!summary) return { cancelled: true };
+      const result = await runtime.navigateTree(entryId, summary);
+      if (result.seed) runtime.setComposerSeed(result.seed);
+      return { cancelled: result.cancelled };
+    });
+  }
+
+  async switchBranch(
+    sessionId: string,
+    branchPointId: string | null,
+    hasDraft: boolean,
+  ): Promise<{ cancelled: boolean }> {
+    return this.#withTreeInteraction(sessionId, async () => {
+      this.#assertNoForkOperation();
+      if (sessionId !== this.#activeSessionId) throw new Error("Activate the session before switching its conversation branch.");
+      const runtime = this.#requireRuntime(sessionId);
+      await this.#ensureRunning(runtime);
+      const selected = await pickBranchEnd(await runtime.listBranchEnds(branchPointId));
+      if (!selected || selected.isCurrent) return { cancelled: true };
+      if (selected.isEditable && hasDraft && !await confirmDraftReplacement()) return { cancelled: true };
+      const summary = await pickBranchSummary();
+      if (!summary) return { cancelled: true };
+      const result = await runtime.navigateTree(selected.targetId, summary);
+      if (result.seed) runtime.setComposerSeed(result.seed);
+      return { cancelled: result.cancelled };
+    });
+  }
+
   async rename(sessionId: string, name: string): Promise<void> {
     this.#assertSessionOutsideFork(sessionId);
     const runtime = this.#requireRuntime(sessionId);
@@ -397,6 +439,22 @@ export class SessionRegistry implements vscode.Disposable {
     const runtime = this.#requireRuntime(sessionId);
     await this.#ensureRunning(runtime);
     await runtime.refreshCommands();
+  }
+
+  async checkPiIntegration(sessionId: string): Promise<void> {
+    this.#assertSessionOutsideFork(sessionId);
+    const runtime = this.#requireRuntime(sessionId);
+    await this.#ensureRunning(runtime);
+    const result = await runtime.probePiIntegration();
+    if (result.available) {
+      await vscode.window.showInformationMessage(
+        `Pi integration connected. Session tree adapter is available as /${result.commandName}.`,
+      );
+      return;
+    }
+    await vscode.window.showWarningMessage(
+      "Pi integration unavailable. Restart the session or export diagnostics to inspect the bundled adapter.",
+    );
   }
 
   async loadHistory(sessionId: string): Promise<void> {
@@ -525,6 +583,7 @@ export class SessionRegistry implements vscode.Disposable {
           else this.#pendingEditorText.set(runtime.id, text);
         },
       },
+      this.#sessionTreeArtifactPath,
     );
   }
 
@@ -612,6 +671,16 @@ export class SessionRegistry implements vscode.Disposable {
 
   #finishForkOperation(operation: ForkOperation): void {
     if (this.#forkOperation === operation) this.#forkOperation = null;
+  }
+
+  async #withTreeInteraction<T>(sessionId: string, operation: () => Promise<T>): Promise<T> {
+    if (this.#treeInteractionSessions.has(sessionId)) throw new Error("Finish the current session-tree interaction first.");
+    this.#treeInteractionSessions.add(sessionId);
+    try {
+      return await operation();
+    } finally {
+      this.#treeInteractionSessions.delete(sessionId);
+    }
   }
 
   #assertNoForkOperation(): void {
@@ -730,6 +799,7 @@ export class SessionRegistry implements vscode.Disposable {
     this.#lastPendingUiCounts.delete(sessionId);
     this.#startJobs.delete(sessionId);
     this.#historyJobs.delete(sessionId);
+    this.#treeInteractionSessions.delete(sessionId);
   }
 
   #rememberWorkingDirectory(directory: SessionWorkingDirectory): void {

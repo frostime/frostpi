@@ -1,4 +1,4 @@
-import { mkdtemp, writeFile } from "node:fs/promises";
+import { access, mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -431,6 +431,142 @@ process.on("SIGTERM", () => process.exit(0));
 
     await waitFor(() => (runtime.view.stats?.contextUsage?.tokens ?? 0) > 100, 4_500);
     expect(runtime.view.stats?.contextUsage?.tokens).toBeGreaterThan(100);
+  });
+
+  it("loads the bundled capability and reconciles committed tree navigation in the same runtime", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "frostpi-runtime-tree-"));
+    const fakePi = join(dir, "fake-pi.cjs");
+    const artifactPath = join(dir, "session-tree.js");
+    const launchRecord = join(dir, "launch.json");
+    await writeFile(artifactPath, "export default () => {};\n");
+    await writeFile(fakePi, String.raw`#!/usr/bin/env node
+const fs = require("node:fs");
+const path = require("node:path");
+const extensionIndex = process.argv.indexOf("-e");
+const artifactPath = extensionIndex >= 0 ? process.argv[extensionIndex + 1] : "";
+fs.writeFileSync(${JSON.stringify(launchRecord)}, JSON.stringify({
+  artifactPath,
+  resultDirectory: process.env.FROSTPI_SESSION_TREE_RESULT_DIR,
+  hasToken: Boolean(process.env.FROSTPI_SESSION_TREE_TOKEN),
+}));
+const entries = [
+  { type: "message", id: "root", parentId: null, timestamp: "2026-01-01T00:00:01.000Z", message: { role: "user", content: "Start", timestamp: 1 } },
+  { type: "message", id: "answer", parentId: "root", timestamp: "2026-01-01T00:00:02.000Z", message: { role: "assistant", content: [{ type: "text", text: "Answer" }], timestamp: 2 } },
+  { type: "message", id: "old-user", parentId: "answer", timestamp: "2026-01-01T00:00:03.000Z", message: { role: "user", content: "Old path", timestamp: 3 } },
+  { type: "message", id: "old-end", parentId: "old-user", timestamp: "2026-01-01T00:00:04.000Z", message: { role: "assistant", content: [{ type: "text", text: "Old end" }], timestamp: 4 } },
+  { type: "message", id: "target-user", parentId: "answer", timestamp: "2026-01-01T00:00:05.000Z", message: { role: "user", content: [{ type: "text", text: "Revise this" }, { type: "image", id: "image", fileName: "shot.png", mimeType: "image/png", data: "AA==", size: 1 }], timestamp: 5 } },
+];
+let leafId = "old-end";
+let messages = [entries[0].message, entries[1].message, entries[2].message, entries[3].message];
+let failMessages = false;
+let input = "";
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => {
+  input += chunk;
+  while (input.includes("\n")) {
+    const index = input.indexOf("\n");
+    const command = JSON.parse(input.slice(0, index));
+    input = input.slice(index + 1);
+    const response = { type: "response", id: command.id, success: true };
+    if (command.type === "get_state") response.data = { model: null, thinkingLevel: "off", isStreaming: false, isCompacting: false, pendingMessageCount: 0, sessionId: "tree-session" };
+    else if (command.type === "get_messages") {
+      if (failMessages) {
+        response.success = false;
+        response.error = "hydrate failed";
+        failMessages = false;
+      } else response.data = { messages };
+    }
+    else if (command.type === "get_entries") response.data = { entries, leafId };
+    else if (command.type === "get_available_models") response.data = { models: [] };
+    else if (command.type === "get_commands") response.data = { commands: [
+      { name: "frostpi.session-tree:1", source: "extension", sourceInfo: { path: artifactPath, source: "local", scope: "temporary", origin: "top-level" } },
+      { name: "visible", source: "extension", sourceInfo: { path: path.join(__dirname, "visible.js"), source: "local", scope: "temporary", origin: "top-level" } },
+    ] };
+    else if (command.type === "get_session_stats") response.data = { sessionId: "tree-session", userMessages: 3, assistantMessages: 2, toolCalls: 0, toolResults: 0, totalMessages: 5, tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 }, cost: 0 };
+    else if (command.type === "prompt") {
+      const encoded = command.message.split(" ")[1];
+      const request = JSON.parse(Buffer.from(encoded, "base64url").toString("utf8"));
+      if (request.token !== process.env.FROSTPI_SESSION_TREE_TOKEN) throw new Error("wrong token");
+      let status = "committed";
+      if (request.customInstructions === "cancel") status = "cancelled";
+      else if (request.customInstructions === "fail") status = "failed";
+      else {
+        leafId = "answer";
+        messages = [entries[0].message, entries[1].message];
+        if (request.customInstructions === "hydrate-fail") failMessages = true;
+      }
+      fs.writeFileSync(path.join(process.env.FROSTPI_SESSION_TREE_RESULT_DIR, request.requestId + ".json"), JSON.stringify({ version: 1, requestId: request.requestId, status, leafId }));
+    }
+    process.stdout.write(JSON.stringify(response) + "\n");
+  }
+});
+process.on("SIGTERM", () => process.exit(0));
+`);
+
+    const configuration = {
+      piExecutable: fakePi,
+      piArguments: ["--no-extensions"],
+      startSessionOnOpen: true,
+      streamingBehavior: "followUp" as const,
+      collapseTurnTrace: true,
+      maxImageBytes: 10 * 1024 * 1024,
+      diagnosticsLevel: "info" as const,
+      proxy: { mode: "inherit" as const },
+      fileMentionRespectSearchExclude: true,
+      fileMentionRespectIgnoreFiles: true,
+      fileMentionFollowSymlinks: true,
+    };
+    const secrets = new ProxySecretStore({ get: () => Promise.resolve(undefined) } as never);
+    const runtime = new SessionRuntime("session", dir, "Tree", Date.now(), () => configuration, secrets, { error: vi.fn(), info: vi.fn() } as never, {
+      onChange: vi.fn(),
+      onEditorText: vi.fn(),
+    }, artifactPath);
+    runtimes.push(runtime);
+
+    await runtime.start();
+    await waitFor(() => runtime.view.sessionTreeAvailable);
+    const launch = JSON.parse(await readFile(launchRecord, "utf8")) as { artifactPath: string; resultDirectory: string; hasToken: boolean };
+    expect(launch).toMatchObject({ artifactPath, hasToken: true });
+    expect(runtime.view.commands.map((command) => command.name)).toEqual(["visible"]);
+    await runtime.refreshCommands();
+    expect(runtime.view.commands.map((command) => command.name)).toEqual(["visible"]);
+    await expect(runtime.probePiIntegration()).resolves.toEqual({
+      available: true,
+      commandName: "frostpi.session-tree:1",
+    });
+    expect(runtime.view.commands.map((command) => command.name)).toEqual(["visible"]);
+    expect(runtime.view.branchControls).toEqual([
+      expect.objectContaining({ branchPointId: "answer", anchorEntryId: "old-user", pathCount: 2 }),
+    ]);
+    expect((await runtime.listBranchEnds("answer")).map((choice) => choice.targetId)).toEqual(["old-end", "target-user"]);
+
+    await expect(runtime.navigateTree("target-user", { summarize: true, customInstructions: "cancel" }))
+      .resolves.toEqual({ cancelled: true });
+    expect(runtime.view.historyStatus).toBe("loaded");
+    await expect(runtime.navigateTree("target-user", { summarize: true, customInstructions: "fail" }))
+      .rejects.toThrow("Pi did not commit");
+    expect(runtime.view.historyStatus).toBe("loaded");
+
+    const result = await runtime.navigateTree("target-user", { summarize: false });
+
+    expect(runtime.id).toBe("session");
+    expect(runtime.view.sessionId).toBe("tree-session");
+    expect(runtime.view.turns).toHaveLength(1);
+    expect(result).toEqual({
+      cancelled: false,
+      seed: {
+        id: "tree-target-user",
+        text: "Revise this",
+        images: [{ id: "image", name: "shot.png", mimeType: "image/png", dataUrl: "data:image/png;base64,AA==", size: 1 }],
+      },
+    });
+
+    await expect(runtime.navigateTree("old-user", { summarize: true, customInstructions: "hydrate-fail" }))
+      .rejects.toThrow("hydrate failed");
+    expect(runtime.view.historyStatus).toBe("failed");
+
+    await runtime.stop();
+    await expect(access(launch.resultDirectory)).rejects.toThrow();
   });
 });
 

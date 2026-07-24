@@ -52,10 +52,20 @@ export interface RpcSessionState {
   [key: string]: unknown;
 }
 
+export interface RpcSourceInfo {
+  path: string;
+  source: string;
+  scope: string;
+  origin: string;
+  baseDir?: string;
+  [key: string]: unknown;
+}
+
 export interface RpcCommandDescriptor {
   name: string;
   description?: string;
   source: string;
+  sourceInfo?: RpcSourceInfo;
   location?: string;
   path?: string;
   [key: string]: unknown;

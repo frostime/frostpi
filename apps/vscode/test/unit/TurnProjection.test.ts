@@ -3,6 +3,24 @@ import { describe, expect, it } from "vitest";
 import { TurnProjection } from "../../src/extension/conversation/TurnProjection.js";
 
 describe("TurnProjection", () => {
+  it("hydrates branch summaries as separate conversation boundaries", () => {
+    const projection = new TurnProjection();
+    projection.hydrate([
+      { role: "user", timestamp: 1, content: "Earlier prompt" },
+      { role: "branchSummary", summary: "Decisions from the other path", fromId: "old-leaf", timestamp: 2 },
+      { role: "user", timestamp: 3, content: "Current prompt" },
+    ]);
+
+    const summary = projection.snapshot().branchSummaries[0];
+    expect(summary?.id).toMatch(/^branch-summary-/);
+    expect(summary).toMatchObject({
+      summary: "Decisions from the other path",
+      fromId: "old-leaf",
+      timestamp: 2,
+    });
+    expect(projection.snapshot().turns).toHaveLength(2);
+  });
+
   it("binds stable Pi entry ids to duplicate user prompts without guessing by text", () => {
     const projection = new TurnProjection();
     projection.hydrate([

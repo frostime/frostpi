@@ -3,6 +3,7 @@
 .vscode/**
 .vscode-test/**
 src/**
+pi-extensions/**
 test/**
 dev/**
 *.config.*

@@ -3,7 +3,7 @@ title: UI Design Specification
 description: Visual language, density, theming, and interaction rules for FrostPi.
 scope:
   - /apps/vscode/src/webview/**
-updated: 2026-07-21
+updated: 2026-07-24
 ---
 
 # UI Design Specification
@@ -16,7 +16,7 @@ FrostPi should feel like a first-party desktop coding surface: compact, low-nois
 - The bar is a compact single row and may be hidden. The conversation uses the released height while the composer remains bottom-anchored; a floating restore control consumes no layout height and signals background input requests.
 - The session list distinguishes the selected session, background execution, queued startup, failure, and required user input. Sessions running outside the open workspace folders show the worktree directory name as a compact capsule on the secondary status line (header inline status and list) and expose the complete `cwd` as a tooltip; titles stay aligned across local and external sessions. Closing a running session requires confirmation; closing a temporary unused session does not.
 - New uses a native VS Code directory picker only when linked worktrees are available. Resume remains one native searchable `createQuickPick`, grouped by worktree with linked worktrees before the current workspace; it does not introduce a nested Webview tree or mandatory two-stage selection.
-- At 280px width, secondary status text may disappear but switching, creation, closing, and restoring the bar remain available.
+- At 280px width, secondary status text may disappear but switching, creation, closing, and restoring the bar remain available. The Session actions menu includes a `Pi integration` row showing cached session-tree adapter availability; activating it performs a fresh capability probe and reports the actual connection result through native VS Code messaging.
 
 ## Conversation
 
@@ -28,6 +28,7 @@ FrostPi should feel like a first-party desktop coding surface: compact, low-nois
 - While context is compacting, the conversation shows a non-timeline status row. A successful compaction inserts a distinct, collapsed boundary showing the pre-compaction token count. Expanding it reveals Pi's Markdown summary; prior visible turns remain scrollable.
 - User scrolling away pauses follow mode. New activity preserves the viewport and exposes a floating jump-to-latest control.
 - User messages and individual assistant responses expose a compact action row on hover or keyboard focus. Copy writes only the original text blocks in protocol order, preserving raw Markdown and excluding images, reasoning, tools, notices, and rendered formatting. Fork remains user-message-only: it targets that exact Pi entry, preserves the original session, and restores the selected text and images into the fork's Composer; unavailable actions remain disabled rather than guessing by message text.
+- Completed user messages expose **Branch here** beside Fork. Branch here edits and resubmits the prompt in the same Pi session; Fork creates another FrostPi session. Represented branch points are centered timeline milestones: thin rules flank a compact `<count> branches` control. Its native QuickPick separates `Current path` from `Other paths`; each selectable row shows divergence content, message count, last update, and a bounded ending preview. The current path is first and is a no-op. Generated branch summaries are collapsed conversation boundaries. Switching/summarizing shows non-cancellable progress and preserves a draft for non-editable targets.
 
 ## Composer and pickers
 

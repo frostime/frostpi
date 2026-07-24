@@ -3,7 +3,7 @@ title: Existing-session discovery and resume
 description: Session storage roots, bounded JSONL discovery, worktree grouping, metadata recovery, and Resume ownership checks.
 scope:
   - /apps/vscode/src/extension/sessions/SessionCatalog.ts
-updated: 2026-07-21
+updated: 2026-07-24
 ---
 
 # Existing-session discovery and resume
@@ -46,6 +46,6 @@ A manually browsed session whose `cwd` is outside the allowed active-workspace/w
 
 ## Non-goals
 
-- Reimplement Pi's tree navigator, delete, clone, or import flows. Message-level Fork is owned by the session lifecycle and uses Pi RPC rather than catalog parsing.
-- Parse the entire session graph in FrostPi.
+- Own session-tree navigation policy. In-place tree navigation belongs to the live `SessionRuntime`; the catalog only discovers and resumes files at Pi's persisted active leaf.
+- Parse the entire session graph during discovery.
 - Modify Pi session JSONL files.

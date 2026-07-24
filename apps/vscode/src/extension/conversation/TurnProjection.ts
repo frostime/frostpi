@@ -10,6 +10,7 @@ import type {
 } from "../../shared/model/agentTurnModel.js";
 import type { WebviewImageInput } from "../../shared/bridge/webviewToHost.js";
 import type {
+  BranchSummaryView,
   CompactionView,
   ConversationMessageView,
   ImageAttachmentView,
@@ -25,6 +26,7 @@ export interface TurnProjectionSnapshot {
   turns: AgentTurnView[];
   notices: SessionNoticeView[];
   compactions: CompactionView[];
+  branchSummaries: BranchSummaryView[];
   queuedFollowUps: QueuedFollowUpView[];
 }
 
@@ -37,6 +39,7 @@ export class TurnProjection {
   #turns: AgentTurnView[] = [];
   #notices: SessionNoticeView[] = [];
   #compactions: CompactionView[] = [];
+  #branchSummaries: BranchSummaryView[] = [];
   #queuedFollowUps: QueuedFollowUpView[] = [];
   #activeTurnId: string | null = null;
   #streamingMessageId: string | null = null;
@@ -49,6 +52,7 @@ export class TurnProjection {
       turns: this.#turns,
       notices: this.#notices,
       compactions: this.#compactions,
+      branchSummaries: this.#branchSummaries,
       queuedFollowUps: this.#queuedFollowUps,
     };
   }
@@ -57,6 +61,7 @@ export class TurnProjection {
     this.#turns = [];
     this.#notices = [];
     this.#compactions = [];
+    this.#branchSummaries = [];
     this.#queuedFollowUps = [];
     this.#activeTurnId = null;
     this.#streamingMessageId = null;
@@ -72,6 +77,16 @@ export class TurnProjection {
       const timestamp = typeof raw.timestamp === "number" ? raw.timestamp : fallbackTimestamp++;
       if (raw.role === "compactionSummary" && typeof raw.summary === "string" && typeof raw.tokensBefore === "number") {
         this.#appendCompaction(raw.summary, raw.tokensBefore, timestamp);
+        currentTurnId = null;
+        continue;
+      }
+      if (raw.role === "branchSummary" && typeof raw.summary === "string" && typeof raw.fromId === "string") {
+        this.#branchSummaries = [...this.#branchSummaries, {
+          id: `branch-summary-${timestamp}-${++this.#sequence}`,
+          summary: raw.summary,
+          fromId: raw.fromId,
+          timestamp,
+        }];
         currentTurnId = null;
         continue;
       }

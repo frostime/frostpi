@@ -4,7 +4,7 @@ description: Supported Pi RPC commands/events, executable resolution, and compat
 scope:
   - /packages/pi-rpc/**
   - /apps/vscode/src/extension/pi-runtime/**
-updated: 2026-07-19
+updated: 2026-07-24
 ---
 
 # Pi RPC Compatibility
@@ -18,6 +18,8 @@ Startup requires `get_state`. The product additionally uses prompt/abort, manual
 Message-level Fork uses `get_entries` to bind the displayed user message to its stable Pi entry id, then calls `fork(entryId)` without the ordinary request timeout because `session_before_fork` may wait for Extension UI. Pi replaces the active runtime with a new session and returns the selected text for editing; FrostPi rebuilds the active projection and restores projected image attachments itself because the fork response contains text only. Explicit cancellation stops the child and restarts the original session, preventing a late response from changing the recovered runtime.
 
 Pi built-in interactive commands are not returned by `get_commands` and do not execute through RPC `prompt`. FrostPi therefore translates text-only `/compact` and `/compact <instructions>` submissions to the documented `compact` request. Successful `compaction_end` events append a visible compaction boundary without removing already projected turns; resumed `compactionSummary` messages restore the same boundary.
+
+Session-tree reads use documented complete `get_entries` data. Native RPC does not expose `navigate_tree`, so FrostPi packages a feature-specific private Pi extension and injects it by absolute `-e` path. Its command calls `ctx.navigateTree()` and exchanges only bounded status/leaf metadata through a per-runtime token and OS temporary result directory. `get_commands.sourceInfo.path` discovers the final command name and hides every command from that bundled source. Missing capability disables tree actions visibly; compatibility is capability-based rather than inferred from a Pi version string.
 
 Pi extension commands do execute through RPC `prompt` (with args after the command name). They may complete without `agent_start` / `agent_settled`; FrostPi classifies them via `get_commands` (`source: "extension"`, refresh only on name miss) and closes the turn opened for that prompt after short idle checks.
 

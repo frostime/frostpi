@@ -78,6 +78,23 @@ describe("live Pi event projection", () => {
     ]);
   });
 
+  it("projects compact session-tree capability and controls", () => {
+    const projection = new SessionProjection("s1", "/workspace", "Session");
+    projection.setSessionTreeState(true, [{
+      branchPointId: "branch",
+      anchorEntryId: "user",
+      anchorPosition: "before",
+      pathCount: 3,
+    }]);
+    projection.setNavigatingTree(true);
+
+    expect(projection.snapshot()).toMatchObject({
+      sessionTreeAvailable: true,
+      isNavigatingTree: true,
+      branchControls: [{ branchPointId: "branch", anchorEntryId: "user", pathCount: 3 }],
+    });
+  });
+
   it("projects multiline session notices with their severity", () => {
     const projection = new SessionProjection("s1", "/workspace", "Session");
     projection.appendNotice("line 1\nline 2", "warning");

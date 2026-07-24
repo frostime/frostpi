@@ -12,7 +12,10 @@ It runs your configured Pi through its native RPC mode. Pi remains responsible f
 
 ## Highlights
 
+- Fork selected context into a separate Pi and FrostPi session when the continuation should remain independent.
 - Create, resume, switch, rename, and concurrently run independent Pi sessions.
+- Navigate Pi's session tree visually: revise earlier prompts with **Branch here**, switch existing paths, and optionally preserve context with branch summaries.
+- Worktree support: if the vscode workspace has git worktree, you can add new/resume session from it.
 - Stream ordered reasoning, tool activity, command output, errors, and final responses.
 - Paste PNG, JPEG, or WebP images directly into prompts.
 - Use `/` completion for Pi extension commands, prompt templates, skills, and FrostPi-local actions.
@@ -38,6 +41,16 @@ It runs your configured Pi through its native RPC mode. Pi remains responsible f
     <td><strong>Context and cost detail</strong><br><img src="https://raw.githubusercontent.com/frostime/frostpi/main/docs/assets/screenshots/context-usage.png" alt="FrostPi context usage details" width="100%"></td>
   </tr>
 </table>
+
+## Pi Session Tree and Fork
+
+FrostPi exposes Pi's session-tree workflow as graphical conversation controls:
+
+- **Branch here** restores an earlier user prompt and continues from it as another path in the same Pi session and session file.
+- **Switch branch** uses a native VS Code picker to move between existing paths, with message count, last update, ending context, and optional branch summaries.
+- **Fork** creates a separate Pi session and FrostPi session instead of another path in the current tree.
+
+Pi remains authoritative for tree navigation and context reconstruction. FrostPi provides the GUI compatibility layer and keeps Tree navigation distinct from Fork's independent-session lifecycle.
 
 ## Requirements and Setup
 

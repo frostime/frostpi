@@ -13,7 +13,9 @@ It runs your configured Pi through its native RPC mode. Pi remains responsible f
 ## Why FrostPi
 
 * **Use your existing Pi setup.** No bundled runtime or separate provider configuration.
-* **Keep Pi workflows available.** Extension commands, model selection, thinking controls, resume, fork, and parallel sessions.
+* **Navigate Pi's session tree visually.** Use **Branch here** to revise an earlier prompt and **Switch branch** to move between existing paths without leaving the current Pi session.
+* **Fork into an independent session.** Keep the original session intact while continuing selected context in a separate Pi and FrostPi session.
+* **Keep Pi workflows available.** Extension commands, model selection, thinking controls, resume, compaction, and parallel sessions.
 * **Work naturally in VS Code.** Reference selections, files, workspace paths, and images, and inspect changes in native editors.
 * **Keep the boundary simple.** FrostPi manages the interface; Pi remains responsible for execution and session storage.
 
@@ -70,6 +72,16 @@ Paste PNG, JPEG, or WebP images directly into the composer. Use `/` for Pi exten
 ### Models and sessions
 
 Run multiple independent Pi sessions, switch providers and models, resume existing sessions, and select only the thinking levels exposed by the active model's Pi metadata. Session state remains visible while work continues in the background.
+
+### Pi session tree and Fork
+
+FrostPi provides a graphical interface for Pi's session-tree workflow:
+
+- **Branch here** navigates to an earlier user prompt, restores it in the Composer, and lets you continue as another path in the same Pi session and session file.
+- **Switch branch** opens a searchable native VS Code picker for existing paths. Path rows expose message count, last update, and ending context. Leaving the current path may use no summary, Pi's default branch summary, or custom summary focus instructions.
+- **Fork** is intentionally different: it creates a separate Pi session and FrostPi session. Use it when the continuation should run and persist independently rather than become another path in the current session tree.
+
+Pi remains authoritative for the active tree leaf and reconstructed conversation context; FrostPi supplies the GUI and VS Code interaction.
 
 ### Network and diagnostics
 

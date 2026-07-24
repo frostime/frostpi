@@ -29,6 +29,10 @@ export class PiRpcApi {
     });
   }
 
+  executeExtensionCommand(commandName: string, encodedRequest: string): Promise<void> {
+    return this.connection.request({ type: "prompt", message: `/${commandName} ${encodedRequest}` }, null);
+  }
+
   steer(message: string, images?: RpcImageContent[]): Promise<void> {
     return this.connection.request({ type: "steer", message, ...(images?.length ? { images } : {}) });
   }

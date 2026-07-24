@@ -38,6 +38,48 @@ describe("Webview bridge validation", () => {
     }).success).toBe(true);
   });
 
+  it("accepts bounded session-tree actions and rejects malformed fields", () => {
+    expect(webviewToHostSchema.safeParse({
+      bridgeVersion: BRIDGE_VERSION,
+      type: "branchHere",
+      sessionId: "session-1",
+      entryId: "entry-1",
+      hasDraft: true,
+    }).success).toBe(true);
+    expect(webviewToHostSchema.safeParse({
+      bridgeVersion: BRIDGE_VERSION,
+      type: "switchBranch",
+      sessionId: "session-1",
+      branchPointId: "branch-1",
+      hasDraft: false,
+    }).success).toBe(true);
+    expect(webviewToHostSchema.safeParse({
+      bridgeVersion: BRIDGE_VERSION,
+      type: "switchBranch",
+      sessionId: "session-1",
+      branchPointId: null,
+      hasDraft: false,
+    }).success).toBe(true);
+    expect(webviewToHostSchema.safeParse({
+      bridgeVersion: BRIDGE_VERSION,
+      type: "checkPiIntegration",
+      sessionId: "session-1",
+    }).success).toBe(true);
+    expect(webviewToHostSchema.safeParse({
+      bridgeVersion: BRIDGE_VERSION,
+      type: "branchHere",
+      sessionId: "session-1",
+      entryId: "x".repeat(129),
+      hasDraft: true,
+    }).success).toBe(false);
+    expect(webviewToHostSchema.safeParse({
+      bridgeVersion: BRIDGE_VERSION,
+      type: "switchBranch",
+      sessionId: "session-1",
+      branchPointId: "branch-1",
+    }).success).toBe(false);
+  });
+
   it("accepts file locations with a line and column", () => {
     expect(webviewToHostSchema.safeParse({
       bridgeVersion: BRIDGE_VERSION,

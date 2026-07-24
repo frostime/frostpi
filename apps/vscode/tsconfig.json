@@ -28,6 +28,7 @@
   "include": [
     "src/**/*.ts",
     "src/**/*.svelte",
+    "pi-extensions/**/*.ts",
     "test/**/*.ts",
     "vite.config.ts"
   ]

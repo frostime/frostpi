@@ -30,6 +30,7 @@ Do not replace `/src/protocol/JsonlDecoder.ts` with `node:readline`; it does not
 - `success: true` means the command was accepted. Agent completion remains event-driven.
 - request timeout removes the pending entry before rejecting. A caller may explicitly disable the deadline for an interactive command; process stop/failure still rejects it.
 - typed API helpers expose Pi's documented `get_entries` and `fork(entryId)` envelopes unchanged; `fork` disables the ordinary request deadline because an upstream hook may wait for Extension UI. Session collection, cancellation by process restart, and replacement policy remain outside this package.
+- `executeExtensionCommand()` sends a registered Pi extension command through `prompt` with no request deadline. Extension UI and branch-summary generation may remain pending until user or provider completion; process stop/failure still rejects the request.
 
 ## Process lifecycle
 

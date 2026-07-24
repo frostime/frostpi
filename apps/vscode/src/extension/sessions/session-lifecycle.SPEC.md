@@ -5,7 +5,7 @@ scope:
   - /apps/vscode/src/extension/sessions/**
   - /apps/vscode/src/extension/conversation/**
   - /apps/vscode/src/extension/extension-ui/**
-updated: 2026-07-21
+updated: 2026-07-24
 ---
 
 # Pi Session Lifecycle
@@ -47,6 +47,14 @@ The selected user message is excluded from the copied Pi path. Pi's returned tex
 Fork waits for `session_before_fork` interaction without the ordinary RPC request timeout. The Composer exposes explicit Cancel Fork; cancellation stops the child and restarts the original session so a late Pi commit cannot change the recovered process. Preflight failure or Pi cancellation changes no logical session or draft. If Pi commits but naming/state/history reconciliation fails, FrostPi stops the fork process, removes the unfinished temporary fork, and restarts the original. FrostPi leaves any Pi JSONL already created on disk.
 
 Forks are named `Fork: <source title>` (`Fork session` when no title exists) and remain temporary until their first accepted prompt or an explicit user rename. The automatic fork name and `/compact` do not commit the temporary session.
+
+## Session-tree navigation
+
+Tree navigation is an in-place mutation of the selected runtime, Pi session id, and Pi JSONL file. FrostPi injects its packaged `dist/pi-extensions/session-tree.js` by absolute `-e` path; the private command delegates leaf mutation and context reconstruction to Pi's `ctx.navigateTree()`. Runtime capability is discovered from `get_commands.sourceInfo.path`, including collision-suffixed command names, and bundled commands are removed from Composer completion.
+
+Before navigation, Runtime refetches complete entries, revalidates the target, and validates any editable text/image seed. Registry owns native target, summary, custom-focus, and draft-replacement interaction. Runtime retains only a content-free tree index for branch controls; complete entries are operation-local.
+
+Pi cancellation and failure before the private result confirms a commit preserve the displayed history and Composer. Once commit is confirmed, Pi is authoritative. FrostPi rebuilds state, messages, entries, stats, controls, and an optional same-session Composer seed without replacing runtime identity. A later hydrate failure leaves the navigation committed, marks history failed for retry, and never reverse-navigates automatically.
 
 ## Persistence
 

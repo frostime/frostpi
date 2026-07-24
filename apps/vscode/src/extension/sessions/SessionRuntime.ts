@@ -25,6 +25,15 @@ import { commandName, normalizePiSlashPrompt } from "./normalizePiSlashPrompt.js
 import { configuredPiInvocation } from "../pi-runtime/resolvePiExecutable.js";
 import { buildPiProcessEnvironment, proxyFingerprint, proxyModeLabel } from "../network/buildPiProcessEnvironment.js";
 import type { ProxySecretStore } from "../network/ProxySecretStore.js";
+import { SessionTreeExtensionBridge, type SessionTreeSummaryOptions } from "../session-tree/SessionTreeExtensionBridge.js";
+import {
+  buildSessionTreeIndex,
+  compactSessionTreeEntries,
+  projectBranchEndChoices,
+  projectBranchPointControls,
+  projectEditableTarget,
+  type BranchEndChoiceProjection,
+} from "../session-tree/sessionTreeProjection.js";
 
 export interface SessionRuntimeHooks {
   onChange(runtime: SessionRuntime): void;
@@ -51,6 +60,7 @@ export class SessionRuntime {
   #historyEventBuffer: RpcEvent[] | null = null;
   #entriesCursor: string | null = null;
   #entriesLeafId: string | null = null;
+  readonly #treeEntriesById = new Map<string, Awaited<ReturnType<PiRpcApi["getEntries"]>>["entries"][number]>();
   #entryTrackingReady = false;
   #disposed = false;
   #lifecycleVersion = 0;
@@ -58,6 +68,7 @@ export class SessionRuntime {
   #liveStatsRefreshVersion = 0;
   #appliedProxyFingerprint: string | null = null;
   #proxyRestartForced = false;
+  readonly #sessionTreeBridge: SessionTreeExtensionBridge | null;
 
   constructor(
     id: string,
@@ -68,6 +79,7 @@ export class SessionRuntime {
     proxySecrets: ProxySecretStore,
     logger: DiagnosticLogger,
     hooks: SessionRuntimeHooks,
+    sessionTreeArtifactPath?: string,
   ) {
     this.#id = id;
     const initialConfiguration = configurationProvider();
@@ -79,6 +91,7 @@ export class SessionRuntime {
     this.#proxySecrets = proxySecrets;
     this.#logger = logger;
     this.#hooks = hooks;
+    this.#sessionTreeBridge = sessionTreeArtifactPath ? new SessionTreeExtensionBridge(sessionTreeArtifactPath) : null;
   }
 
   get id(): string {
@@ -124,12 +137,14 @@ export class SessionRuntime {
     this.#notifyChange();
     await this.#extensionUi?.cancelAll();
     await this.#connection?.stop();
+    await this.#sessionTreeBridge?.dispose();
     this.#connection = null;
     this.#api = null;
     this.#extensionUi = null;
     this.#historyEventBuffer = null;
     this.#entriesCursor = null;
     this.#entriesLeafId = null;
+    this.#treeEntriesById.clear();
     this.#entryTrackingReady = false;
     this.#appliedProxyFingerprint = null;
     this.#proxyRestartForced = false;
@@ -210,6 +225,63 @@ export class SessionRuntime {
     this.#notifyChange();
   }
 
+  async listBranchEnds(branchPointId: string | null): Promise<BranchEndChoiceProjection[]> {
+    if (!this.#sessionTreeBridge?.available) throw new Error("Session tree navigation is unavailable in this Pi process. Update Pi, restart the session, and check FrostPi diagnostics.");
+    if (this.view.historyStatus !== "loaded") throw new Error("Load conversation history before switching branches.");
+    const entryData = await this.#requireApi().getEntries();
+    return projectBranchEndChoices(buildSessionTreeIndex(entryData.entries, entryData.leafId), branchPointId);
+  }
+
+  async navigateTree(targetId: string, summary: SessionTreeSummaryOptions): Promise<{ cancelled: boolean; seed?: ComposerSeedView }> {
+    if (!this.#sessionTreeBridge?.available) throw new Error("Session tree navigation is unavailable in this Pi process. Update Pi, restart the session, and check FrostPi diagnostics.");
+    if (this.view.status !== "ready" || this.view.isStreaming || this.view.isCompacting) throw new Error("Wait for the current Pi operation to finish before switching branches.");
+    if (this.view.historyStatus !== "loaded") throw new Error("Load conversation history before switching branches.");
+    if (this.view.pendingExtensionUi.length > 0 || this.view.queuedFollowUps.length > 0) throw new Error("Wait for the current Pi interaction to finish before switching branches.");
+
+    const api = this.#requireApi();
+    const beforeNavigation = await api.getEntries();
+    const target = beforeNavigation.entries.find((entry) => entry.id === targetId);
+    if (!target) throw new Error("The selected session-tree entry is no longer available.");
+    const projected = projectEditableTarget(target);
+    const seed = projected ? {
+      id: `tree-${targetId}`,
+      text: projected.text,
+      images: validateProjectedImageAttachments(projected.images, this.view.attachmentLimits.maxImages, this.#configurationProvider().maxImageBytes),
+    } : undefined;
+
+    let committed = false;
+    this.#projection.setNavigatingTree(true, summary.summarize);
+    this.#notifyChange();
+    try {
+      const result = await this.#sessionTreeBridge.navigate(api, targetId, summary);
+      if (result.status === "cancelled") return { cancelled: true };
+      committed = true;
+      const entryData = await api.getEntries();
+      const [state, messages, stats] = await Promise.all([
+        api.getState(),
+        api.getMessages(),
+        api.getSessionStats().catch(() => undefined),
+      ]);
+      this.#entriesCursor = lastEntryId(entryData.entries);
+      this.#entriesLeafId = entryData.leafId;
+      this.#entryTrackingReady = true;
+      this.#projection.applyState(state);
+      this.#projection.hydrateMessages(messages, activeUserEntryReferences(entryData.entries, entryData.leafId));
+      if (stats) this.#projection.setStats(stats);
+      this.#applyTreeEntries(entryData.entries, entryData.leafId);
+      return seed ? { cancelled: false, seed } : { cancelled: false };
+    } catch (error) {
+      if (committed) {
+        this.#projection.setHistoryStatus("failed");
+        this.#projection.appendNotice(`Unable to reload the committed session branch: ${errorMessage(error)}`, "error");
+      }
+      throw error;
+    } finally {
+      this.#projection.setNavigatingTree(false);
+      this.#notifyChange();
+    }
+  }
+
   async executeFork(entryId: string): Promise<ForkExecutionResult> {
     if (this.view.status !== "ready" || this.view.isStreaming || this.view.isCompacting) {
       throw new Error("Wait for the current Pi operation to finish before forking.");
@@ -263,7 +335,7 @@ export class SessionRuntime {
     this.#entryTrackingReady = true;
     this.#projection.hydrateMessages(messages, activeUserEntryReferences(entryData.entries, entryData.leafId));
     if (stats) this.#projection.setStats(stats);
-    if (commands) this.#projection.setCommands(commands);
+    if (commands) this.#projection.setCommands(this.#sessionTreeBridge?.discover(commands) ?? commands);
     this.#projection.setComposerSeed(composerSeed);
     this.#projection.setForking(false);
     this.#notifyChange();
@@ -274,6 +346,11 @@ export class SessionRuntime {
     // Registry rekeys its maps around this call; emitting midway would expose mismatched identities.
     this.#id = id;
     this.#projection.rebindSessionId(id);
+  }
+
+  setComposerSeed(seed: ComposerSeedView): void {
+    this.#projection.setComposerSeed(seed);
+    this.#notifyChange();
   }
 
   clearComposerSeed(): void {
@@ -316,8 +393,22 @@ export class SessionRuntime {
 
   async refreshCommands(): Promise<void> {
     const commands = await this.#requireApi().getCommands();
-    this.#projection.setCommands(commands);
+    this.#projection.setCommands(this.#sessionTreeBridge?.discover(commands) ?? commands);
     this.#notifyChange();
+  }
+
+  async probePiIntegration(): Promise<{ available: boolean; commandName: string | null }> {
+    const commands = await this.#requireApi().getCommands();
+    this.#projection.setCommands(this.#sessionTreeBridge?.discover(commands) ?? commands);
+    this.#projection.setSessionTreeState(
+      this.#sessionTreeBridge?.available ?? false,
+      this.view.branchControls,
+    );
+    this.#notifyChange();
+    return {
+      available: this.#sessionTreeBridge?.available ?? false,
+      commandName: this.#sessionTreeBridge?.commandName ?? null,
+    };
   }
 
   markHistoryWaiting(): void {
@@ -400,9 +491,11 @@ export class SessionRuntime {
 
     const configuration = this.#configurationProvider();
     const invocation = configuredPiInvocation(configuration.piExecutable);
+    await this.#sessionTreeBridge?.prepare();
     const args = [
       ...configuration.piArguments,
       ...(sessionFile ? ["--session", sessionFile] : []),
+      ...(this.#sessionTreeBridge?.launchArguments() ?? []),
     ];
     const vscodeProxy = readVsCodeProxy(this.cwd);
     const credentials = await this.#proxySecrets.get();
@@ -411,7 +504,7 @@ export class SessionRuntime {
     const connection = new PiRpcConnection({
       cwd: this.cwd,
       args,
-      env: proxyEnvironment.env,
+      env: { ...proxyEnvironment.env, ...(this.#sessionTreeBridge?.launchEnvironment() ?? {}) },
       ...invocation,
       requestTimeoutMs: 30_000,
       startupTimeoutMs: 45_000,
@@ -489,8 +582,13 @@ export class SessionRuntime {
     ]);
     if (this.#disposed || api !== this.#api) return;
     this.#projection.setModels(models);
-    this.#projection.setCommands(commands);
+    this.#projection.setCommands(this.#sessionTreeBridge?.discover(commands) ?? commands);
     if (stats) this.#projection.setStats(stats);
+    if (this.#sessionTreeBridge) {
+      await this.#refreshTreeProjection(api).catch((error: unknown) => {
+        this.#logger.error("Failed to load session tree", error);
+      });
+    }
     this.#notifyChange();
   }
 
@@ -521,6 +619,7 @@ export class SessionRuntime {
         messages,
         activeUserEntryReferences(entryData.entries, entryData.leafId),
       );
+      this.#applyTreeEntries(entryData.entries, entryData.leafId);
       for (const event of bufferedEvents) this.#applyConnectionEvent(event);
       this.#notifyChange();
     } catch (error) {
@@ -605,7 +704,7 @@ export class SessionRuntime {
     ]);
     if (state) this.#projection.applyState(state);
     if (stats) this.#projection.setStats(stats);
-    if (commands) this.#projection.setCommands(commands);
+    if (commands) this.#projection.setCommands(this.#sessionTreeBridge?.discover(commands) ?? commands);
     if (entryData) {
       await this.#reconcileIncrementalEntries(api, entryData.entries, entryData.leafId).catch((error) => {
         this.#logger.error("Failed to reconcile Pi session entries", error);
@@ -623,6 +722,7 @@ export class SessionRuntime {
       this.#entriesCursor = lastEntryId(entries) ?? this.#entriesCursor;
       this.#entriesLeafId = leafId;
       this.#projection.attachUserEntryReferences(userEntryReferences(entries));
+      this.#applyTreeEntries(entries, leafId, false);
       return;
     }
 
@@ -631,6 +731,27 @@ export class SessionRuntime {
     this.#entriesCursor = lastEntryId(entryData.entries);
     this.#entriesLeafId = entryData.leafId;
     this.#projection.hydrateMessages(messages, activeUserEntryReferences(entryData.entries, entryData.leafId));
+    this.#applyTreeEntries(entryData.entries, entryData.leafId);
+  }
+
+  #applyTreeEntries(
+    entries: Awaited<ReturnType<PiRpcApi["getEntries"]>>["entries"],
+    leafId: string | null,
+    replace = true,
+  ): void {
+    if (replace) this.#treeEntriesById.clear();
+    for (const entry of compactSessionTreeEntries(entries)) this.#treeEntriesById.set(entry.id, entry);
+    const index = buildSessionTreeIndex([...this.#treeEntriesById.values()], leafId);
+    this.#projection.setSessionTreeState(this.#sessionTreeBridge?.available ?? false, projectBranchPointControls(index));
+  }
+
+  async #refreshTreeProjection(api: PiRpcApi): Promise<void> {
+    const entryData = await api.getEntries();
+    if (this.#disposed || api !== this.#api) return;
+    this.#entriesCursor = lastEntryId(entryData.entries);
+    this.#entriesLeafId = entryData.leafId;
+    this.#entryTrackingReady = true;
+    this.#applyTreeEntries(entryData.entries, entryData.leafId);
   }
 
   async #resolveImmediateExtensionCommand(message: string): Promise<string | undefined> {
@@ -643,9 +764,10 @@ export class SessionRuntime {
     // Name miss only: command lists load asynchronously after startup; refresh once, then classify.
     try {
       const commands = await this.#requireApi().getCommands();
-      this.#projection.setCommands(commands);
+      const visibleCommands = this.#sessionTreeBridge?.discover(commands) ?? commands;
+      this.#projection.setCommands(visibleCommands);
       this.#notifyChange();
-      const found = commands.find((command) => command.name === name);
+      const found = visibleCommands.find((command) => command.name === name);
       return found?.source === "extension" ? name : undefined;
     } catch {
       // Discovery is best-effort; Pi still receives the raw slash text.

@@ -7,7 +7,8 @@ import { insertDraftText, setDraftText } from "../state/composerDraftStore.svelt
 import { composerFocusTick, showToast, workspaceStore } from "../state/sessionViewStore.svelte";
 import { promptSubmissionResult } from "../state/promptSubmissionStore.svelte";
 import { deliverWorkspaceFileSuggestions } from "../features/composer/fileSuggestionClient";
-import { applyForkComposerSeed, resolveForkResult } from "../features/conversation/forkMessageClient";
+import { applyComposerSeed } from "../features/composer/composerSeedClient";
+import { resolveForkResult } from "../features/conversation/forkMessageClient";
 
 export function applyHostMessage(message: HostToWebviewMessage): void {
   if (message.bridgeVersion !== BRIDGE_VERSION) {
@@ -20,7 +21,7 @@ export function applyHostMessage(message: HostToWebviewMessage): void {
       break;
     case "snapshot":
       workspaceStore.set(message.workspace);
-      applyForkComposerSeed(message.workspace.activeSession);
+      applyComposerSeed(message.workspace.activeSession);
       break;
     case "workspaceDelta": {
       let activeSession: SessionViewModel | null = null;
@@ -42,7 +43,7 @@ export function applyHostMessage(message: HostToWebviewMessage): void {
           activeSession,
         };
       });
-      applyForkComposerSeed(activeSession);
+      applyComposerSeed(activeSession);
       break;
     }
     case "insertPromptText": {

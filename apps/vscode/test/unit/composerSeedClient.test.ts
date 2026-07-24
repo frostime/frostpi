@@ -1,10 +1,10 @@
 import { get } from "svelte/store";
 import { describe, expect, it } from "vitest";
 
-import { applyForkComposerSeed } from "../../src/webview/features/conversation/forkMessageClient.js";
+import { applyComposerSeed } from "../../src/webview/features/composer/composerSeedClient.js";
 import { composerDrafts, updateDraft } from "../../src/webview/state/composerDraftStore.svelte.js";
 
-describe("message Fork Composer restoration", () => {
+describe("host-validated Composer seed", () => {
   it("applies each host-validated Composer seed once", () => {
     composerDrafts.set({ original: { text: "Unsent original", images: [] } });
     const session = {
@@ -16,7 +16,7 @@ describe("message Fork Composer restoration", () => {
       },
     } as never;
 
-    expect(applyForkComposerSeed(session)).toBe(true);
+    expect(applyComposerSeed(session)).toBe(true);
     expect(get(composerDrafts).original?.text).toBe("Unsent original");
     expect(get(composerDrafts)["fork-session"]).toEqual({
       text: "Retry this",
@@ -31,7 +31,7 @@ describe("message Fork Composer restoration", () => {
     });
 
     updateDraft("fork-session", (draft) => ({ ...draft, text: "Edited" }));
-    expect(applyForkComposerSeed(session)).toBe(false);
+    expect(applyComposerSeed(session)).toBe(false);
     expect(get(composerDrafts)["fork-session"]?.text).toBe("Edited");
   });
 });

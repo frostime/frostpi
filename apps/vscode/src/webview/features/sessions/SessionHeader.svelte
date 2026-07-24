@@ -76,6 +76,7 @@
   function activeStatusLabel(): string {
     if (active.pendingExtensionUi.length > 0) return "action required";
     if (active.isForking) return "forking session";
+    if (active.isNavigatingTree) return active.isSummarizingTree ? "summarizing branch" : "switching branch";
     if (active.isCompacting) return "compacting context";
     if (active.status === "queued") return "waiting to start";
     if (active.historyStatus === "queued") return "waiting for history";
@@ -188,6 +189,10 @@
             <button type="button" onclick={() => { closeMenus(); postToHost({ type: "openProxySettings" }); }}>
               <span class="codicon codicon-globe"></span>
               <span><strong>Network & proxy</strong><small>{active.networkProxy.restartRequired ? `${active.networkProxy.pendingLabel ?? active.networkProxy.label} · restart required` : active.networkProxy.label}</small></span>
+            </button>
+            <button type="button" onclick={() => { closeMenus(); postToHost({ type: "checkPiIntegration", sessionId: active.id }); }}>
+              <span class="codicon codicon-plug"></span>
+              <span><strong>Pi integration</strong><small>Session tree adapter · {active.sessionTreeAvailable ? "Connected" : "Unavailable"}</small></span>
             </button>
             <button type="button" onclick={() => { closeMenus(); postToHost({ type: "refreshCommands", sessionId: active.id }); }}><span class="codicon codicon-refresh"></span> Refresh commands</button>
             <button type="button" onclick={() => { closeMenus(); postToHost({ type: "exportDiagnostics" }); }}><span class="codicon codicon-save"></span> Export diagnostics</button>

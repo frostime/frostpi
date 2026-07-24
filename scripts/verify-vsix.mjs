@@ -18,6 +18,7 @@ const required = [
   "extension/privacy.md",
   "extension/third_party_notices.md",
   "extension/dist/extension/extension.cjs",
+  "extension/dist/pi-extensions/session-tree.js",
   "extension/dist/webview/webview.js",
   "extension/dist/webview/webview.css",
   "extension/dist/webview/assets/codicon.ttf",
@@ -29,7 +30,9 @@ for (const entry of required) {
   if (!normalizedEntries.has(entry.toLowerCase())) throw new Error(`VSIX is missing ${entry}`);
 }
 const forbidden = entries.filter((entry) =>
-  /(^|\/)(src|test|node_modules|\.vscode-test)(\/|$)/.test(entry) || entry.endsWith(".map"),
+  /(^|\/)(src|test|node_modules|\.vscode-test)(\/|$)/.test(entry)
+  || /^extension\/pi-extensions\//.test(entry)
+  || entry.endsWith(".map"),
 );
 if (forbidden.length) throw new Error(`VSIX contains forbidden files:\n${forbidden.join("\n")}`);
 const webviewCss = zip.readAsText("extension/dist/webview/webview.css");
