@@ -6,6 +6,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-07-24
+
+### Added
+
+- Branch a conversation from any completed user message with **Branch here**, which edits and resubmits the prompt in the same Pi session and FrostPi session file.
+- Switch existing branches through a grouped VS Code QuickPick that shows current/other paths, message count, last update, and a bounded ending preview.
+- Represent branch points as centered timeline milestones in the conversation view.
+- Show Pi session-tree adapter availability in the Session actions menu; activating it performs a fresh capability probe.
+- Package the private session-tree Pi extension as `dist/pi-extensions/session-tree.js` and inject it per Runtime with an isolated token and temporary result directory.
+- Constrain Markdown inline-code file links to known text extensions so unrelated code tokens are not treated as file references.
+
+### Changed
+
+- Keep **Fork** as a distinct workflow that creates an independent FrostPi/Pi session while reusing the same composer seed extraction.
+
+### Fixed
+
+- Refresh context and session stats during active turns instead of only when a turn settles.
+
 ## [0.7.2] - 2026-07-24
 
 ### Added
