@@ -35,6 +35,6 @@ FrostPi should feel like a first-party desktop coding surface: compact, low-nois
 - Known `/command` and `@file` tokens receive subtle semantic decoration; unknown commands receive a warning underline. `@` completion lists built-in selection/current-file mentions above workspace paths. Completion rows use normal VS Code UI font sizing and never open a layout-shifting description panel.
 - Model and thinking selectors are anchored popovers, not full-width dialogs. Only the current provider opens by default; search expands matching groups. Provider state is user-controlled, supports expand/collapse all, and model rows never change height on hover.
 - Thinking options are derived from the active Pi model metadata and use the same typography scale as model controls.
-- Context usage exposes a compact percentage and an accessible hover/focus detail card. The card stays narrow (about 230px), uses compact token counts, and short message labels (`18u · 114a`).
+- Context usage exposes a compact percentage and an accessible hover/focus detail card. The card stays narrow (about 230px), uses compact token counts, and short message labels (`18u · 114a`). While Pi is running, FrostPi refreshes available session statistics every few seconds and performs a final refresh after `agent_settled`; fields still follow the update precision exposed by Pi's `get_session_stats` response.
 
 Use semantic FrostPi CSS variables mapped from VS Code variables. Avoid large shadows, gradients, pill-heavy layouts, and fixed widths that cause horizontal scrolling at 280–430px.

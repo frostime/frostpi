@@ -54,6 +54,8 @@ export class SessionRuntime {
   #entryTrackingReady = false;
   #disposed = false;
   #lifecycleVersion = 0;
+  #liveStatsRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  #liveStatsRefreshVersion = 0;
   #appliedProxyFingerprint: string | null = null;
   #proxyRestartForced = false;
 
@@ -118,6 +120,7 @@ export class SessionRuntime {
   async stop(): Promise<void> {
     this.#lifecycleVersion += 1;
     this.#projection.setStatus("stopping");
+    this.#stopLiveStatsRefresh();
     this.#notifyChange();
     await this.#extensionUi?.cancelAll();
     await this.#connection?.stop();
@@ -440,6 +443,7 @@ export class SessionRuntime {
     });
     connection.onFailure((error) => {
       this.#logger.error(`Session ${this.id} failed`, error);
+      this.#stopLiveStatsRefresh();
       this.#projection.clearQueuedFollowUps();
       this.#projection.setStatus("failed", errorMessage(error));
       this.#notifyChange();
@@ -540,7 +544,11 @@ export class SessionRuntime {
   #applyConnectionEvent(event: RpcEvent): void {
     if (isExtensionUiRequest(event)) this.#extensionUi?.handle(event);
     else this.#projection.applyEvent(event);
-    if (event.type === "agent_settled") void this.#refreshAfterSettled();
+    if (event.type === "agent_start") this.#startLiveStatsRefresh();
+    if (event.type === "agent_settled") {
+      this.#stopLiveStatsRefresh();
+      void this.#refreshAfterSettled();
+    }
     if (event.type === "compaction_end") void this.#refreshAfterCompaction();
   }
 
@@ -551,6 +559,37 @@ export class SessionRuntime {
     if (this.#disposed || api !== this.#api) return;
     if (stats) this.#projection.setStats(stats);
     this.#notifyChange();
+  }
+
+  #startLiveStatsRefresh(): void {
+    if (this.#liveStatsRefreshTimer) return;
+    this.#scheduleLiveStatsRefresh();
+  }
+
+  #stopLiveStatsRefresh(): void {
+    this.#liveStatsRefreshVersion += 1;
+    if (this.#liveStatsRefreshTimer) clearTimeout(this.#liveStatsRefreshTimer);
+    this.#liveStatsRefreshTimer = null;
+  }
+
+  #scheduleLiveStatsRefresh(): void {
+    const version = this.#liveStatsRefreshVersion;
+    this.#liveStatsRefreshTimer = setTimeout(() => {
+      this.#liveStatsRefreshTimer = null;
+      void this.#refreshLiveStats(version);
+    }, LIVE_STATS_REFRESH_INTERVAL_MS);
+  }
+
+  async #refreshLiveStats(version: number): Promise<void> {
+    const api = this.#api;
+    if (!api || this.#disposed || version !== this.#liveStatsRefreshVersion || !this.view.isStreaming) return;
+    const stats = await api.getSessionStats().catch(() => undefined);
+    if (this.#disposed || api !== this.#api || version !== this.#liveStatsRefreshVersion || !this.view.isStreaming) return;
+    if (stats) {
+      this.#projection.setStats(stats);
+      this.#notifyChange();
+    }
+    this.#scheduleLiveStatsRefresh();
   }
 
   async #refreshAfterSettled(): Promise<void> {
@@ -687,6 +726,7 @@ export class SessionRuntime {
 }
 
 const MAX_AUTO_HISTORY_LOAD_BYTES = 8 * 1024 * 1024;
+const LIVE_STATS_REFRESH_INTERVAL_MS = 3_000;
 /** Short multi-delay idle checks after extension commands (aligned with pi-acp). */
 const EXTENSION_COMMAND_IDLE_CHECK_DELAYS_MS = [0, 25, 75] as const;
 const IMMEDIATE_EXTENSION_UI_METHODS = new Set(["select", "confirm", "input", "editor"]);
