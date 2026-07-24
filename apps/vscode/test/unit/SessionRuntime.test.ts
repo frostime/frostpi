@@ -359,6 +359,79 @@ process.on("SIGTERM", () => process.exit(0));
     await runtime.abort();
     expect(runtime.view.queuedFollowUps).toEqual([]);
   });
+
+  it("refreshes session stats during a long running turn", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "frostpi-runtime-live-stats-"));
+    const fakePi = join(dir, "fake-pi.cjs");
+    await writeFile(fakePi, String.raw`#!/usr/bin/env node
+let input = "";
+let statsRequests = 0;
+process.stdin.setEncoding("utf8");
+process.stdin.on("data", chunk => {
+  input += chunk;
+  while (input.includes("\n")) {
+    const index = input.indexOf("\n");
+    const command = JSON.parse(input.slice(0, index));
+    input = input.slice(index + 1);
+    const base = { type: "response", id: command.id, success: true };
+    if (command.type === "get_state") {
+      base.data = { model: { provider: "fake", id: "fake-model", contextWindow: 10000 }, thinkingLevel: "off", isStreaming: false, isCompacting: false, pendingMessageCount: 0, sessionId: "live-stats" };
+    } else if (command.type === "get_commands") base.data = { commands: [] };
+    else if (command.type === "get_available_models") base.data = { models: [] };
+    else if (command.type === "get_session_stats") {
+      statsRequests += 1;
+      base.data = {
+        sessionId: "live-stats",
+        userMessages: 1,
+        assistantMessages: 0,
+        toolCalls: 0,
+        toolResults: 0,
+        totalMessages: 1,
+        tokens: { input: statsRequests, output: 0, cacheRead: 0, cacheWrite: 0, total: statsRequests },
+        cost: 0,
+        contextUsage: { tokens: statsRequests * 100, contextWindow: 10000, percent: statsRequests },
+      };
+    } else if (command.type === "prompt") {
+      process.stdout.write(JSON.stringify(base) + "\n");
+      process.stdout.write(JSON.stringify({ type: "agent_start" }) + "\n");
+      continue;
+    }
+    process.stdout.write(JSON.stringify(base) + "\n");
+  }
+});
+process.on("SIGTERM", () => process.exit(0));
+`);
+
+    const configuration = {
+      piExecutable: fakePi,
+      piArguments: [],
+      startSessionOnOpen: true,
+      streamingBehavior: "followUp" as const,
+      collapseTurnTrace: true,
+      maxImageBytes: 10 * 1024 * 1024,
+      diagnosticsLevel: "info" as const,
+      proxy: { mode: "inherit" as const },
+      fileMentionRespectSearchExclude: true,
+      fileMentionRespectIgnoreFiles: true,
+      fileMentionFollowSymlinks: true,
+    };
+    const secrets = new ProxySecretStore({ get: () => Promise.resolve(undefined) } as never);
+    const logger = { error: vi.fn(), info: vi.fn() };
+    const runtime = new SessionRuntime("session", dir, "Live stats", Date.now(), () => configuration, secrets, logger as never, {
+      onChange: vi.fn(),
+      onEditorText: vi.fn(),
+    });
+    runtimes.push(runtime);
+
+    await runtime.start();
+    await waitFor(() => runtime.view.stats?.contextUsage?.tokens === 100);
+
+    await runtime.sendPrompt("long turn", []);
+    await waitFor(() => runtime.view.isStreaming);
+
+    await waitFor(() => (runtime.view.stats?.contextUsage?.tokens ?? 0) > 100, 4_500);
+    expect(runtime.view.stats?.contextUsage?.tokens).toBeGreaterThan(100);
+  });
 });
 
 async function waitFor(predicate: () => boolean, timeoutMs = 1_000): Promise<void> {
