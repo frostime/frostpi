@@ -110,6 +110,11 @@ SPEC: `{{shared}}/bridge/webview-bridge.SPEC`
 | `{{web}}/composer/frostPiCommands` | merges FrostPi-local commands into Pi's command list |
 | `{{ext}}/workspace-files/WorkspaceFileSearch` | fd-based file search with exclude rules, ignore files, symlinks |
 | `{{ext}}/editor-context/ComposerExternalEditor` | `/editor`: temp .md in VS Code, reads back on tab close |
+| `{{ext}}/editor-context/captureActiveFile` | captures active editor path/line for `@file` context |
+| `{{ext}}/editor-context/captureSelection` | captures editor selection for `@selection` mention |
+| `{{ext}}/editor-context/editorMentionSpecials` | special mention targets: `selection`, `file` |
+| `{{ext}}/editor-context/formatFileMention` | formats path → `@path:L` mention string |
+| `{{ext}}/attachments/normalizeImageAttachment` | normalizes pasted/dropped images (dimensions, format, size) |
 
 SPEC: `{{web}}/composer/composer.SPEC`, `{{ext}}/workspace-files/file-mentions.SPEC`
 
@@ -139,6 +144,7 @@ SPEC: `{{web}}/composer/composer.SPEC`, `{{ext}}/workspace-files/file-mentions.S
 | `{{web}}/conversation/collapseTurnTrace` | collapse policy for completed turns |
 | `{{web}}/conversation/forkMessageClient` | fork request → result correlation |
 | `{{web}}/conversation/copyMessageClient` | copy message text via host clipboard |
+| `{{ext}}/editor-context/openReferencedLocation` | jump to file:line when clicking file refs in conversation |
 
 SPEC: `{{web}}/conversation/markdown/markdown.SPEC`
 
@@ -199,6 +205,14 @@ SPEC: `{{ext}}/extension-ui/extension-ui.SPEC`
 | `{{ext}}/diagnostics/DiagnosticLogger` | structured logger; `redactDiagnosticText()` |
 | `{{ext}}/diagnostics/exportDiagnostics` | write diagnostics to temp file, open in editor |
 | `{{rpc}}/process/processDiagnostics` | `BoundedTextBuffer` for Pi stderr (64KB ring) |
+
+---
+
+## File Changes (Diff)
+
+| File | Role |
+|------|------|
+| `{{ext}}/file-changes/GitBaseContentProvider` | `frostpi-git-base://` URI scheme; `git show HEAD:path` → diff against working tree |
 
 ---
 
