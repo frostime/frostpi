@@ -10,6 +10,10 @@ updated: 2026-07-16
 
 FrostPi is a VS Code workspace extension and a direct Pi RPC client. Its durable design constraint is that UI concerns, VS Code integration, and Pi protocol semantics remain separate even though they ship in one VSIX.
 
+## Quick reference
+
+- [`feature-map.md`](feature-map.md) — feature → code index. Start here when you know what to change but not where.
+
 ## Reading order
 
 1. [`architecture/overview.md`](architecture/overview.md) — process topology and module ownership.

@@ -15,6 +15,10 @@ During unit testing in code development, prioritize local testing to avoid the i
 
 For commands where only the result matters, print only the tail or even just the exit code, and redirect stdout to a temporary file.
 
+## Navigation
+
+- When you know **what** feature to change but not **where**: start with [`docs/feature-map.md`](docs/feature-map.md) — feature→code index.
+
 ## Maintenance
 
 - Use [`docs/index.md`](docs/index.md) as the documentation entry point. Before changing architecture, protocol, session state, bridge behavior, or UI interaction, read the linked topic document and the nearest `*.SPEC.md`.
